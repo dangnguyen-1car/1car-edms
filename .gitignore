@@ -76,3 +76,9 @@ test-results/
 screenshots/
 *.backup
 *.bak
+
+*.db-wal
+*.db-shm
+# Bạn cũng có thể cân nhắc thêm cả file database chính nếu nó chỉ dùng cho local development
+# và không nên được đưa lên repository (ví dụ: chứa dữ liệu test lớn, nhạy cảm)
+# *.db
