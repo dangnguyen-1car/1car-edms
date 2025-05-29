@@ -1,141 +1,102 @@
--- =================================================================
--- EDMS 1CAR Database Schema
--- Electronic Document Management System for 1CAR
--- Supporting 40 users with simplified workflow
--- Based on C-PR-VM-001, C-TD-VM-001, C-PR-AR-001 requirements
--- =================================================================
+-- database/schema.sql - Updated complete schema
+-- 1CAR - EDMS Database Schema
+-- SQLite database for 40 users, 14 departments, 7 document types
+-- Compliant with IATF 16949 and internal standards
 
 -- Enable foreign key constraints
 PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
 
--- =================================================================
--- USERS TABLE
--- Manages user authentication and basic profile information
--- Supports Admin/User roles (simplified from R,C,I,P levels)
--- =================================================================
+-- Schema migrations tracking table
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version TEXT PRIMARY KEY,
+    description TEXT,
+    executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
-CREATE TABLE IF NOT EXISTS users (
+-- Users table - Based on C-FM-MG-004 role matrix
+CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
     name TEXT NOT NULL,
     department TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
-    password_hash TEXT NOT NULL,
-    is_active BOOLEAN DEFAULT 1,
+    role TEXT NOT NULL DEFAULT 'user',
+    position TEXT,
+    phone TEXT,
+    is_active INTEGER DEFAULT 1,
     last_login DATETIME,
+    password_changed_at DATETIME,
+    failed_login_attempts INTEGER DEFAULT 0,
+    locked_until DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,
-    
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    CHECK (role IN ('admin', 'user')),
+    CHECK (department IN (
+        'Ban Giám đốc',
+        'Phòng Phát triển Nhượng quyền',
+        'Phòng Đào tạo Tiêu chuẩn',
+        'Phòng Marketing',
+        'Phòng Kỹ thuật QC',
+        'Phòng Tài chính',
+        'Phòng Công nghệ Hệ thống',
+        'Phòng Pháp lý',
+        'Bộ phận Tiếp nhận CSKH',
+        'Bộ phận Kỹ thuật Garage',
+        'Bộ phận QC Garage',
+        'Bộ phận Kho/Kế toán Garage',
+        'Bộ phận Marketing Garage',
+        'Quản lý Garage'
+    )),
+    CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 10)
 );
 
--- Index for performance
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_department ON users(department);
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-
--- =================================================================
--- DOCUMENTS TABLE
--- Core document management with metadata
--- Based on C-TD-VM-001 metadata requirements
--- Supports 7 document types: PL, PR, WI, FM, TD, TR, RC
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS documents (
+-- Documents table - Based on C-PR-VM-001, C-TD-VM-001
+CREATE TABLE documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
-    document_code TEXT UNIQUE, -- Format: X-YY-ZZ-AAA-BBB based on C-TD-MG-005
-    type TEXT NOT NULL CHECK (type IN ('PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC')),
-    department TEXT NOT NULL,
-    version TEXT NOT NULL DEFAULT '1.0', -- Format: X.Y based on C-PR-VM-001
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'archived')),
     description TEXT,
-    file_path TEXT,
-    file_name TEXT,
-    file_size INTEGER,
-    file_type TEXT,
-    mime_type TEXT,
-    
-    -- Metadata fields based on C-TD-VM-001
+    type TEXT NOT NULL,
+    department TEXT NOT NULL,
+    status TEXT DEFAULT 'draft',
+    version TEXT DEFAULT '01.00',
+    priority TEXT DEFAULT 'normal',
+    security_level TEXT DEFAULT 'internal',
     author_id INTEGER NOT NULL,
     reviewer_id INTEGER,
     approver_id INTEGER,
-    
-    -- Version control fields
+    file_path TEXT,
+    file_name TEXT,
+    file_size INTEGER,
+    mime_type TEXT,
+    scope_of_application TEXT,
+    recipients TEXT, -- JSON array of departments
+    review_cycle INTEGER, -- days
+    retention_period INTEGER, -- days
+    next_review_date DATE,
+    disposal_date DATE,
     change_reason TEXT,
     change_summary TEXT,
-    status_before TEXT,
-    status_after TEXT,
-    
-    -- Lifecycle management based on C-PR-AR-001
-    review_cycle INTEGER DEFAULT 365, -- days
-    next_review_date DATE,
-    retention_period INTEGER DEFAULT 2555, -- days (7 years)
-    disposal_date DATE,
-    
-    -- Scope and distribution
-    scope_of_application TEXT,
-    recipients TEXT, -- JSON array of recipient departments/roles
-    
-    -- Timestamps
+    keywords TEXT, -- Comma-separated for search
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     published_at DATETIME,
     archived_at DATETIME,
-    
-    -- Foreign keys
     FOREIGN KEY (author_id) REFERENCES users(id),
     FOREIGN KEY (reviewer_id) REFERENCES users(id),
-    FOREIGN KEY (approver_id) REFERENCES users(id)
+    FOREIGN KEY (approver_id) REFERENCES users(id),
+    CHECK (type IN ('PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC')),
+    CHECK (status IN ('draft', 'review', 'published', 'archived', 'disposed')),
+    CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    CHECK (security_level IN ('public', 'internal', 'confidential', 'restricted'))
 );
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(type);
-CREATE INDEX IF NOT EXISTS idx_documents_department ON documents(department);
-CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
-CREATE INDEX IF NOT EXISTS idx_documents_version ON documents(version);
-CREATE INDEX IF NOT EXISTS idx_documents_author ON documents(author_id);
-CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at);
-CREATE INDEX IF NOT EXISTS idx_documents_code ON documents(document_code);
-
--- Full-text search index
-CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
-    title,
-    description,
-    document_code,
-    content='documents',
-    content_rowid='id'
-);
-
--- Triggers to maintain FTS index
-CREATE TRIGGER IF NOT EXISTS documents_fts_insert AFTER INSERT ON documents
-BEGIN
-    INSERT INTO documents_fts(rowid, title, description, document_code)
-    VALUES (new.id, new.title, new.description, new.document_code);
-END;
-
-CREATE TRIGGER IF NOT EXISTS documents_fts_update AFTER UPDATE ON documents
-BEGIN
-    UPDATE documents_fts SET 
-        title = new.title,
-        description = new.description,
-        document_code = new.document_code
-    WHERE rowid = new.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS documents_fts_delete AFTER DELETE ON documents
-BEGIN
-    DELETE FROM documents_fts WHERE rowid = old.id;
-END;
-
--- =================================================================
--- DOCUMENT_VERSIONS TABLE
--- Track version history based on C-PR-VM-001
--- Maintains complete version lineage
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS document_versions (
+-- Document versions table - Based on C-TD-VM-001
+CREATE TABLE document_versions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id INTEGER NOT NULL,
     version TEXT NOT NULL,
@@ -144,204 +105,186 @@ CREATE TABLE IF NOT EXISTS document_versions (
     file_size INTEGER,
     change_reason TEXT,
     change_summary TEXT,
+    change_type TEXT, -- major, minor, patch
+    status TEXT DEFAULT 'current',
     created_by INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id),
-    
+    CHECK (change_type IN ('major', 'minor', 'patch')),
+    CHECK (status IN ('current', 'superseded', 'archived')),
     UNIQUE(document_id, version)
 );
 
--- Index for version queries
-CREATE INDEX IF NOT EXISTS idx_versions_document ON document_versions(document_id);
-CREATE INDEX IF NOT EXISTS idx_versions_created ON document_versions(created_at);
-
--- =================================================================
--- WORKFLOW_TRANSITIONS TABLE
--- Track workflow state changes
--- Supports 3-state workflow: draft → review → published
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS workflow_transitions (
+-- Workflow transitions table - Based on C-PR-VM-001
+CREATE TABLE workflow_transitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id INTEGER NOT NULL,
     from_status TEXT,
     to_status TEXT NOT NULL,
     comment TEXT,
+    decision TEXT, -- approved, rejected, returned
     transitioned_by INTEGER NOT NULL,
     transitioned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-    FOREIGN KEY (transitioned_by) REFERENCES users(id)
-);
-
--- Index for workflow queries
-CREATE INDEX IF NOT EXISTS idx_workflow_document ON workflow_transitions(document_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_date ON workflow_transitions(transitioned_at);
-
--- =================================================================
--- AUDIT_LOGS TABLE
--- Comprehensive audit trail for compliance
--- Based on security requirements from documents
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    action TEXT NOT NULL, -- CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT
-    resource_type TEXT NOT NULL, -- document, user, system
-    resource_id INTEGER,
-    details TEXT, -- JSON string with additional details
     ip_address TEXT,
     user_agent TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (transitioned_by) REFERENCES users(id),
+    CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
 );
 
--- Index for audit queries
-CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp);
-CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id);
+-- Audit logs table - Based on C-PR-AR-001
+CREATE TABLE audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id INTEGER,
+    details TEXT, -- JSON object with additional details
+    ip_address TEXT,
+    user_agent TEXT,
+    session_id TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    CHECK (action IN (
+        'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
+        'ACCOUNT_LOCKED', 'ACCOUNT_UNLOCKED', 'USER_CREATED', 'USER_UPDATED', 
+        'USER_ACTIVATED', 'USER_DEACTIVATED', 'USER_DELETED', 'USER_VIEWED', 'USERS_LISTED',
+        'DOCUMENT_CREATED', 'DOCUMENT_UPDATED', 'DOCUMENT_DELETED', 'DOCUMENT_VIEWED',
+        'DOCUMENT_DOWNLOADED', 'DOCUMENT_UPLOADED', 'DOCUMENT_SEARCHED', 'DOCUMENT_APPROVED',
+        'DOCUMENT_REJECTED', 'DOCUMENT_PUBLISHED', 'DOCUMENT_ARCHIVED', 'VERSION_CREATED',
+        'VERSION_COMPARED', 'VERSION_RESTORED', 'WORKFLOW_TRANSITION', 'WORKFLOW_APPROVED',
+        'WORKFLOW_REJECTED', 'WORKFLOW_RETURNED', 'FILE_UPLOADED', 'FILE_DOWNLOADED',
+        'FILE_DELETED', 'FILE_ATTACHED', 'PERMISSION_GRANTED', 'PERMISSION_REVOKED',
+        'PERMISSION_CHECKED', 'SYSTEM_BACKUP', 'SYSTEM_RESTORE', 'SYSTEM_MAINTENANCE',
+        'SYSTEM_ERROR', 'SYSTEM_STARTUP', 'SYSTEM_SHUTDOWN'
+    )),
+    CHECK (resource_type IN ('user', 'document', 'version', 'file', 'workflow', 'permission', 'system'))
+);
 
--- =================================================================
--- DOCUMENT_PERMISSIONS TABLE
--- Department-based access control
--- Simplified from 4-level security (R,C,I,P) to department-based
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS document_permissions (
+-- Document permissions table - Based on C-PL-MG-005
+CREATE TABLE document_permissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id INTEGER NOT NULL,
-    department TEXT NOT NULL,
-    permission_level TEXT NOT NULL CHECK (permission_level IN ('read', 'write', 'admin')),
+    user_id INTEGER,
+    department TEXT,
+    permission_type TEXT NOT NULL,
     granted_by INTEGER NOT NULL,
     granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
+    expires_at DATETIME,
+    is_active INTEGER DEFAULT 1,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (granted_by) REFERENCES users(id),
-    
-    UNIQUE(document_id, department)
+    CHECK (permission_type IN ('read', 'write', 'approve', 'admin')),
+    CHECK ((user_id IS NOT NULL AND department IS NULL) OR (user_id IS NULL AND department IS NOT NULL))
 );
 
--- Index for permission queries
-CREATE INDEX IF NOT EXISTS idx_permissions_document ON document_permissions(document_id);
-CREATE INDEX IF NOT EXISTS idx_permissions_department ON document_permissions(department);
-
--- =================================================================
--- SYSTEM_SETTINGS TABLE
--- Application configuration and settings
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS system_settings (
+-- File uploads table
+CREATE TABLE file_uploads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    setting_key TEXT UNIQUE NOT NULL,
-    setting_value TEXT,
-    description TEXT,
-    updated_by INTEGER,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (updated_by) REFERENCES users(id)
+    original_name TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    mime_type TEXT NOT NULL,
+    checksum TEXT, -- SHA-256 hash for integrity
+    uploaded_by INTEGER NOT NULL,
+    document_id INTEGER,
+    version_id INTEGER,
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id),
+    FOREIGN KEY (document_id) REFERENCES documents(id),
+    FOREIGN KEY (version_id) REFERENCES document_versions(id)
 );
 
--- =================================================================
--- TRIGGERS FOR AUTOMATIC UPDATES
--- =================================================================
+-- Document relationships table for related documents
+CREATE TABLE document_relationships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_document_id INTEGER NOT NULL,
+    child_document_id INTEGER NOT NULL,
+    relationship_type TEXT NOT NULL,
+    created_by INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (child_document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    CHECK (relationship_type IN ('references', 'supersedes', 'implements', 'related')),
+    UNIQUE(parent_document_id, child_document_id, relationship_type)
+);
 
--- Update timestamps automatically
-CREATE TRIGGER IF NOT EXISTS update_users_timestamp 
-AFTER UPDATE ON users
-BEGIN
-    UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-END;
+-- Create indexes for performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_department ON users(department);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_active ON users(is_active);
+CREATE INDEX idx_users_failed_attempts ON users(failed_login_attempts);
+CREATE INDEX idx_users_locked_until ON users(locked_until);
 
-CREATE TRIGGER IF NOT EXISTS update_documents_timestamp 
-AFTER UPDATE ON documents
-BEGIN
-    UPDATE documents SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-END;
+CREATE INDEX idx_documents_type ON documents(type);
+CREATE INDEX idx_documents_department ON documents(department);
+CREATE INDEX idx_documents_status ON documents(status);
+CREATE INDEX idx_documents_author ON documents(author_id);
+CREATE INDEX idx_documents_created_at ON documents(created_at);
+CREATE INDEX idx_documents_code ON documents(document_code);
+CREATE INDEX idx_documents_keywords ON documents(keywords);
 
--- Auto-generate document code if not provided
-CREATE TRIGGER IF NOT EXISTS generate_document_code
-AFTER INSERT ON documents
-WHEN NEW.document_code IS NULL
-BEGIN
-    UPDATE documents 
-    SET document_code = NEW.type || '-' || 
-                       substr('00' || NEW.id, -3) || '-' ||
-                       strftime('%Y', 'now') || '-' ||
-                       substr(NEW.department, 1, 3) || '-' ||
-                       '001'
-    WHERE id = NEW.id;
-END;
+CREATE INDEX idx_versions_document ON document_versions(document_id);
+CREATE INDEX idx_versions_created_at ON document_versions(created_at);
+CREATE INDEX idx_versions_created_by ON document_versions(created_by);
 
--- =================================================================
--- VIEWS FOR COMMON QUERIES
--- =================================================================
+CREATE INDEX idx_workflow_document ON workflow_transitions(document_id);
+CREATE INDEX idx_workflow_user ON workflow_transitions(transitioned_by);
+CREATE INDEX idx_workflow_timestamp ON workflow_transitions(transitioned_at);
 
--- Active documents with author information
-CREATE VIEW IF NOT EXISTS v_active_documents AS
+CREATE INDEX idx_audit_user ON audit_logs(user_id);
+CREATE INDEX idx_audit_action ON audit_logs(action);
+CREATE INDEX idx_audit_timestamp ON audit_logs(timestamp);
+CREATE INDEX idx_audit_resource ON audit_logs(resource_type, resource_id);
+
+CREATE INDEX idx_permissions_document ON document_permissions(document_id);
+CREATE INDEX idx_permissions_user ON document_permissions(user_id);
+CREATE INDEX idx_permissions_active ON document_permissions(is_active);
+
+-- Create views for common queries
+CREATE VIEW v_document_summary AS
 SELECT 
-    d.*,
+    d.id,
+    d.document_code,
+    d.title,
+    d.type,
+    d.department,
+    d.status,
+    d.version,
+    d.priority,
+    d.security_level,
     u.name as author_name,
     u.department as author_department,
-    r.name as reviewer_name,
-    a.name as approver_name
+    d.created_at,
+    d.updated_at,
+    d.published_at,
+    (SELECT COUNT(*) FROM document_versions dv WHERE dv.document_id = d.id) as version_count,
+    (SELECT COUNT(*) FROM workflow_transitions wt WHERE wt.document_id = d.id) as workflow_steps
 FROM documents d
-LEFT JOIN users u ON d.author_id = u.id
-LEFT JOIN users r ON d.reviewer_id = r.id
-LEFT JOIN users a ON d.approver_id = a.id
-WHERE d.status != 'archived';
+LEFT JOIN users u ON d.author_id = u.id;
 
--- Document statistics by department
-CREATE VIEW IF NOT EXISTS v_document_stats AS
+CREATE VIEW v_user_activity AS
 SELECT 
-    department,
-    type,
-    status,
-    COUNT(*) as count,
-    AVG(file_size) as avg_file_size
-FROM documents
-GROUP BY department, type, status;
+    u.id,
+    u.name,
+    u.department,
+    u.role,
+    COUNT(DISTINCT d.id) as documents_created,
+    COUNT(DISTINCT dv.id) as versions_created,
+    COUNT(DISTINCT wt.id) as workflow_actions,
+    MAX(al.timestamp) as last_activity
+FROM users u
+LEFT JOIN documents d ON u.id = d.author_id
+LEFT JOIN document_versions dv ON u.id = dv.created_by
+LEFT JOIN workflow_transitions wt ON u.id = wt.transitioned_by
+LEFT JOIN audit_logs al ON u.id = al.user_id
+GROUP BY u.id, u.name, u.department, u.role;
 
--- Recent activity view
-CREATE VIEW IF NOT EXISTS v_recent_activity AS
-SELECT 
-    'document' as activity_type,
-    d.title as description,
-    d.updated_at as activity_date,
-    u.name as user_name
-FROM documents d
-JOIN users u ON d.author_id = u.id
-WHERE d.updated_at > datetime('now', '-7 days')
-UNION ALL
-SELECT 
-    'audit' as activity_type,
-    a.action || ' - ' || a.resource_type as description,
-    a.timestamp as activity_date,
-    u.name as user_name
-FROM audit_logs a
-LEFT JOIN users u ON a.user_id = u.id
-WHERE a.timestamp > datetime('now', '-7 days')
-ORDER BY activity_date DESC;
-
--- =================================================================
--- INITIAL SYSTEM SETTINGS
--- =================================================================
-
-INSERT OR IGNORE INTO system_settings (setting_key, setting_value, description) VALUES
-('app_version', '1.0.0', 'Application version'),
-('max_file_size', '10485760', 'Maximum file size in bytes (10MB)'),
-('allowed_file_types', 'pdf,doc,docx', 'Allowed file extensions'),
-('default_retention_period', '2555', 'Default document retention period in days'),
-('auto_backup_enabled', 'true', 'Enable automatic backups'),
-('version_format', 'X.Y', 'Document version format'),
-('workflow_states', 'draft,review,published,archived', 'Available workflow states'),
-('departments', 'Ban Giám đốc,Phòng Phát triển Nhượng quyền,Phòng Đào tạo Tiêu chuẩn,Phòng Marketing,Phòng Kỹ thuật QC,Phòng Tài chính,Phòng Công nghệ Hệ thống,Phòng Pháp lý,Bộ phận Tiếp nhận CSKH,Bộ phận Kỹ thuật Garage,Bộ phận QC Garage,Bộ phận Kho/Kế toán Garage,Bộ phận Marketing Garage,Quản lý Garage', '1CAR departments'),
-('document_types', 'PL,PR,WI,FM,TD,TR,RC', 'Available document types');
-
--- =================================================================
--- END OF SCHEMA
--- =================================================================
+-- Insert initial migration record
+INSERT OR IGNORE INTO schema_migrations (version, description) 
+VALUES ('001', 'Initial schema creation with enhanced user management');

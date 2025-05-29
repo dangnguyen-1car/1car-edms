@@ -26,7 +26,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Helmet>
-        <title>EDMS 1CAR - Hệ thống Quản lý Tài liệu Điện tử</title>
+        <title>1CAR - EDMS</title>
         <meta name="description" content="Electronic Document Management System for 1CAR - 40 users capacity" />
       </Helmet>
       

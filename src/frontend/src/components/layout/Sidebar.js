@@ -1,6 +1,6 @@
 /**
  * =================================================================
- * EDMS 1CAR - Sidebar Navigation Component
+ * 1CAR EDMS - Sidebar Navigation Component
  * Navigation sidebar based on C-FM-MG-004 role permissions
  * =================================================================
  */
@@ -92,7 +92,7 @@ function Sidebar({ isOpen, onClose, user }) {
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200 pt-5 pb-4 overflow-y-auto">
           {/* Logo */}
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-bold text-gray-900">EDMS 1CAR</h1>
+            <h1 className="text-xl font-bold text-gray-900">1CAR - EDMS</h1>
           </div>
 
           {/* User info */}
