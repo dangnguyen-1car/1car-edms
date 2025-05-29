@@ -3,14 +3,18 @@
  * EDMS 1CAR - Audit Log Model (Complete Rewrite)
  * Comprehensive audit logging for compliance and security
  * Based on C-PR-AR-001 audit requirements and security policies
+ * Aligned with final schema after migration 003-align-schema-definition.sql
  * =================================================================
  */
 
 const { dbManager } = require('../config/database');
-const { logError } = require('../utils/logger');
 
 class AuditLog {
+    // =================================================================
+    // Constructor
+    // =================================================================
     constructor(auditData = {}) {
+        // Core audit fields from audit_logs table (post-migration schema)
         this.id = auditData.id || null;
         this.user_id = auditData.user_id || null;
         this.action = auditData.action || null;
@@ -19,29 +23,80 @@ class AuditLog {
         this.details = auditData.details || null;
         this.ip_address = auditData.ip_address || null;
         this.user_agent = auditData.user_agent || null;
+        this.session_id = auditData.session_id || null;
         this.timestamp = auditData.timestamp || null;
-        
-        // Additional fields from joins
+
+        // Additional fields from joins (users table)
         this.user_name = auditData.user_name || null;
         this.user_email = auditData.user_email || null;
         this.user_department = auditData.user_department || null;
     }
 
+    // =================================================================
+    // Constants
+    // =================================================================
+    /**
+     * Valid audit actions for the EDMS 1CAR system
+     * Based on C-PR-AR-001 compliance requirements
+     */
+    static get VALID_ACTIONS() {
+        return [
+            // Authentication actions
+            'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
+            'ACCOUNT_LOCKED', 'ACCOUNT_UNLOCKED',
+            
+            // User management actions
+            'USER_CREATED', 'USER_UPDATED', 'USER_ACTIVATED', 'USER_DEACTIVATED', 
+            'USER_DELETED', 'USER_VIEWED', 'USERS_LISTED',
+            
+            // Document management actions
+            'DOCUMENT_CREATED', 'DOCUMENT_UPDATED', 'DOCUMENT_DELETED', 'DOCUMENT_VIEWED',
+            'DOCUMENT_DOWNLOADED', 'DOCUMENT_UPLOADED', 'DOCUMENT_SEARCHED', 'DOCUMENT_APPROVED',
+            'DOCUMENT_REJECTED', 'DOCUMENT_PUBLISHED', 'DOCUMENT_ARCHIVED',
+            
+            // Version management actions
+            'VERSION_CREATED', 'VERSION_COMPARED', 'VERSION_RESTORED',
+            
+            // Workflow actions
+            'WORKFLOW_TRANSITION', 'WORKFLOW_APPROVED', 'WORKFLOW_REJECTED', 'WORKFLOW_RETURNED',
+            
+            // File management actions
+            'FILE_UPLOADED', 'FILE_DOWNLOADED', 'FILE_DELETED', 'FILE_ATTACHED',
+            
+            // Permission actions
+            'PERMISSION_GRANTED', 'PERMISSION_REVOKED', 'PERMISSION_CHECKED',
+            
+            // System actions
+            'SYSTEM_BACKUP', 'SYSTEM_RESTORE', 'SYSTEM_MAINTENANCE',
+            'SYSTEM_ERROR', 'SYSTEM_STARTUP', 'SYSTEM_SHUTDOWN'
+        ];
+    }
+
+    /**
+     * Valid resource types for audit logging
+     */
+    static get VALID_RESOURCE_TYPES() {
+        return ['user', 'document', 'version', 'file', 'workflow', 'permission', 'system'];
+    }
+
+    // =================================================================
+    // CRUD Operations
+    // =================================================================
     /**
      * Create audit log entry
-     * @param {Object} auditData - Audit log data
-     * @returns {Promise<AuditLog>} - Created audit log instance
+     * Uses the standardized schema with all required columns
      */
     static async create(auditData) {
         try {
             const {
-                user_id,
+                user_id = null,
                 action,
                 resource_type,
                 resource_id = null,
                 details = {},
                 ip_address = null,
-                user_agent = null
+                user_agent = null,
+                session_id = null
             } = auditData;
 
             // Validate required fields
@@ -49,105 +104,58 @@ class AuditLog {
                 throw new Error('Missing required fields: action, resource_type');
             }
 
-            // Validate and normalize action
-            const normalizedAction = this.validateAndNormalizeAction(action);
-            
-            // Validate resource type
-            const normalizedResourceType = this.validateResourceType(resource_type);
+            // Validate action - only warn if not in VALID_ACTIONS, don't throw error
+            if (!this.VALID_ACTIONS.includes(action)) {
+                console.warn(`Unknown audit action: ${action}. This action will be logged but should be added to VALID_ACTIONS.`);
+            }
 
-            // Serialize details as JSON
-            const detailsJson = typeof details === 'object' ? 
+            // Validate resource type - only warn if not in VALID_RESOURCE_TYPES, don't throw error
+            if (!this.VALID_RESOURCE_TYPES.includes(resource_type)) {
+                console.warn(`Unknown resource type: ${resource_type}. This resource type will be logged but should be added to VALID_RESOURCE_TYPES.`);
+            }
+
+            // Serialize details as JSON if it's an object
+            const root = typeof details === 'object' ? 
                 JSON.stringify(details) : details;
 
-            // Insert audit log
+            // Insert audit log using the standardized schema
             const result = await dbManager.run(`
                 INSERT INTO audit_logs (
-                    user_id, action, resource_type, resource_id, 
-                    details, ip_address, user_agent, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    user_id, action, resource_type, resource_id,
+                    details, ip_address, user_agent, session_id, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             `, [
                 user_id,
-                normalizedAction,
-                normalizedResourceType,
+                action,
+                resource_type,
                 resource_id,
                 detailsJson,
                 ip_address,
-                user_agent
+                user_agent,
+                session_id
             ]);
 
             // Get created audit log
-            const newAuditLog = await AuditLog.findById(result.lastID);
-            return newAuditLog;
+            return await this.findById(result.lastID);
+
         } catch (error) {
-            logError(error, null, { operation: 'AuditLog.create', auditData });
-            throw error;
+            console.error('Error creating audit log:', error);
+            // Don't throw error to prevent disrupting main application flow
+            // but ensure critical audit failures are logged
+            if (this.isCriticalAuditEvent(auditData.action)) {
+                console.error('CRITICAL AUDIT FAILURE:', error.message);
+            }
+            return null;
         }
-    }
-
-    /**
-     * Validate and normalize action
-     * @param {string} action - Action to validate
-     * @returns {string} - Normalized action
-     */
-    static validateAndNormalizeAction(action) {
-        if (!action || typeof action !== 'string') {
-            throw new Error('Action must be a non-empty string');
-        }
-
-        // Convert to uppercase for consistency
-        const normalizedAction = action.toUpperCase().trim();
-
-        // Basic format validation - only letters, numbers, and underscores
-        if (!/^[A-Z0-9_]+$/.test(normalizedAction)) {
-            throw new Error(`Invalid action format: ${action}. Only letters, numbers, and underscores allowed.`);
-        }
-
-        // Length validation
-        if (normalizedAction.length > 50) {
-            throw new Error('Action length cannot exceed 50 characters');
-        }
-
-        return normalizedAction;
-    }
-
-    /**
-     * Validate resource type
-     * @param {string} resourceType - Resource type to validate
-     * @returns {string} - Normalized resource type
-     */
-    static validateResourceType(resourceType) {
-        if (!resourceType || typeof resourceType !== 'string') {
-            throw new Error('Resource type must be a non-empty string');
-        }
-
-        const normalizedType = resourceType.toLowerCase().trim();
-
-        // Valid resource types for EDMS
-        const validResourceTypes = [
-            'document', 'user', 'system', 'auth', 'workflow', 
-            'permission', 'file', 'audit', 'setting', 'backup'
-        ];
-
-        if (!validResourceTypes.includes(normalizedType)) {
-            // Allow any resource type but log warning
-            logError(new Error(`Unknown resource type: ${resourceType}`), null, { 
-                operation: 'AuditLog.validateResourceType',
-                resourceType: resourceType 
-            });
-        }
-
-        return normalizedType;
     }
 
     /**
      * Find audit log by ID
-     * @param {number} id - Audit log ID
-     * @returns {Promise<AuditLog|null>} - Audit log instance or null
      */
     static async findById(id) {
         try {
             const auditData = await dbManager.get(`
-                SELECT 
+                SELECT
                     al.*,
                     u.name as user_name,
                     u.email as user_email,
@@ -156,20 +164,20 @@ class AuditLog {
                 LEFT JOIN users u ON al.user_id = u.id
                 WHERE al.id = ?
             `, [id]);
-            
+
             return auditData ? new AuditLog(auditData) : null;
+
         } catch (error) {
-            logError(error, null, { operation: 'AuditLog.findById', id });
+            console.error('Error finding audit log by ID:', error);
             throw error;
         }
     }
 
+    // =================================================================
+    // Filtering and Query Methods
+    // =================================================================
     /**
-     * Get audit logs with filters and pagination
-     * @param {Object} filters - Filter options
-     * @param {number} page - Page number
-     * @param {number} limit - Items per page
-     * @returns {Promise<Object>} - Paginated audit logs
+     * Get audit logs with comprehensive filtering and pagination
      */
     static async findAll(filters = {}, page = 1, limit = 50) {
         try {
@@ -223,6 +231,12 @@ class AuditLog {
                 params.push(filters.ip_address);
             }
 
+            // Session ID filter
+            if (filters.session_id) {
+                whereConditions.push('al.session_id = ?');
+                params.push(filters.session_id);
+            }
+
             // Search in details
             if (filters.search) {
                 whereConditions.push('(al.details LIKE ? OR al.action LIKE ?)');
@@ -230,12 +244,12 @@ class AuditLog {
                 params.push(searchTerm, searchTerm);
             }
 
-            const whereClause = whereConditions.length > 0 ? 
+            const whereClause = whereConditions.length > 0 ?
                 'WHERE ' + whereConditions.join(' AND ') : '';
 
             // Get total count
             const countResult = await dbManager.get(`
-                SELECT COUNT(*) as total 
+                SELECT COUNT(*) as total
                 FROM audit_logs al
                 LEFT JOIN users u ON al.user_id = u.id
                 ${whereClause}
@@ -244,7 +258,7 @@ class AuditLog {
             // Get paginated data
             const offset = (page - 1) * limit;
             const auditLogs = await dbManager.all(`
-                SELECT 
+                SELECT
                     al.*,
                     u.name as user_name,
                     u.email as user_email,
@@ -263,30 +277,28 @@ class AuditLog {
             return {
                 data: auditLogs.map(log => new AuditLog(log)),
                 pagination: {
-                    page,
-                    limit,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
                     total,
                     totalPages,
                     hasNextPage: page < totalPages,
                     hasPrevPage: page > 1
                 }
             };
+
         } catch (error) {
-            logError(error, null, { operation: 'AuditLog.findAll', filters, page, limit });
+            console.error('Error finding audit logs:', error);
             throw error;
         }
     }
 
     /**
      * Get audit logs for specific user
-     * @param {number} userId - User ID
-     * @param {number} limit - Number of logs to return
-     * @returns {Promise<Array>} - Array of audit logs
      */
     static async findByUser(userId, limit = 100) {
         try {
             const auditLogs = await dbManager.all(`
-                SELECT 
+                SELECT
                     al.*,
                     u.name as user_name,
                     u.email as user_email,
@@ -299,23 +311,20 @@ class AuditLog {
             `, [userId, limit]);
 
             return auditLogs.map(log => new AuditLog(log));
+
         } catch (error) {
-            logError(error, null, { operation: 'AuditLog.findByUser', userId, limit });
+            console.error('Error finding audit logs by user:', error);
             throw error;
         }
     }
 
     /**
      * Get audit logs for specific resource
-     * @param {string} resourceType - Resource type
-     * @param {number} resourceId - Resource ID
-     * @param {number} limit - Number of logs to return
-     * @returns {Promise<Array>} - Array of audit logs
      */
     static async findByResource(resourceType, resourceId, limit = 50) {
         try {
             const auditLogs = await dbManager.all(`
-                SELECT 
+                SELECT
                     al.*,
                     u.name as user_name,
                     u.email as user_email,
@@ -328,21 +337,43 @@ class AuditLog {
             `, [resourceType.toLowerCase(), resourceId, limit]);
 
             return auditLogs.map(log => new AuditLog(log));
+
         } catch (error) {
-            logError(error, null, { 
-                operation: 'AuditLog.findByResource', 
-                resourceType, 
-                resourceId, 
-                limit 
-            });
+            console.error('Error finding audit logs by resource:', error);
             throw error;
         }
     }
 
     /**
-     * Get audit statistics
-     * @param {Object} filters - Filter options
-     * @returns {Promise<Object>} - Audit statistics
+     * Get document activity timeline
+     */
+    static async getDocumentTimeline(documentId) {
+        try {
+            const timeline = await dbManager.all(`
+                SELECT
+                    al.*,
+                    u.name as user_name,
+                    u.department as user_department
+                FROM audit_logs al
+                LEFT JOIN users u ON al.user_id = u.id
+                WHERE al.resource_type = 'document'
+                    AND al.resource_id = ?
+                ORDER BY al.timestamp ASC
+            `, [documentId]);
+
+            return timeline.map(log => new AuditLog(log));
+
+        } catch (error) {
+            console.error('Error getting document timeline:', error);
+            throw error;
+        }
+    }
+
+    // =================================================================
+    // Statistics and Reporting
+    // =================================================================
+    /**
+     * Get comprehensive audit statistics
      */
     static async getStatistics(filters = {}) {
         try {
@@ -355,8 +386,8 @@ class AuditLog {
 
             // Actions statistics
             const actionStats = await dbManager.all(`
-                SELECT action, COUNT(*) as count 
-                FROM audit_logs 
+                SELECT action, COUNT(*) as count
+                FROM audit_logs
                 WHERE timestamp BETWEEN ? AND ?
                 GROUP BY action
                 ORDER BY count DESC
@@ -365,8 +396,8 @@ class AuditLog {
 
             // Resource type statistics
             const resourceStats = await dbManager.all(`
-                SELECT resource_type, COUNT(*) as count 
-                FROM audit_logs 
+                SELECT resource_type, COUNT(*) as count
+                FROM audit_logs
                 WHERE timestamp BETWEEN ? AND ?
                 GROUP BY resource_type
                 ORDER BY count DESC
@@ -375,7 +406,7 @@ class AuditLog {
 
             // User activity statistics
             const userStats = await dbManager.all(`
-                SELECT 
+                SELECT
                     al.user_id,
                     u.name as user_name,
                     u.department,
@@ -383,7 +414,7 @@ class AuditLog {
                 FROM audit_logs al
                 LEFT JOIN users u ON al.user_id = u.id
                 WHERE al.timestamp BETWEEN ? AND ?
-                AND al.user_id IS NOT NULL
+                    AND al.user_id IS NOT NULL
                 GROUP BY al.user_id, u.name, u.department
                 ORDER BY activity_count DESC
                 LIMIT 20
@@ -392,13 +423,13 @@ class AuditLog {
 
             // Department activity statistics
             const deptStats = await dbManager.all(`
-                SELECT 
+                SELECT
                     u.department,
                     COUNT(*) as activity_count
                 FROM audit_logs al
                 LEFT JOIN users u ON al.user_id = u.id
                 WHERE al.timestamp BETWEEN ? AND ?
-                AND u.department IS NOT NULL
+                    AND u.department IS NOT NULL
                 GROUP BY u.department
                 ORDER BY activity_count DESC
             `, [dateFrom, dateTo]);
@@ -406,10 +437,10 @@ class AuditLog {
 
             // Daily activity trend
             const dailyStats = await dbManager.all(`
-                SELECT 
+                SELECT
                     DATE(timestamp) as date,
                     COUNT(*) as count
-                FROM audit_logs 
+                FROM audit_logs
                 WHERE timestamp BETWEEN ? AND ?
                 GROUP BY DATE(timestamp)
                 ORDER BY date DESC
@@ -419,47 +450,46 @@ class AuditLog {
 
             // Security events
             const securityStats = await dbManager.all(`
-                SELECT 
+                SELECT
                     action,
                     COUNT(*) as count,
                     COUNT(DISTINCT ip_address) as unique_ips
-                FROM audit_logs 
+                FROM audit_logs
                 WHERE timestamp BETWEEN ? AND ?
-                AND action IN ('LOGIN_FAILED', 'PERMISSION_DENIED', 'UNAUTHORIZED_ACCESS')
+                    AND action IN ('LOGIN_FAILED', 'PERMISSION_DENIED', 'UNAUTHORIZED_ACCESS')
                 GROUP BY action
             `, [dateFrom, dateTo]);
             stats.securityEvents = securityStats;
 
-            // Total counts
+            // Total counts including session tracking
             const totalStats = await dbManager.get(`
-                SELECT 
+                SELECT
                     COUNT(*) as total_events,
                     COUNT(DISTINCT user_id) as unique_users,
                     COUNT(DISTINCT ip_address) as unique_ips,
+                    COUNT(DISTINCT session_id) as unique_sessions,
                     MIN(timestamp) as earliest_event,
                     MAX(timestamp) as latest_event
-                FROM audit_logs 
+                FROM audit_logs
                 WHERE timestamp BETWEEN ? AND ?
             `, [dateFrom, dateTo]);
             stats.totals = totalStats;
 
             return stats;
+
         } catch (error) {
-            logError(error, null, { operation: 'AuditLog.getStatistics', filters });
+            console.error('Error getting audit statistics:', error);
             throw error;
         }
     }
 
     /**
      * Get recent security events
-     * @param {number} hours - Hours to look back
-     * @param {number} limit - Maximum number of events
-     * @returns {Promise<Array>} - Recent security events
      */
     static async getRecentSecurityEvents(hours = 24, limit = 100) {
         try {
             const securityEvents = await dbManager.all(`
-                SELECT 
+                SELECT
                     al.*,
                     u.name as user_name,
                     u.email as user_email,
@@ -467,77 +497,24 @@ class AuditLog {
                 FROM audit_logs al
                 LEFT JOIN users u ON al.user_id = u.id
                 WHERE al.timestamp >= datetime('now', '-${hours} hours')
-                AND al.action IN (
-                    'LOGIN_FAILED', 'PERMISSION_DENIED', 'UNAUTHORIZED_ACCESS',
-                    'PASSWORD_UPDATED', 'USER_DEACTIVATED', 'ROLE_CHANGED'
-                )
+                    AND al.action IN (
+                        'LOGIN_FAILED', 'PERMISSION_DENIED', 'UNAUTHORIZED_ACCESS',
+                        'PASSWORD_UPDATED', 'USER_DEACTIVATED', 'ROLE_CHANGED'
+                    )
                 ORDER BY al.timestamp DESC
                 LIMIT ?
             `, [limit]);
 
             return securityEvents.map(log => new AuditLog(log));
+
         } catch (error) {
-            logError(error, null, { 
-                operation: 'AuditLog.getRecentSecurityEvents', 
-                hours, 
-                limit 
-            });
+            console.error('Error getting recent security events:', error);
             throw error;
         }
     }
 
     /**
-     * Get document activity timeline
-     * @param {number} documentId - Document ID
-     * @returns {Promise<Array>} - Document activity timeline
-     */
-    static async getDocumentTimeline(documentId) {
-        try {
-            const timeline = await dbManager.all(`
-                SELECT 
-                    al.*,
-                    u.name as user_name,
-                    u.department as user_department
-                FROM audit_logs al
-                LEFT JOIN users u ON al.user_id = u.id
-                WHERE al.resource_type = 'document' 
-                AND al.resource_id = ?
-                ORDER BY al.timestamp ASC
-            `, [documentId]);
-
-            return timeline.map(log => new AuditLog(log));
-        } catch (error) {
-            logError(error, null, { 
-                operation: 'AuditLog.getDocumentTimeline', 
-                documentId 
-            });
-            throw error;
-        }
-    }
-
-    /**
-     * Clean up old audit logs
-     * @param {number} retentionDays - Days to retain logs
-     * @returns {Promise<number>} - Number of deleted records
-     */
-    static async cleanup(retentionDays = 90) {
-        try {
-            const result = await dbManager.run(`
-                DELETE FROM audit_logs 
-                WHERE timestamp < datetime('now', '-${retentionDays} days')
-            `);
-
-            return result.changes;
-        } catch (error) {
-            logError(error, null, { operation: 'AuditLog.cleanup', retentionDays });
-            throw error;
-        }
-    }
-
-    /**
-     * Export audit logs for compliance
-     * @param {Object} filters - Export filters
-     * @returns {Promise<Array>} - Audit logs for export
+     * Export audit logs for compliance reporting
      */
     static async exportForCompliance(filters = {}) {
         try {
@@ -571,7 +548,7 @@ class AuditLog {
             const whereClause = 'WHERE ' + whereConditions.join(' AND ');
 
             const auditLogs = await dbManager.all(`
-                SELECT 
+                SELECT
                     al.id,
                     al.user_id,
                     u.name as user_name,
@@ -583,6 +560,7 @@ class AuditLog {
                     al.details,
                     al.ip_address,
                     al.user_agent,
+                    al.session_id,
                     al.timestamp
                 FROM audit_logs al
                 LEFT JOIN users u ON al.user_id = u.id
@@ -591,19 +569,43 @@ class AuditLog {
             `, params);
 
             return auditLogs.map(log => new AuditLog(log));
+
         } catch (error) {
-            logError(error, null, { operation: 'AuditLog.exportForCompliance', filters });
+            console.error('Error exporting audit logs for compliance:', error);
             throw error;
         }
     }
 
     /**
+     * Clean up old audit logs based on retention policy
+     */
+    static async cleanup(retentionDays = 90) {
+        try {
+            const result = await dbManager.run(`
+                DELETE FROM audit_logs
+                WHERE timestamp < datetime('now', '-${retentionDays} days')
+            `);
+
+            return {
+                success: true,
+                deletedCount: result.changes,
+                message: `Deleted ${result.changes} audit logs older than ${retentionDays} days`
+            };
+
+        } catch (error) {
+            console.error('Error cleaning up audit logs:', error);
+            throw error;
+        }
+    }
+
+    // =================================================================
+    // Utility Methods
+    // =================================================================
+    /**
      * Get parsed details object
-     * @returns {Object} - Parsed details
      */
     getParsedDetails() {
         if (!this.details) return {};
-        
         try {
             return JSON.parse(this.details);
         } catch (error) {
@@ -613,7 +615,6 @@ class AuditLog {
 
     /**
      * Check if this is a security-related event
-     * @returns {boolean} - True if security event
      */
     isSecurityEvent() {
         const securityActions = [
@@ -621,19 +622,17 @@ class AuditLog {
             'PASSWORD_UPDATED', 'USER_DEACTIVATED', 'ROLE_CHANGED',
             'PERMISSION_GRANTED', 'PERMISSION_REVOKED'
         ];
-        
         return securityActions.includes(this.action);
     }
 
     /**
      * Get severity level of the audit event
-     * @returns {string} - Severity level (low, medium, high, critical)
      */
     getSeverityLevel() {
         const criticalActions = ['USER_DEACTIVATED', 'ROLE_CHANGED', 'SYSTEM_SHUTDOWN'];
         const highActions = ['LOGIN_FAILED', 'PERMISSION_DENIED', 'UNAUTHORIZED_ACCESS'];
         const mediumActions = ['PASSWORD_UPDATED', 'DOCUMENT_DELETED', 'USER_CREATED'];
-        
+
         if (criticalActions.includes(this.action)) return 'critical';
         if (highActions.includes(this.action)) return 'high';
         if (mediumActions.includes(this.action)) return 'medium';
@@ -641,21 +640,44 @@ class AuditLog {
     }
 
     /**
-     * Convert audit log to JSON
-     * @returns {Object} - Audit log object with parsed details
+     * Check if event is critical for audit (private method)
+     */
+    static isCriticalAuditEvent(action) {
+        const criticalActions = [
+            'USER_DELETED',
+            'DOCUMENT_DELETED',
+            'SYSTEM_BACKUP',
+            'SYSTEM_RESTORE',
+            'PERMISSION_REVOKED'
+        ];
+        return criticalActions.includes(action);
+    }
+
+    /**
+     * Convert audit log to JSON with all fields including session_id
      */
     toJSON() {
         return {
-            ...this,
-            details: this.getParsedDetails(),
+            id: this.id,
+            user_id: this.user_id,
+            action: this.action,
+            resource_type: this.resource_type,
+            resource_id: this.resource_id,
+            details: this.getParsedDetails(), // Use parsed details
+            ip_address: this.ip_address,
+            user_agent: this.user_agent,
+            session_id: this.session_id, // Include session_id
+            timestamp: this.timestamp,
+            user_name: this.user_name,
+            user_email: this.user_email,
+            user_department: this.user_department,
             severity: this.getSeverityLevel(),
             isSecurityEvent: this.isSecurityEvent()
         };
     }
 
     /**
-     * Convert to compliance format
-     * @returns {Object} - Compliance-formatted audit log
+     * Convert to compliance format with all required fields
      */
     toComplianceFormat() {
         return {
@@ -672,13 +694,60 @@ class AuditLog {
                 type: this.resource_type,
                 id: this.resource_id
             },
-            details: this.getParsedDetails(),
+            details: this.getParsedDetails(), // Use parsed details
             session: {
                 ip_address: this.ip_address,
-                user_agent: this.user_agent
+                user_agent: this.user_agent,
+                session_id: this.session_id // Include session_id
             },
-            severity: this.getSeverityLevel()
+            severity: this.getSeverityLevel(),
+            compliance_metadata: {
+                standard: 'C-PR-AR-001',
+                retention_required: true,
+                security_event: this.isSecurityEvent()
+            }
         };
+    }
+
+    /**
+     * Convert to CSV format for export
+     */
+    toCSVRow() {
+        const details = this.getParsedDetails();
+        return [
+            this.id,
+            this.timestamp,
+            this.user_name || '',
+            this.user_email || '',
+            this.user_department || '',
+            this.action,
+            this.resource_type,
+            this.resource_id || '',
+            this.ip_address || '',
+            this.session_id || '',
+            JSON.stringify(details),
+            this.getSeverityLevel()
+        ];
+    }
+
+    /**
+     * Get CSV headers for export
+     */
+    static getCSVHeaders() {
+        return [
+            'ID',
+            'Timestamp',
+            'User Name',
+            'User Email',
+            'Department',
+            'Action',
+            'Resource Type',
+            'Resource ID',
+            'IP Address',
+            'Session ID',
+            'Details',
+            'Severity'
+        ];
     }
 }
 

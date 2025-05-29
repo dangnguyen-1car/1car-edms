@@ -230,7 +230,7 @@ INSERT INTO workflow_transitions (document_id, from_status, to_status, comment, 
 -- =================================================================
 
 -- Set department-based permissions for key documents
-INSERT INTO document_permissions (document_id, department, permission_level, granted_by, granted_at) VALUES
+INSERT INTO document_permissions (document_id, department, permission_type, granted_by, granted_at) VALUES
 -- Policy documents - accessible by all departments
 (1, 'Ban Giám đốc', 'admin', 1, datetime('now', '-20 days')),
 (1, 'Phòng Kỹ thuật QC', 'write', 1, datetime('now', '-20 days')),
@@ -352,8 +352,7 @@ UPDATE documents SET
         WHEN type IN ('FM') THEN RANDOM() % 1048576 + 262144         -- 0.25-1.25MB for forms
         ELSE RANDOM() % 1572864 + 524288                             -- 0.5-2MB for others
     END,
-    mime_type = 'application/pdf',
-    file_type = 'pdf'
+    mime_type = 'application/pdf'
 WHERE file_path IS NULL;
 
 -- Set realistic next review dates

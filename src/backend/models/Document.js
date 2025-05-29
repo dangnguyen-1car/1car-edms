@@ -1,539 +1,433 @@
 /**
  * =================================================================
- * EDMS 1CAR - Document Model
+ * EDMS 1CAR - Document Model (Updated Complete)
  * Document management with version control and workflow
  * Based on C-PR-VM-001, C-TD-VM-001, C-PR-AR-001 requirements
+ * Updated with transaction support and enhanced field handling
  * =================================================================
  */
 
 const { dbManager } = require('../config/database');
-const { logAudit, logError, logDocumentOperation } = require('../utils/logger');
-const { generateDocumentCode } = require('../utils/db');
-const path = require('path');
+const DocumentCodeGenerator = require('../utils/documentCodeGenerator');
+const AuditService = require('../services/auditService');
 
 class Document {
+    // === Constructor ===
     constructor(documentData = {}) {
+        // Core document fields
         this.id = documentData.id || null;
-        this.title = documentData.title || null;
         this.document_code = documentData.document_code || null;
+        this.title = documentData.title || null;
+        this.description = documentData.description || null;
         this.type = documentData.type || null;
         this.department = documentData.department || null;
-        this.version = documentData.version || '1.0';
         this.status = documentData.status || 'draft';
-        this.description = documentData.description || null;
-        this.file_path = documentData.file_path || null;
-        this.file_name = documentData.file_name || null;
-        this.file_size = documentData.file_size || null;
-        this.file_type = documentData.file_type || null;
-        this.mime_type = documentData.mime_type || null;
+        this.version = documentData.version || '01.00';
+        this.priority = documentData.priority || 'normal';
+        this.security_level = documentData.security_level || 'internal';
+        
+        // User references
         this.author_id = documentData.author_id || null;
         this.reviewer_id = documentData.reviewer_id || null;
         this.approver_id = documentData.approver_id || null;
+        
+        // File information
+        this.file_path = documentData.file_path || null;
+        this.file_name = documentData.file_name || null;
+        this.file_size = documentData.file_size || null;
+        this.mime_type = documentData.mime_type || null;
+        
+        // Enhanced document fields
+        this.scope_of_application = documentData.scope_of_application || null;
+        
+        // Recipients field - handle JSON parsing from database
+        if (documentData.recipients) {
+            if (typeof documentData.recipients === 'string') {
+                try {
+                    this.recipients = JSON.parse(documentData.recipients);
+                } catch (error) {
+                    console.warn('Failed to parse recipients JSON:', error);
+                    this.recipients = [];
+                }
+            } else if (Array.isArray(documentData.recipients)) {
+                this.recipients = documentData.recipients;
+            } else {
+                this.recipients = [];
+            }
+        } else {
+            this.recipients = [];
+        }
+        
+        // Review and retention fields
+        this.review_cycle = documentData.review_cycle || 365;
+        this.retention_period = documentData.retention_period || 2555;
+        this.next_review_date = documentData.next_review_date || null;
+        this.disposal_date = documentData.disposal_date || null;
+        
+        // Change tracking fields
         this.change_reason = documentData.change_reason || null;
         this.change_summary = documentData.change_summary || null;
-        this.status_before = documentData.status_before || null;
-        this.status_after = documentData.status_after || null;
-        this.review_cycle = documentData.review_cycle || 365;
-        this.next_review_date = documentData.next_review_date || null;
-        this.retention_period = documentData.retention_period || 2555;
-        this.disposal_date = documentData.disposal_date || null;
-        this.scope_of_application = documentData.scope_of_application || null;
-        this.recipients = documentData.recipients || null;
+        this.keywords = documentData.keywords || null;
+        
+        // Timestamps
         this.created_at = documentData.created_at || null;
         this.updated_at = documentData.updated_at || null;
         this.published_at = documentData.published_at || null;
         this.archived_at = documentData.archived_at || null;
+
+        // Additional fields from joins
+        this.author_name = documentData.author_name || null;
+        this.author_department = documentData.author_department || null;
+        this.reviewer_name = documentData.reviewer_name || null;
+        this.approver_name = documentData.approver_name || null;
+    }
+
+    // === Static Configuration ===
+    /**
+     * Valid document types based on C-TD-MG-005
+     */
+    static get VALID_TYPES() {
+        return ['PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC'];
     }
 
     /**
-     * Create new document
-     * @param {Object} documentData - Document data
-     * @param {number} authorId - ID of user creating document
-     * @returns {Promise<Document>} - Created document instance
+     * Valid document statuses
      */
-    static async create(documentData, authorId) {
+    static get VALID_STATUSES() {
+        return ['draft', 'review', 'published', 'archived', 'disposed'];
+    }
+
+    /**
+     * Valid priority levels
+     */
+    static get VALID_PRIORITIES() {
+        return ['low', 'normal', 'high', 'urgent'];
+    }
+
+    /**
+     * Valid security levels
+     */
+    static get VALID_SECURITY_LEVELS() {
+        return ['public', 'internal', 'confidential', 'restricted'];
+    }
+
+    /**
+     * Valid departments based on 1CAR structure
+     */
+    static get VALID_DEPARTMENTS() {
+        return [
+            'Ban Giám đốc',
+            'Phòng Phát triển Nhượng quyền',
+            'Phòng Đào tạo Tiêu chuẩn',
+            'Phòng Marketing',
+            'Phòng Kỹ thuật QC',
+            'Phòng Tài chính',
+            'Phòng Công nghệ Hệ thống',
+            'Phòng Pháp lý',
+            'Bộ phận Tiếp nhận CSKH',
+            'Bộ phận Kỹ thuật Garage',
+            'Bộ phận QC Garage',
+            'Bộ phận Kho/Kế toán Garage',
+            'Bộ phận Marketing Garage',
+            'Quản lý Garage'
+        ];
+    }
+
+    // === Core Methods ===
+    /**
+     * Create new document with auto-generated document code
+     */
+    static async create(documentData, createdBy = null) {
         try {
+            const {
+                title,
+                description,
+                type,
+                department,
+                priority = 'normal',
+                security_level = 'internal',
+                scope_of_application,
+                recipients,
+                review_cycle,
+                retention_period,
+                change_reason,
+                change_summary,
+                keywords,
+                author_id
+            } = documentData;
+
             // Validate required fields
-            const { title, type, department, description } = documentData;
-            
-            if (!title || !type || !department) {
-                throw new Error('Missing required fields: title, type, department');
+            if (!title || !type || !department || !author_id) {
+                throw new Error('Missing required fields: title, type, department, author_id');
             }
 
             // Validate document type
-            const validTypes = ['PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC'];
-            if (!validTypes.includes(type)) {
-                throw new Error('Invalid document type. Must be one of: ' + validTypes.join(', '));
+            if (!this.VALID_TYPES.includes(type)) {
+                throw new Error(`Invalid document type: ${type}. Valid types: ${this.VALID_TYPES.join(', ')}`);
             }
 
             // Validate department
-            const validDepartments = [
-                'Ban Giám đốc',
-                'Phòng Phát triển Nhượng quyền',
-                'Phòng Đào tạo Tiêu chuẩn',
-                'Phòng Marketing',
-                'Phòng Kỹ thuật QC',
-                'Phòng Tài chính',
-                'Phòng Công nghệ Hệ thống',
-                'Phòng Pháp lý',
-                'Bộ phận Tiếp nhận CSKH',
-                'Bộ phận Kỹ thuật Garage',
-                'Bộ phận QC Garage',
-                'Bộ phận Kho/Kế toán Garage',
-                'Bộ phận Marketing Garage',
-                'Quản lý Garage'
-            ];
-            
-            if (!validDepartments.includes(department)) {
-                throw new Error('Invalid department');
+            if (!this.VALID_DEPARTMENTS.includes(department)) {
+                throw new Error(`Invalid department: ${department}`);
             }
 
-            // Generate document code
-            const document_code = await generateDocumentCode(type, department);
+            // Validate priority
+            if (!this.VALID_PRIORITIES.includes(priority)) {
+                throw new Error(`Invalid priority: ${priority}. Valid priorities: ${this.VALID_PRIORITIES.join(', ')}`);
+            }
 
-            // Calculate dates
-            const now = new Date();
-            const next_review_date = new Date(now);
-            next_review_date.setDate(next_review_date.getDate() + (documentData.review_cycle || 365));
-            
-            const disposal_date = new Date(now);
-            disposal_date.setDate(disposal_date.getDate() + (documentData.retention_period || 2555));
+            // Validate security level
+            if (!this.VALID_SECURITY_LEVELS.includes(security_level)) {
+                throw new Error(`Invalid security level: ${security_level}. Valid levels: ${this.VALID_SECURITY_LEVELS.join(', ')}`);
+            }
 
-            // Prepare recipients as JSON
-            const recipients = documentData.recipients ? 
-                JSON.stringify(documentData.recipients) : 
-                JSON.stringify([department]);
+            // Generate document code using DocumentCodeGenerator
+            const document_code = await DocumentCodeGenerator.generateCode(type, department);
 
-            // Insert document into database
+            // Verify the generated code doesn't exist (should not happen, but safety check)
+            const existingCode = await DocumentCodeGenerator.codeExists(document_code);
+            if (existingCode) {
+                throw new Error(`Generated document code ${document_code} already exists`);
+            }
+
+            // Calculate next review date if review cycle is provided
+            let next_review_date = null;
+            if (review_cycle) {
+                const reviewDate = new Date();
+                reviewDate.setDate(reviewDate.getDate() + review_cycle);
+                next_review_date = reviewDate.toISOString().split('T')[0];
+            }
+
+            // Calculate disposal date if retention period is provided
+            let disposal_date = null;
+            if (retention_period) {
+                const disposalDate = new Date();
+                disposalDate.setDate(disposalDate.getDate() + retention_period);
+                disposal_date = disposalDate.toISOString().split('T')[0];
+            }
+
+            // Handle recipients - ensure it's JSON string for database
+            let recipientsJson = null;
+            if (recipients) {
+                if (Array.isArray(recipients)) {
+                    recipientsJson = JSON.stringify(recipients);
+                } else if (typeof recipients === 'string') {
+                    try {
+                        // Validate it's valid JSON
+                        JSON.parse(recipients);
+                        recipientsJson = recipients;
+                    } catch (error) {
+                        throw new Error('Invalid recipients JSON format');
+                    }
+                } else {
+                    throw new Error('Recipients must be an array or valid JSON string');
+                }
+            }
+
+            // Insert document
             const result = await dbManager.run(`
                 INSERT INTO documents (
-                    title, document_code, type, department, version, status, description,
-                    author_id, review_cycle, next_review_date, retention_period, disposal_date,
-                    scope_of_application, recipients, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    document_code, title, description, type, department, 
+                    priority, security_level, author_id, scope_of_application,
+                    recipients, review_cycle, retention_period, next_review_date,
+                    disposal_date, change_reason, change_summary, keywords,
+                    status, version, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '01.00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `, [
-                title,
-                document_code,
-                type,
-                department,
-                documentData.version || '1.0',
-                'draft',
-                description,
-                authorId,
-                documentData.review_cycle || 365,
-                next_review_date.toISOString().split('T')[0],
-                documentData.retention_period || 2555,
-                disposal_date.toISOString().split('T')[0],
-                documentData.scope_of_application || department,
-                recipients
+                document_code, title, description, type, department,
+                priority, security_level, author_id, scope_of_application,
+                recipientsJson, review_cycle, retention_period, next_review_date,
+                disposal_date, change_reason, change_summary, keywords
             ]);
 
-            // Create initial workflow transition
+            // Create initial version record
             await dbManager.run(`
-                INSERT INTO workflow_transitions (document_id, from_status, to_status, comment, transitioned_by)
-                VALUES (?, NULL, 'draft', 'Document created', ?)
-            `, [result.lastID, authorId]);
+                INSERT INTO document_versions (
+                    document_id, version, change_reason, change_summary, 
+                    change_type, created_by, created_at
+                ) VALUES (?, '01.00', ?, ?, 'major', ?, CURRENT_TIMESTAMP)
+            `, [
+                result.lastID,
+                change_reason || 'Initial version',
+                change_summary || 'Document created',
+                author_id
+            ]);
 
-            // Get created document
-            const newDocument = await Document.findById(result.lastID);
-            
-            // Log audit event
-            await logAudit('DOCUMENT_CREATED', {
-                documentId: result.lastID,
-                documentCode: document_code,
-                title: title,
-                type: type,
-                department: department,
-                authorId: authorId
+            // Log audit event - use author_id if createdBy not provided
+            const auditUserId = createdBy || author_id;
+            await AuditService.log({
+                action: 'DOCUMENT_CREATED',
+                userId: auditUserId,
+                resourceType: 'document',
+                resourceId: result.lastID,
+                details: {
+                    document_code,
+                    title,
+                    type,
+                    department,
+                    priority,
+                    security_level
+                }
             });
 
-            return newDocument;
+            // Return created document
+            return await this.findById(result.lastID);
+
         } catch (error) {
-            logError(error, null, { operation: 'Document.create', documentData });
-            throw error;
-        }
-    }
-
-    /**
-     * Find document by ID with author information
-     * @param {number} id - Document ID
-     * @returns {Promise<Document|null>} - Document instance or null
-     */
-    static async findById(id) {
-        try {
-            const documentData = await dbManager.get(`
-                SELECT 
-                    d.*,
-                    u.name as author_name,
-                    u.department as author_department,
-                    r.name as reviewer_name,
-                    a.name as approver_name
-                FROM documents d
-                LEFT JOIN users u ON d.author_id = u.id
-                LEFT JOIN users r ON d.reviewer_id = r.id
-                LEFT JOIN users a ON d.approver_id = a.id
-                WHERE d.id = ?
-            `, [id]);
-            
-            return documentData ? new Document(documentData) : null;
-        } catch (error) {
-            logError(error, null, { operation: 'Document.findById', id });
-            throw error;
-        }
-    }
-
-    /**
-     * Find document by code
-     * @param {string} documentCode - Document code
-     * @returns {Promise<Document|null>} - Document instance or null
-     */
-    static async findByCode(documentCode) {
-        try {
-            const documentData = await dbManager.get(`
-                SELECT 
-                    d.*,
-                    u.name as author_name,
-                    u.department as author_department,
-                    r.name as reviewer_name,
-                    a.name as approver_name
-                FROM documents d
-                LEFT JOIN users u ON d.author_id = u.id
-                LEFT JOIN users r ON d.reviewer_id = r.id
-                LEFT JOIN users a ON d.approver_id = a.id
-                WHERE d.document_code = ?
-            `, [documentCode]);
-            
-            return documentData ? new Document(documentData) : null;
-        } catch (error) {
-            logError(error, null, { operation: 'Document.findByCode', documentCode });
-            throw error;
-        }
-    }
-
-    /**
-     * Search documents with filters and pagination
-     * @param {Object} filters - Search filters
-     * @param {number} page - Page number
-     * @param {number} limit - Items per page
-     * @returns {Promise<Object>} - Paginated search results
-     */
-    static async search(filters = {}, page = 1, limit = 20) {
-        try {
-            let whereConditions = [];
-            let params = [];
-
-            // Full-text search
-            if (filters.search && filters.search.trim()) {
-                whereConditions.push(`d.id IN (
-                    SELECT rowid FROM documents_fts 
-                    WHERE documents_fts MATCH ?
-                )`);
-                params.push(filters.search.trim());
-            }
-
-            // Filter by type
-            if (filters.type) {
-                whereConditions.push('d.type = ?');
-                params.push(filters.type);
-            }
-
-            // Filter by department
-            if (filters.department) {
-                whereConditions.push('d.department = ?');
-                params.push(filters.department);
-            }
-
-            // Filter by status
-            if (filters.status) {
-                whereConditions.push('d.status = ?');
-                params.push(filters.status);
-            }
-
-            // Filter by author
-            if (filters.author_id) {
-                whereConditions.push('d.author_id = ?');
-                params.push(filters.author_id);
-            }
-
-            // Date range filters
-            if (filters.date_from) {
-                whereConditions.push('d.created_at >= ?');
-                params.push(filters.date_from);
-            }
-
-            if (filters.date_to) {
-                whereConditions.push('d.created_at <= ?');
-                params.push(filters.date_to);
-            }
-
-            // Build base query
-            const whereClause = whereConditions.length > 0 ? 
-                'WHERE ' + whereConditions.join(' AND ') : '';
-
-            const baseQuery = `
-                SELECT 
-                    d.*,
-                    u.name as author_name,
-                    u.department as author_department,
-                    r.name as reviewer_name,
-                    a.name as approver_name
-                FROM documents d
-                LEFT JOIN users u ON d.author_id = u.id
-                LEFT JOIN users r ON d.reviewer_id = r.id
-                LEFT JOIN users a ON d.approver_id = a.id
-                ${whereClause}
-                ORDER BY d.updated_at DESC
-            `;
-
-            // Get total count
-            const countQuery = `SELECT COUNT(*) as total FROM documents d ${whereClause}`;
-            const countResult = await dbManager.get(countQuery, params);
-
-            // Get paginated data
-            const offset = (page - 1) * limit;
-            const documents = await dbManager.all(
-                `${baseQuery} LIMIT ? OFFSET ?`,
-                [...params, limit, offset]
-            );
-
-            // Calculate pagination metadata
-            const total = countResult.total;
-            const totalPages = Math.ceil(total / limit);
-
-            return {
-                data: documents.map(doc => new Document(doc)),
-                pagination: {
-                    page,
-                    limit,
-                    total,
-                    totalPages,
-                    hasNextPage: page < totalPages,
-                    hasPrevPage: page > 1
-                }
-            };
-        } catch (error) {
-            logError(error, null, { operation: 'Document.search', filters, page, limit });
-            throw error;
-        }
-    }
-
-    /**
-     * Get documents by department
-     * @param {string} department - Department name
-     * @param {Object} filters - Additional filters
-     * @returns {Promise<Array>} - Array of documents
-     */
-    static async findByDepartment(department, filters = {}) {
-        try {
-            let whereConditions = ['d.department = ?'];
-            let params = [department];
-
-            if (filters.status) {
-                whereConditions.push('d.status = ?');
-                params.push(filters.status);
-            }
-
-            if (filters.type) {
-                whereConditions.push('d.type = ?');
-                params.push(filters.type);
-            }
-
-            const documents = await dbManager.all(`
-                SELECT 
-                    d.*,
-                    u.name as author_name
-                FROM documents d
-                LEFT JOIN users u ON d.author_id = u.id
-                WHERE ${whereConditions.join(' AND ')}
-                ORDER BY d.updated_at DESC
-            `, params);
-
-            return documents.map(doc => new Document(doc));
-        } catch (error) {
-            logError(error, null, { operation: 'Document.findByDepartment', department, filters });
+            console.error('Error creating document:', error);
             throw error;
         }
     }
 
     /**
      * Update document
-     * @param {Object} updateData - Data to update
-     * @param {number} updatedBy - ID of user making update
-     * @returns {Promise<Document>} - Updated document
      */
-    async update(updateData, updatedBy) {
+    static async update(id, updateData, updatedBy = null) {
         try {
-            const allowedFields = [
-                'title', 'description', 'scope_of_application', 'recipients',
-                'review_cycle', 'retention_period', 'reviewer_id', 'approver_id'
-            ];
-            
-            const updateFields = [];
-            const params = [];
+            const {
+                title,
+                description,
+                priority,
+                security_level,
+                scope_of_application,
+                recipients,
+                review_cycle,
+                retention_period,
+                change_reason,
+                change_summary,
+                keywords
+            } = updateData;
 
-            // Build update query
-            for (const [key, value] of Object.entries(updateData)) {
-                if (allowedFields.includes(key)) {
-                    updateFields.push(`${key} = ?`);
-                    if (key === 'recipients' && Array.isArray(value)) {
-                        params.push(JSON.stringify(value));
+            // Build dynamic update query
+            const updateFields = [];
+            const updateValues = [];
+
+            if (title !== undefined) {
+                updateFields.push('title = ?');
+                updateValues.push(title);
+            }
+            if (description !== undefined) {
+                updateFields.push('description = ?');
+                updateValues.push(description);
+            }
+            if (priority !== undefined) {
+                if (!this.VALID_PRIORITIES.includes(priority)) {
+                    throw new Error(`Invalid priority: ${priority}`);
+                }
+                updateFields.push('priority = ?');
+                updateValues.push(priority);
+            }
+            if (security_level !== undefined) {
+                if (!this.VALID_SECURITY_LEVELS.includes(security_level)) {
+                    throw new Error(`Invalid security level: ${security_level}`);
+                }
+                updateFields.push('security_level = ?');
+                updateValues.push(security_level);
+            }
+            if (scope_of_application !== undefined) {
+                updateFields.push('scope_of_application = ?');
+                updateValues.push(scope_of_application);
+            }
+            if (recipients !== undefined) {
+                // Handle recipients - ensure it's JSON string for database
+                let recipientsJson = null;
+                if (recipients) {
+                    if (Array.isArray(recipients)) {
+                        recipientsJson = JSON.stringify(recipients);
+                    } else if (typeof recipients === 'string') {
+                        try {
+                            // Validate it's valid JSON
+                            JSON.parse(recipients);
+                            recipientsJson = recipients;
+                        } catch (error) {
+                            throw new Error('Invalid recipients JSON format');
+                        }
                     } else {
-                        params.push(value);
+                        throw new Error('Recipients must be an array or valid JSON string');
                     }
                 }
+                updateFields.push('recipients = ?');
+                updateValues.push(recipientsJson);
+            }
+            if (review_cycle !== undefined) {
+                updateFields.push('review_cycle = ?');
+                updateValues.push(review_cycle);
+            }
+            if (retention_period !== undefined) {
+                updateFields.push('retention_period = ?');
+                updateValues.push(retention_period);
+            }
+            if (change_reason !== undefined) {
+                updateFields.push('change_reason = ?');
+                updateValues.push(change_reason);
+            }
+            if (change_summary !== undefined) {
+                updateFields.push('change_summary = ?');
+                updateValues.push(change_summary);
+            }
+            if (keywords !== undefined) {
+                updateFields.push('keywords = ?');
+                updateValues.push(keywords);
             }
 
             if (updateFields.length === 0) {
-                throw new Error('No valid fields to update');
+                throw new Error('No fields to update');
             }
 
-            // Add updated_at
+            // Always update the updated_at timestamp
             updateFields.push('updated_at = CURRENT_TIMESTAMP');
-            params.push(this.id);
+            updateValues.push(id);
 
-            await dbManager.run(
-                `UPDATE documents SET ${updateFields.join(', ')} WHERE id = ?`,
-                params
-            );
+            const sql = `UPDATE documents SET ${updateFields.join(', ')} WHERE id = ?`;
+            await dbManager.run(sql, updateValues);
 
             // Log audit event
-            await logAudit('DOCUMENT_UPDATED', {
-                documentId: this.id,
-                documentCode: this.document_code,
-                updateData: updateData,
-                updatedBy: updatedBy
-            });
+            if (updatedBy) {
+                await AuditService.log({
+                    action: 'DOCUMENT_UPDATED',
+                    userId: updatedBy,
+                    resourceType: 'document',
+                    resourceId: id,
+                    details: updateData
+                });
+            }
 
-            // Refresh document data
-            const updatedDocument = await Document.findById(this.id);
-            Object.assign(this, updatedDocument);
+            return await this.findById(id);
 
-            return this;
         } catch (error) {
-            logError(error, null, { operation: 'Document.update', documentId: this.id, updateData });
+            console.error('Error updating document:', error);
             throw error;
         }
     }
 
     /**
-     * Update document status with workflow transition
-     * @param {string} newStatus - New status
-     * @param {number} userId - User making the change
-     * @param {string} comment - Transition comment
-     * @returns {Promise<Document>} - Updated document
-     */
-    async updateStatus(newStatus, userId, comment = '') {
-        return await dbManager.transaction(async (db) => {
-            try {
-                const validStatuses = ['draft', 'review', 'published', 'archived'];
-                if (!validStatuses.includes(newStatus)) {
-                    throw new Error('Invalid status');
-                }
-
-                // Validate status transition
-                const validTransitions = {
-                    'draft': ['review', 'archived'],
-                    'review': ['draft', 'published', 'archived'],
-                    'published': ['review', 'archived'],
-                    'archived': []
-                };
-
-                if (!validTransitions[this.status].includes(newStatus)) {
-                    throw new Error(`Invalid status transition from ${this.status} to ${newStatus}`);
-                }
-
-                const oldStatus = this.status;
-
-                // Update document status
-                await db.run(`
-                    UPDATE documents 
-                    SET status = ?, 
-                        status_before = ?, 
-                        status_after = ?,
-                        updated_at = CURRENT_TIMESTAMP,
-                        published_at = CASE WHEN ? = 'published' THEN CURRENT_TIMESTAMP ELSE published_at END,
-                        archived_at = CASE WHEN ? = 'archived' THEN CURRENT_TIMESTAMP ELSE archived_at END
-                    WHERE id = ?
-                `, [newStatus, oldStatus, newStatus, newStatus, newStatus, this.id]);
-
-                // Create workflow transition record
-                await db.run(`
-                    INSERT INTO workflow_transitions (document_id, from_status, to_status, comment, transitioned_by)
-                    VALUES (?, ?, ?, ?, ?)
-                `, [this.id, oldStatus, newStatus, comment, userId]);
-
-                // Update next review date if published
-                if (newStatus === 'published') {
-                    const nextReviewDate = new Date();
-                    nextReviewDate.setDate(nextReviewDate.getDate() + this.review_cycle);
-                    
-                    await db.run(`
-                        UPDATE documents 
-                        SET next_review_date = ?
-                        WHERE id = ?
-                    `, [nextReviewDate.toISOString().split('T')[0], this.id]);
-                }
-
-                // Log audit event
-                await logAudit('DOCUMENT_STATUS_CHANGED', {
-                    documentId: this.id,
-                    documentCode: this.document_code,
-                    fromStatus: oldStatus,
-                    toStatus: newStatus,
-                    comment: comment,
-                    userId: userId
-                });
-
-                // Refresh document data
-                const updatedDocument = await Document.findById(this.id);
-                Object.assign(this, updatedDocument);
-
-                return this;
-            } catch (error) {
-                logError(error, null, { 
-                    operation: 'Document.updateStatus', 
-                    documentId: this.id, 
-                    newStatus, 
-                    userId 
-                });
-                throw error;
-            }
-        });
-    }
-
-    /**
-     * Create new version of document
-     * @param {string} newVersion - New version number
-     * @param {string} changeReason - Reason for version change
-     * @param {string} changeSummary - Summary of changes
-     * @param {number} userId - User creating new version
-     * @returns {Promise<Document>} - Updated document
+     * Create new version of document with transaction support
      */
     async createNewVersion(newVersion, changeReason, changeSummary, userId) {
-        return await dbManager.transaction(async (db) => {
-            try {
-                // Validate version format (X.Y)
-                const versionRegex = /^\d+\.\d+$/;
-                if (!versionRegex.test(newVersion)) {
-                    throw new Error('Invalid version format. Use X.Y format (e.g., 1.0, 2.1)');
-                }
+        try {
+            // Validate version format
+            const versionRegex = /^\d{2}\.\d{2}$/;
+            if (!versionRegex.test(newVersion)) {
+                throw new Error('Invalid version format. Use XX.YY format (e.g., 01.00, 02.01)');
+            }
 
+            // Execute within transaction
+            return await dbManager.transaction(async (transactionDb) => {
                 // Check if version already exists
-                const existingVersion = await db.get(
-                    'SELECT id FROM documents WHERE document_code = ? AND version = ?',
-                    [this.document_code, newVersion]
+                const existingVersion = await transactionDb.get(
+                    'SELECT id FROM document_versions WHERE document_id = ? AND version = ?',
+                    [this.id, newVersion]
                 );
-
                 if (existingVersion) {
                     throw new Error('Version already exists');
                 }
 
                 // Create version history entry for current version
-                await db.run(`
+                await transactionDb.run(`
                     INSERT INTO document_versions (
                         document_id, version, file_path, file_name, file_size,
-                        change_reason, change_summary, created_by
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        change_reason, change_summary, change_type, created_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'major', ?)
                 `, [
                     this.id,
                     this.version,
@@ -546,35 +440,31 @@ class Document {
                 ]);
 
                 // Update document with new version
-                await db.run(`
-                    UPDATE documents 
-                    SET version = ?, 
-                        change_reason = ?, 
+                await transactionDb.run(`
+                    UPDATE documents
+                    SET version = ?,
+                        change_reason = ?,
                         change_summary = ?,
-                        status_before = ?,
-                        status_after = 'draft',
                         status = 'draft',
                         file_path = NULL,
                         file_name = NULL,
                         file_size = NULL,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `, [newVersion, changeReason, changeSummary, this.status, this.id]);
-
-                // Create workflow transition
-                await db.run(`
-                    INSERT INTO workflow_transitions (document_id, from_status, to_status, comment, transitioned_by)
-                    VALUES (?, ?, 'draft', ?, ?)
-                `, [this.id, this.status, `New version ${newVersion}: ${changeReason}`, userId]);
+                `, [newVersion, changeReason, changeSummary, this.id]);
 
                 // Log audit event
-                await logAudit('DOCUMENT_VERSION_CREATED', {
-                    documentId: this.id,
-                    documentCode: this.document_code,
-                    oldVersion: this.version,
-                    newVersion: newVersion,
-                    changeReason: changeReason,
-                    userId: userId
+                await AuditService.log({
+                    action: 'VERSION_CREATED',
+                    userId,
+                    resourceType: 'document',
+                    resourceId: this.id,
+                    details: {
+                        oldVersion: this.version,
+                        newVersion,
+                        changeReason,
+                        changeSummary
+                    }
                 });
 
                 // Refresh document data
@@ -582,109 +472,249 @@ class Document {
                 Object.assign(this, updatedDocument);
 
                 return this;
-            } catch (error) {
-                logError(error, null, { 
-                    operation: 'Document.createNewVersion', 
-                    documentId: this.id, 
-                    newVersion 
-                });
-                throw error;
-            }
-        });
-    }
-
-    /**
-     * Get document version history
-     * @returns {Promise<Array>} - Array of version history
-     */
-    async getVersionHistory() {
-        try {
-            const versions = await dbManager.all(`
-                SELECT 
-                    dv.*,
-                    u.name as created_by_name
-                FROM document_versions dv
-                LEFT JOIN users u ON dv.created_by = u.id
-                WHERE dv.document_id = ?
-                ORDER BY dv.created_at DESC
-            `, [this.id]);
-
-            return versions;
-        } catch (error) {
-            logError(error, null, { operation: 'Document.getVersionHistory', documentId: this.id });
-            throw error;
-        }
-    }
-
-    /**
-     * Get document workflow history
-     * @returns {Promise<Array>} - Array of workflow transitions
-     */
-    async getWorkflowHistory() {
-        try {
-            const transitions = await dbManager.all(`
-                SELECT 
-                    wt.*,
-                    u.name as transitioned_by_name
-                FROM workflow_transitions wt
-                LEFT JOIN users u ON wt.transitioned_by = u.id
-                WHERE wt.document_id = ?
-                ORDER BY wt.transitioned_at DESC
-            `, [this.id]);
-
-            return transitions;
-        } catch (error) {
-            logError(error, null, { operation: 'Document.getWorkflowHistory', documentId: this.id });
-            throw error;
-        }
-    }
-
-    /**
-     * Attach file to document
-     * @param {Object} fileInfo - File information
-     * @param {number} userId - User uploading file
-     * @returns {Promise<Document>} - Updated document
-     */
-    async attachFile(fileInfo, userId) {
-        try {
-            const { filename, path: filePath, size, mimetype } = fileInfo;
-            const fileExtension = path.extname(filename).toLowerCase().substring(1);
-
-            await dbManager.run(`
-                UPDATE documents 
-                SET file_path = ?, 
-                    file_name = ?, 
-                    file_size = ?, 
-                    file_type = ?,
-                    mime_type = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `, [filePath, filename, size, fileExtension, mimetype, this.id]);
-
-            // Log audit event
-            await logAudit('DOCUMENT_FILE_ATTACHED', {
-                documentId: this.id,
-                documentCode: this.document_code,
-                fileName: filename,
-                fileSize: size,
-                userId: userId
             });
 
-            // Refresh document data
-            const updatedDocument = await Document.findById(this.id);
-            Object.assign(this, updatedDocument);
-
-            return this;
         } catch (error) {
-            logError(error, null, { operation: 'Document.attachFile', documentId: this.id, fileInfo });
+            console.error('Error creating new version:', error);
+            throw error;
+        }
+    }
+
+    // === Status Management ===
+    /**
+     * Internal method to set document status and related timestamps
+     * This method should primarily be called from WorkflowService
+     * @param {number} id - Document ID
+     * @param {string} newStatus - New status
+     * @param {Object} relevantDateUpdates - Date fields to update
+     * @param {number} updatedBy - User ID making the change
+     */
+    static async _internalSetStatus(id, newStatus, relevantDateUpdates = {}, updatedBy = null) {
+        try {
+            if (!this.VALID_STATUSES.includes(newStatus)) {
+                throw new Error(`Invalid status: ${newStatus}`);
+            }
+
+            // Build update fields for status and timestamps
+            const updateFields = ['status = ?', 'updated_at = CURRENT_TIMESTAMP'];
+            const updateValues = [newStatus];
+
+            // Handle relevant date updates
+            if (relevantDateUpdates.published_at !== undefined) {
+                updateFields.push('published_at = ?');
+                updateValues.push(relevantDateUpdates.published_at);
+            }
+            if (relevantDateUpdates.archived_at !== undefined) {
+                updateFields.push('archived_at = ?');
+                updateValues.push(relevantDateUpdates.archived_at);
+            }
+            if (relevantDateUpdates.disposal_date !== undefined) {
+                updateFields.push('disposal_date = ?');
+                updateValues.push(relevantDateUpdates.disposal_date);
+            }
+
+            updateValues.push(id);
+
+            const sql = `UPDATE documents SET ${updateFields.join(', ')} WHERE id = ?`;
+            await dbManager.run(sql, updateValues);
+
+            return await this.findById(id);
+
+        } catch (error) {
+            console.error('Error setting document status:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Legacy updateStatus method - kept for backward compatibility
+     * Consider using WorkflowService for status transitions instead
+     */
+    static async updateStatus(id, newStatus, updatedBy = null) {
+        try {
+            // Determine relevant date updates based on status
+            const relevantDateUpdates = {};
+            if (newStatus === 'published') {
+                relevantDateUpdates.published_at = new Date().toISOString();
+            } else if (newStatus === 'archived') {
+                relevantDateUpdates.archived_at = new Date().toISOString();
+            }
+
+            // Update status using internal method
+            const updatedDocument = await this._internalSetStatus(id, newStatus, relevantDateUpdates, updatedBy);
+
+            // Log audit event (this should ideally be handled by WorkflowService)
+            if (updatedBy) {
+                await AuditService.log({
+                    action: 'DOCUMENT_STATUS_CHANGED',
+                    userId: updatedBy,
+                    resourceType: 'document',
+                    resourceId: id,
+                    details: { newStatus }
+                });
+            }
+
+            return updatedDocument;
+
+        } catch (error) {
+            console.error('Error updating document status:', error);
+            throw error;
+        }
+    }
+
+    // === Retrieval Methods ===
+    /**
+     * Find document by ID
+     */
+    static async findById(id) {
+        try {
+            const document = await dbManager.get(`
+                SELECT d.*, u.name as author_name, u.department as author_department,
+                       r.name as reviewer_name, a.name as approver_name
+                FROM documents d
+                LEFT JOIN users u ON d.author_id = u.id
+                LEFT JOIN users r ON d.reviewer_id = r.id
+                LEFT JOIN users a ON d.approver_id = a.id
+                WHERE d.id = ?
+            `, [id]);
+
+            return document ? new Document(document) : null;
+        } catch (error) {
+            console.error('Error finding document by ID:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Find document by document code
+     */
+    static async findByCode(document_code) {
+        try {
+            const document = await dbManager.get(`
+                SELECT d.*, u.name as author_name, u.department as author_department,
+                       r.name as reviewer_name, a.name as approver_name
+                FROM documents d
+                LEFT JOIN users u ON d.author_id = u.id
+                LEFT JOIN users r ON d.reviewer_id = r.id
+                LEFT JOIN users a ON d.approver_id = a.id
+                WHERE d.document_code = ?
+            `, [document_code]);
+
+            return document ? new Document(document) : null;
+        } catch (error) {
+            console.error('Error finding document by code:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all documents with filtering and pagination
+     */
+    static async getAll(filters = {}, page = 1, limit = 20) {
+        try {
+            const {
+                type,
+                department,
+                status,
+                priority,
+                security_level,
+                author_id,
+                search,
+                date_from,
+                date_to
+            } = filters;
+
+            let whereConditions = [];
+            let params = [];
+
+            // Build WHERE clause
+            if (type) {
+                whereConditions.push('d.type = ?');
+                params.push(type);
+            }
+            if (department) {
+                whereConditions.push('d.department = ?');
+                params.push(department);
+            }
+            if (status) {
+                whereConditions.push('d.status = ?');
+                params.push(status);
+            }
+            if (priority) {
+                whereConditions.push('d.priority = ?');
+                params.push(priority);
+            }
+            if (security_level) {
+                whereConditions.push('d.security_level = ?');
+                params.push(security_level);
+            }
+            if (author_id) {
+                whereConditions.push('d.author_id = ?');
+                params.push(author_id);
+            }
+            if (search) {
+                whereConditions.push('(d.title LIKE ? OR d.description LIKE ? OR d.document_code LIKE ? OR d.keywords LIKE ?)');
+                const searchTerm = `%${search}%`;
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+            }
+            if (date_from) {
+                whereConditions.push('d.created_at >= ?');
+                params.push(date_from);
+            }
+            if (date_to) {
+                whereConditions.push('d.created_at <= ?');
+                params.push(date_to);
+            }
+
+            const whereClause = whereConditions.length > 0 
+                ? 'WHERE ' + whereConditions.join(' AND ') 
+                : '';
+
+            // Get total count
+            const countResult = await dbManager.get(`
+                SELECT COUNT(*) as total 
+                FROM documents d 
+                ${whereClause}
+            `, params);
+
+            // Get paginated data
+            const offset = (page - 1) * limit;
+            const documents = await dbManager.all(`
+                SELECT 
+                    d.*,
+                    u.name as author_name,
+                    u.department as author_department
+                FROM documents d
+                LEFT JOIN users u ON d.author_id = u.id
+                ${whereClause}
+                ORDER BY d.updated_at DESC
+                LIMIT ? OFFSET ?
+            `, [...params, limit, offset]);
+
+            // Calculate pagination metadata
+            const total = countResult.total;
+            const totalPages = Math.ceil(total / limit);
+
+            return {
+                data: documents.map(doc => new Document(doc)),
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            };
+
+        } catch (error) {
+            console.error('Error getting all documents:', error);
             throw error;
         }
     }
 
     /**
      * Get documents due for review
-     * @param {number} daysBefore - Days before review date
-     * @returns {Promise<Array>} - Documents due for review
      */
     static async getDueForReview(daysBefore = 30) {
         try {
@@ -696,136 +726,180 @@ class Document {
                 FROM documents d
                 LEFT JOIN users u ON d.author_id = u.id
                 WHERE d.status = 'published'
-                AND d.next_review_date IS NOT NULL
-                AND d.next_review_date <= date('now', '+${daysBefore} days')
+                    AND d.next_review_date IS NOT NULL
+                    AND d.next_review_date <= date('now', '+' || ? || ' days')
                 ORDER BY d.next_review_date ASC
-            `);
+            `, [daysBefore]);
 
             return documents.map(doc => new Document(doc));
+
         } catch (error) {
-            logError(error, null, { operation: 'Document.getDueForReview', daysBefore });
+            console.error('Error getting documents due for review:', error);
             throw error;
         }
     }
 
+    // === Deletion ===
+    /**
+     * Delete document (soft delete by changing status)
+     */
+    static async delete(id, deletedBy = null) {
+        try {
+            // Instead of hard delete, mark as disposed
+            await this.updateStatus(id, 'disposed', deletedBy);
+
+            // Log audit event
+            if (deletedBy) {
+                await AuditService.log({
+                    action: 'DOCUMENT_DELETED',
+                    userId: deletedBy,
+                    resourceType: 'document',
+                    resourceId: id,
+                    details: { action: 'soft_delete', status: 'disposed' }
+                });
+            }
+
+            return { success: true, message: 'Document marked as disposed' };
+
+        } catch (error) {
+            console.error('Error deleting document:', error);
+            throw error;
+        }
+    }
+
+    // === Statistics ===
     /**
      * Get document statistics
-     * @returns {Promise<Object>} - Document statistics
      */
-    static async getStatistics() {
+    static async getStatistics(filters = {}) {
         try {
-            // Status statistics
-            const statusStats = await dbManager.all(`
-                SELECT status, COUNT(*) as count 
-                FROM documents 
-                GROUP BY status
-            `);
+            const { department, author_id } = filters;
 
-            // Type statistics
-            const typeStats = await dbManager.all(`
-                SELECT type, COUNT(*) as count 
-                FROM documents 
-                GROUP BY type
-            `);
+            let whereConditions = [];
+            let params = [];
 
-            // Department statistics
-            const deptStats = await dbManager.all(`
-                SELECT department, COUNT(*) as count 
-                FROM documents 
-                GROUP BY department
-                ORDER BY count DESC
-            `);
+            if (department) {
+                whereConditions.push('department = ?');
+                params.push(department);
+            }
+            if (author_id) {
+                whereConditions.push('author_id = ?');
+                params.push(author_id);
+            }
 
-            // Recent activity
-            const recentActivity = await dbManager.all(`
-                SELECT 
-                    DATE(created_at) as date,
-                    COUNT(*) as count
-                FROM documents 
-                WHERE created_at >= date('now', '-30 days')
-                GROUP BY DATE(created_at)
-                ORDER BY date DESC
-            `);
+            const whereClause = whereConditions.length > 0 
+                ? 'WHERE ' + whereConditions.join(' AND ') 
+                : '';
 
-            return {
-                byStatus: statusStats.reduce((acc, row) => {
-                    acc[row.status] = row.count;
-                    return acc;
-                }, {}),
-                byType: typeStats.reduce((acc, row) => {
-                    acc[row.type] = row.count;
-                    return acc;
-                }, {}),
-                byDepartment: deptStats,
-                recentActivity: recentActivity
-            };
+            const stats = await dbManager.get(`
+                SELECT
+                    COUNT(*) as total_documents,
+                    COUNT(CASE WHEN status = 'published' THEN 1 END) as published_count,
+                    COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
+                    COUNT(CASE WHEN status = 'review' THEN 1 END) as review_count,
+                    COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_count,
+                    COUNT(CASE WHEN created_at >= date('now', '-30 days') THEN 1 END) as recent_count,
+                    COUNT(CASE WHEN priority = 'urgent' THEN 1 END) as urgent_count,
+                    COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority_count
+                FROM documents
+                ${whereClause}
+            `, params);
+
+            return stats;
+
         } catch (error) {
-            logError(error, null, { operation: 'Document.getStatistics' });
+            console.error('Error getting document statistics:', error);
+            throw error;
+        }
+    }
+
+    // === History Methods ===
+    /**
+     * Get version history
+     */
+    async getVersionHistory() {
+        try {
+            const versions = await dbManager.all(`
+                SELECT
+                    dv.*,
+                    u.name as created_by_name
+                FROM document_versions dv
+                LEFT JOIN users u ON dv.created_by = u.id
+                WHERE dv.document_id = ?
+                ORDER BY dv.created_at DESC
+            `, [this.id]);
+
+            return versions;
+
+        } catch (error) {
+            console.error('Error getting version history:', error);
             throw error;
         }
     }
 
     /**
-     * Check if user can access this document
-     * @param {Object} user - User object
-     * @returns {boolean} - Access permission
+     * Get workflow history
      */
-    canUserAccess(user) {
-        // Admin can access all documents
-        if (user.role === 'admin') {
-            return true;
-        }
+    async getWorkflowHistory() {
+        try {
+            const transitions = await dbManager.all(`
+                SELECT
+                    wt.*,
+                    u.name as transitioned_by_name
+                FROM workflow_transitions wt
+                LEFT JOIN users u ON wt.transitioned_by = u.id
+                WHERE wt.document_id = ?
+                ORDER BY wt.transitioned_at DESC
+            `, [this.id]);
 
-        // Author can access their own documents
-        if (this.author_id === user.id) {
-            return true;
-        }
+            return transitions;
 
-        // Users can access documents from their department
-        if (this.department === user.department) {
-            return true;
+        } catch (error) {
+            console.error('Error getting workflow history:', error);
+            throw error;
         }
-
-        // Check recipients list
-        if (this.recipients) {
-            try {
-                const recipientList = JSON.parse(this.recipients);
-                return recipientList.includes(user.department);
-            } catch (error) {
-                return false;
-            }
-        }
-
-        return false;
     }
 
+    // === Serialization ===
     /**
-     * Convert document to JSON
-     * @returns {Object} - Document object
+     * Convert to JSON (for API responses)
      */
     toJSON() {
         return {
-            ...this,
-            recipients: this.recipients ? JSON.parse(this.recipients) : []
-        };
-    }
-
-    /**
-     * Convert document to public JSON (limited info)
-     * @returns {Object} - Public document object
-     */
-    toPublicJSON() {
-        return {
             id: this.id,
-            title: this.title,
             document_code: this.document_code,
+            title: this.title,
+            description: this.description,
             type: this.type,
             department: this.department,
-            version: this.version,
             status: this.status,
-            author_name: this.author_name,
+            version: this.version,
+            priority: this.priority,
+            security_level: this.security_level,
+            author_id: this.author_id,
+            reviewer_id: this.reviewer_id,
+            approver_id: this.approver_id,
+            file_path: this.file_path,
+            file_name: this.file_name,
+            file_size: this.file_size,
+            mime_type: this.mime_type,
+            scope_of_application: this.scope_of_application,
+            recipients: this.recipients, // Already parsed as array in constructor
+            review_cycle: this.review_cycle,
+            retention_period: this.retention_period,
+            next_review_date: this.next_review_date,
+            disposal_date: this.disposal_date,
+            change_reason: this.change_reason,
+            change_summary: this.change_summary,
+            keywords: this.keywords,
             created_at: this.created_at,
-            updated_at: this.updated_at
+            updated_at: this.updated_at,
+            published_at: this.published_at,
+            archived_at: this.archived_at,
+            author_name: this.author_name,
+            author_department: this.author_department,
+            reviewer_name: this.reviewer_name,
+            approver_name: this.approver_name
         };
     }
 }
