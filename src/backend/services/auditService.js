@@ -8,103 +8,41 @@
  */
 
 const { dbManager } = require('../config/database');
-const { logError } = require('../utils/logger');
+const { logError, appLogger } = require('../utils/logger');
+const config = require('../config');
+// Giả sử AuditLog model được export như thế này
+const AuditLogModel = require('../models/AuditLog'); // Đảm bảo đường dẫn chính xác
 
 class AuditService {
   /**
-   * Valid audit actions for the system
+   * Valid audit actions for the system.
+   * Nguồn đáng tin cậy từ AuditLogModel để đảm bảo tính nhất quán.
    */
   static get VALID_ACTIONS() {
-    return [
-      // Authentication actions
-      'LOGIN_SUCCESS',
-      'LOGIN_FAILED',
-      'LOGOUT',
-      'PASSWORD_CHANGED',
-      'PASSWORD_RESET',
-      'ACCOUNT_LOCKED',
-      'ACCOUNT_UNLOCKED',
-      
-      // User management actions
-      'USER_CREATED',
-      'USER_UPDATED',
-      'USER_ACTIVATED',
-      'USER_DEACTIVATED',
-      'USER_DELETED',
-      'USER_VIEWED',
-      'USERS_LISTED',
-      
-      // Document management actions
-      'DOCUMENT_CREATED',
-      'DOCUMENT_UPDATED',
-      'DOCUMENT_DELETED',
-      'DOCUMENT_VIEWED',
-      'DOCUMENT_DOWNLOADED',
-      'DOCUMENT_UPLOADED',
-      'DOCUMENT_SEARCHED',
-      'DOCUMENT_APPROVED',
-      'DOCUMENT_REJECTED',
-      'DOCUMENT_PUBLISHED',
-      'DOCUMENT_ARCHIVED',
-      
-      // Version management actions
-      'VERSION_CREATED',
-      'VERSION_COMPARED',
-      'VERSION_RESTORED',
-      
-      // Workflow actions
-      'WORKFLOW_TRANSITION',
-      'WORKFLOW_APPROVED',
-      'WORKFLOW_REJECTED',
-      'WORKFLOW_RETURNED',
-      
-      // File management actions
-      'FILE_UPLOADED',
-      'FILE_DOWNLOADED',
-      'FILE_DELETED',
-      'FILE_ATTACHED',
-      
-      // Permission actions
-      'PERMISSION_GRANTED',
-      'PERMISSION_REVOKED',
-      'PERMISSION_CHECKED',
-      
-      // System actions
-      'SYSTEM_BACKUP',
-      'SYSTEM_RESTORE',
-      'SYSTEM_MAINTENANCE',
-      'SYSTEM_ERROR',
-      'SYSTEM_STARTUP',
-      'SYSTEM_SHUTDOWN'
-    ];
+    return AuditLogModel.VALID_ACTIONS;
   }
 
   /**
-   * Valid resource types
+   * Valid resource types.
+   * Nguồn đáng tin cậy từ AuditLogModel.
    */
   static get VALID_RESOURCE_TYPES() {
-    return [
-      'user',
-      'document',
-      'version',
-      'file',
-      'workflow',
-      'permission',
-      'system'
-    ];
+    // Cần cập nhật AuditLogModel.VALID_RESOURCE_TYPES để bao gồm 'workflow', 'permission', 'system'
+    // Tạm thời hardcode ở đây dựa trên schema, nhưng lý tưởng là lấy từ Model
+    return ['user', 'document', 'version', 'file', 'workflow', 'permission', 'system'];
   }
 
   /**
-   * Log audit event
+   * Log audit event with enhanced validation and error handling
    * @param {Object} auditData - Audit event data
    * @param {string} auditData.action - Action performed
-   * @param {number} auditData.userId - User performing action
-   * @param {string} auditData.resourceType - Type of resource
-   * @param {number} auditData.resourceId - ID of resource
-   * @param {Object} auditData.details - Additional details
-   * @param {string} auditData.ipAddress - IP address
-   * @param {string} auditData.userAgent - User agent
-   * @param {string} auditData.sessionId - Session ID
+   * @param {number} [auditData.userId=null] - User performing action
+   * @param {string} [auditData.resourceType='system'] - Type of resource
+   * @param {number} [auditData.resourceId=null] - ID of resource
+   * @param {Object} [auditData.details={}] - Additional details
+   * @param {string} [auditData.ipAddress=null] - IP address from request context
+   * @param {string} [auditData.userAgent=null] - User agent from request context
+   * @param {string} [auditData.sessionId=null] - Session ID from request context
    */
   static async log(auditData) {
     try {
@@ -114,69 +52,96 @@ class AuditService {
         resourceType = 'system',
         resourceId = null,
         details = {},
-        ipAddress = null,
-        userAgent = null,
-        sessionId = null
+        ipAddress = null, // Nhận từ context
+        userAgent = null, // Nhận từ context
+        sessionId = null  // Nhận từ context
       } = auditData;
 
-      // Validate action
+      // Enhanced validation
       if (!this.VALID_ACTIONS.includes(action)) {
-        throw new Error(`Invalid audit action: ${action}`);
+        // Ghi log lỗi nhưng không dừng hẳn nếu action không quá nghiêm trọng
+        logError(new Error(`Invalid audit action: ${action}`), null, {
+          operation: 'AuditService.log.validation',
+          attemptedAction: action,
+          allowedActions: this.VALID_ACTIONS.join(', ')
+        });
+        // Quyết định có throw error hay không tùy thuộc vào độ nghiêm trọng
+        // Hiện tại, chỉ log và tiếp tục nếu action không có trong list nhưng vẫn muốn ghi lại
       }
 
-      // Validate resource type
       if (!this.VALID_RESOURCE_TYPES.includes(resourceType)) {
-        throw new Error(`Invalid resource type: ${resourceType}`);
+         logError(new Error(`Invalid resource type: ${resourceType}`), null, {
+          operation: 'AuditService.log.validation',
+          attemptedResourceType: resourceType,
+          allowedResourceTypes: this.VALID_RESOURCE_TYPES.join(', ')
+        });
+        // Tương tự như action, có thể quyết định throw error hoặc chỉ log
       }
 
-      // Insert audit log
-      await dbManager.run(`
-        INSERT INTO audit_logs (
-          user_id, action, resource_type, resource_id, details,
-          ip_address, user_agent, session_id, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `, [
-        userId,
-        action,
-        resourceType,
-        resourceId,
-        details ? JSON.stringify(details) : null,
-        ipAddress,
-        userAgent,
-        sessionId
-      ]);
+      // Serialize details as JSON if it's an object
+      const detailsJson = typeof details === 'object' ? JSON.stringify(details) : details;
 
-      // Log high-priority events to system log
+
+      // Insert audit log with proper error handling
+      const result = await dbManager.run(
+        `INSERT INTO audit_logs (
+          user_id, action, resource_type, resource_id,
+          details, ip_address, user_agent, session_id, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          userId,
+          action,
+          resourceType,
+          resourceId,
+          detailsJson, // Sử dụng details đã được JSON hóa
+          ipAddress,
+          userAgent,
+          sessionId
+        ]
+      );
+
+      // Log high-priority events to application logger
       if (this.isHighPriorityEvent(action)) {
-        console.log(`[AUDIT] ${action}: User ${userId}, Resource ${resourceType}:${resourceId}`);
+        appLogger.info(`[AUDIT_HIGH_PRIORITY] ${action}`, {
+          userId,
+          resourceType,
+          resourceId,
+          details,
+          ipAddress
+        });
       }
 
+      return {
+        success: true,
+        auditId: result.lastID,
+        timestamp: new Date().toISOString() // Trả về ISO string cho nhất quán
+      };
     } catch (error) {
-      logError(error, null, { 
-        operation: 'AuditService.log', 
-        auditData,
+      logError(error, null, {
+        operation: 'AuditService.log',
+        auditData, // Log toàn bộ auditData khi có lỗi
         message: 'Failed to log audit event'
       });
-      
+
       // Don't throw error to prevent disrupting main application flow
       // but ensure critical audit failures are logged
       if (this.isCriticalAuditEvent(auditData.action)) {
-        console.error('CRITICAL AUDIT FAILURE:', error.message);
+        appLogger.error('CRITICAL AUDIT FAILURE', {
+          error: error.message,
+          auditData
+        });
       }
+
+      return {
+        success: false,
+        error: error.message
+        // Không nên throw error từ đây để tránh dừng các nghiệp vụ khác
+      };
     }
   }
 
   /**
-   * Get audit logs with filtering and pagination
-   * @param {Object} filters - Filter criteria
-   * @param {number} filters.userId - Filter by user ID
-   * @param {string} filters.action - Filter by action
-   * @param {string} filters.resourceType - Filter by resource type
-   * @param {number} filters.resourceId - Filter by resource ID
-   * @param {string} filters.dateFrom - Start date filter
-   * @param {string} filters.dateTo - End date filter
-   * @param {number} filters.page - Page number
-   * @param {number} filters.limit - Items per page
+   * Get audit logs with enhanced filtering and pagination
    */
   static async getAuditLogs(filters = {}) {
     try {
@@ -187,300 +152,399 @@ class AuditService {
         resourceId,
         dateFrom,
         dateTo,
+        ipAddress,
+        sessionId,
+        search, // Thêm bộ lọc search
         page = 1,
-        limit = 50
+        limit = 100 // Giữ nguyên limit mặc định
       } = filters;
 
       let whereConditions = [];
       let params = [];
 
-      // Build WHERE clause
+      // Build WHERE clause with all supported filters
       if (userId) {
         whereConditions.push('al.user_id = ?');
         params.push(userId);
       }
-
       if (action) {
         whereConditions.push('al.action = ?');
-        params.push(action);
+        params.push(action.toUpperCase()); // Đảm bảo action được chuẩn hóa
       }
-
       if (resourceType) {
         whereConditions.push('al.resource_type = ?');
-        params.push(resourceType);
+        params.push(resourceType.toLowerCase()); // Đảm bảo resourceType được chuẩn hóa
       }
-
       if (resourceId) {
         whereConditions.push('al.resource_id = ?');
         params.push(resourceId);
       }
-
       if (dateFrom) {
         whereConditions.push('al.timestamp >= ?');
         params.push(dateFrom);
       }
-
       if (dateTo) {
-        whereConditions.push('al.timestamp <= ?');
-        params.push(dateTo);
+        // Thêm 1 ngày để bao gồm cả ngày kết thúc
+        const endDate = new Date(dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        whereConditions.push('al.timestamp < ?');
+        params.push(endDate.toISOString().split('T')[0]);
+      }
+      if (ipAddress) {
+        whereConditions.push('al.ip_address = ?');
+        params.push(ipAddress);
+      }
+      if (sessionId) {
+        whereConditions.push('al.session_id = ?');
+        params.push(sessionId);
+      }
+      if (search) {
+        // Tìm kiếm trong action và details
+        whereConditions.push('(al.action LIKE ? OR al.details LIKE ?)');
+        const searchTerm = `%${search}%`;
+        params.push(searchTerm, searchTerm);
       }
 
-      const whereClause = whereConditions.length > 0 
-        ? 'WHERE ' + whereConditions.join(' AND ') 
+
+      const whereClause = whereConditions.length > 0
+        ? 'WHERE ' + whereConditions.join(' AND ')
         : '';
 
       // Get total count
-      const countResult = await dbManager.get(`
-        SELECT COUNT(*) as total 
-        FROM audit_logs al 
-        ${whereClause}
-      `, params);
+      const countResult = await dbManager.get(
+        `SELECT COUNT(*) as total 
+         FROM audit_logs al 
+         LEFT JOIN users u ON al.user_id = u.id -- Join để có thể filter theo department nếu cần
+         ${whereClause}`,
+        params
+      );
 
-      // Get paginated data
-      const offset = (page - 1) * limit;
-      const logs = await dbManager.all(`
-        SELECT 
-          al.*,
-          u.name as user_name,
-          u.email as user_email,
-          u.department as user_department
-        FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.id
-        ${whereClause}
-        ORDER BY al.timestamp DESC
-        LIMIT ? OFFSET ?
-      `, [...params, limit, offset]);
+      // Get paginated data with user information
+      const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+      const logs = await dbManager.all(
+        `SELECT al.*, u.name as user_name, u.email as user_email, u.department as user_department
+         FROM audit_logs al
+         LEFT JOIN users u ON al.user_id = u.id
+         ${whereClause}
+         ORDER BY al.timestamp DESC
+         LIMIT ? OFFSET ?`,
+        [...params, parseInt(limit, 10), offset]
+      );
 
-      // Parse details JSON
+      // Parse details JSON safely
       logs.forEach(log => {
         if (log.details) {
           try {
             log.details = JSON.parse(log.details);
           } catch (e) {
-            log.details = {};
+            log.details = { raw_details: log.details, parse_error: e.message }; // Giữ lại raw data nếu parse lỗi
           }
         }
       });
 
       // Calculate pagination metadata
       const total = countResult.total;
-      const totalPages = Math.ceil(total / limit);
+      const totalPages = Math.ceil(total / parseInt(limit, 10));
 
       return {
+        success: true,
         data: logs,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: parseInt(page, 10),
+          limit: parseInt(limit, 10),
           total,
           totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1
+          hasNextPage: parseInt(page, 10) < totalPages,
+          hasPrevPage: parseInt(page, 10) > 1,
         }
       };
-
     } catch (error) {
-      logError(error, null, { 
-        operation: 'AuditService.getAuditLogs', 
-        filters 
+      logError(error, null, {
+        operation: 'AuditService.getAuditLogs',
+        filters
       });
-      throw error;
+      // Không throw error mà trả về cấu trúc lỗi nhất quán
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        pagination: { page: filters.page || 1, limit: filters.limit || 100, total: 0, totalPages: 0 }
+      };
     }
   }
 
   /**
-   * Get audit statistics
-   * @param {Object} filters - Filter criteria
+   * Get comprehensive audit statistics
    */
-  static async getAuditStats(filters = {}) {
+  static async getAuditStatistics(filters = {}) {
     try {
-      const { dateFrom, dateTo, userId } = filters;
-
-      let whereConditions = ['1=1'];
+      const { dateFrom, dateTo, userId, department } = filters;
+      let whereConditions = ['1=1']; // Bắt đầu với điều kiện luôn đúng
       let params = [];
 
       if (dateFrom) {
-        whereConditions.push('timestamp >= ?');
+        whereConditions.push('al.timestamp >= ?');
         params.push(dateFrom);
       }
-
       if (dateTo) {
-        whereConditions.push('timestamp <= ?');
-        params.push(dateTo);
+        const endDate = new Date(dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        whereConditions.push('al.timestamp < ?');
+        params.push(endDate.toISOString().split('T')[0]);
       }
-
       if (userId) {
-        whereConditions.push('user_id = ?');
+        whereConditions.push('al.user_id = ?');
         params.push(userId);
+      }
+      if (department) {
+        // Cần join với bảng users để lọc theo department của user thực hiện action
+        whereConditions.push('u.department = ?');
+        params.push(department);
       }
 
       const whereClause = 'WHERE ' + whereConditions.join(' AND ');
+      const joinClause = department ? 'LEFT JOIN users u ON al.user_id = u.id' : '';
 
-      const stats = await dbManager.get(`
-        SELECT
+
+      // Get comprehensive statistics
+      const stats = await dbManager.get(
+        `SELECT
           COUNT(*) as total_events,
-          COUNT(DISTINCT user_id) as unique_users,
-          COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_events,
-          COUNT(CASE WHEN action LIKE '%DOCUMENT%' THEN 1 END) as document_events,
-          COUNT(CASE WHEN action LIKE '%USER%' THEN 1 END) as user_events,
-          COUNT(CASE WHEN action LIKE '%FAILED%' OR action LIKE '%ERROR%' THEN 1 END) as error_events,
-          COUNT(CASE WHEN timestamp >= date('now', '-24 hours') THEN 1 END) as events_last_24h,
-          COUNT(CASE WHEN timestamp >= date('now', '-7 days') THEN 1 END) as events_last_week
-        FROM audit_logs
-        ${whereClause}
-      `, params);
+          COUNT(DISTINCT al.user_id) as unique_users,
+          COUNT(CASE WHEN al.action LIKE '%LOGIN%' THEN 1 END) as login_events,
+          COUNT(CASE WHEN al.action LIKE '%DOCUMENT%' THEN 1 END) as document_events,
+          COUNT(CASE WHEN al.action LIKE '%USER%' THEN 1 END) as user_events,
+          COUNT(CASE WHEN al.action LIKE '%FAILED%' OR al.action LIKE '%ERROR%' THEN 1 END) as error_events,
+          COUNT(CASE WHEN al.timestamp >= datetime('now', '-24 hours') THEN 1 END) as events_last_24h,
+          COUNT(CASE WHEN al.timestamp >= datetime('now', '-7 days') THEN 1 END) as events_last_week,
+          COUNT(CASE WHEN al.timestamp >= datetime('now', '-30 days') THEN 1 END) as events_last_month
+         FROM audit_logs al
+         ${joinClause}
+         ${whereClause}`,
+        params
+      );
 
       // Get top actions
-      const topActions = await dbManager.all(`
-        SELECT 
-          action,
+      const topActions = await dbManager.all(
+        `SELECT
+          al.action,
           COUNT(*) as count,
-          COUNT(DISTINCT user_id) as unique_users
-        FROM audit_logs
-        ${whereClause}
-        GROUP BY action
-        ORDER BY count DESC
-        LIMIT 10
-      `, params);
+          COUNT(DISTINCT al.user_id) as unique_users
+         FROM audit_logs al
+         ${joinClause}
+         ${whereClause}
+         GROUP BY al.action
+         ORDER BY count DESC
+         LIMIT 10`,
+        params
+      );
 
-      // Get top users
-      const topUsers = await dbManager.all(`
-        SELECT 
+      // Get top users by activity
+      const topUsers = await dbManager.all(
+        `SELECT
           al.user_id,
-          u.name,
+          COALESCE(u.name, 'System/Unknown') as user_name, -- Hiển thị 'System/Unknown' nếu user_id NULL hoặc không tìm thấy user
           u.department,
-          COUNT(*) as event_count
-        FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.id
-        ${whereClause}
-        GROUP BY al.user_id, u.name, u.department
-        ORDER BY event_count DESC
-        LIMIT 10
-      `, params);
+          COUNT(*) as event_count,
+          MAX(al.timestamp) as last_activity
+         FROM audit_logs al
+         LEFT JOIN users u ON al.user_id = u.id -- Luôn join để lấy thông tin user
+         ${whereClause}
+         -- Bỏ điều kiện al.user_id IS NOT NULL để bao gồm cả system actions nếu user_id là NULL
+         GROUP BY al.user_id, user_name, u.department
+         ORDER BY event_count DESC
+         LIMIT 10`,
+        params
+      );
+
+      // Get department activity (chỉ các action do user thực hiện)
+      const departmentActivity = await dbManager.all(
+        `SELECT
+          u.department,
+          COUNT(*) as event_count,
+          COUNT(DISTINCT al.user_id) as active_users
+         FROM audit_logs al
+         INNER JOIN users u ON al.user_id = u.id -- INNER JOIN để chỉ lấy các action có user_id
+         ${whereClause.replace('1=1 AND', '')} -- Loại bỏ điều kiện 1=1 nếu có
+         AND u.department IS NOT NULL
+         GROUP BY u.department
+         ORDER BY event_count DESC`,
+        params.filter((p, i) => !(department && whereConditions[i+1].includes('u.department'))) // Loại bỏ param department nếu đã có
+      );
+
 
       return {
-        summary: stats,
-        topActions,
-        topUsers
+        success: true,
+        data: {
+          summary: stats,
+          topActions,
+          topUsers,
+          departmentActivity
+        }
       };
-
     } catch (error) {
-      logError(error, null, { 
-        operation: 'AuditService.getAuditStats', 
-        filters 
+      logError(error, null, {
+        operation: 'AuditService.getAuditStatistics',
+        filters
       });
-      throw error;
+      return { success: false, error: error.message, data: {} };
     }
   }
 
   /**
-   * Get security events (failed logins, permission violations, etc.)
+   * Get security events with enhanced filtering
    */
-  static async getSecurityEvents(hours = 24) {
+  static async getSecurityEvents(hours = 24, severity = 'all', limit = 100) {
     try {
-      const securityActions = [
-        'LOGIN_FAILED',
-        'ACCOUNT_LOCKED',
-        'PERMISSION_DENIED',
-        'UNAUTHORIZED_ACCESS',
-        'SYSTEM_ERROR'
+      const allSecurityActions = [
+        'LOGIN_FAILED', 'ACCOUNT_LOCKED', 'PERMISSION_DENIED', // High severity
+        'PASSWORD_CHANGE_FAILED', // Giả sử có action này, hoặc tương tự
+        'UNAUTHORIZED_ACCESS', // Giả sử có action này
+        'USER_DEACTIVATED', // Medium-High
+        'PASSWORD_RESET' // Potentially medium
+        // Thêm các actions bảo mật khác nếu cần
       ];
 
-      const events = await dbManager.all(`
-        SELECT 
-          al.*,
-          u.name as user_name,
-          u.email as user_email
-        FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.id
-        WHERE al.action IN (${securityActions.map(() => '?').join(',')})
-          AND al.timestamp >= datetime('now', '-${hours} hours')
-        ORDER BY al.timestamp DESC
-      `, securityActions);
+      let targetActions = [...allSecurityActions];
 
-      // Parse details
+      if (severity === 'high') {
+        targetActions = ['LOGIN_FAILED', 'ACCOUNT_LOCKED', 'PERMISSION_DENIED', 'UNAUTHORIZED_ACCESS'];
+      } else if (severity === 'medium') {
+        targetActions = ['PASSWORD_CHANGE_FAILED', 'USER_DEACTIVATED', 'PASSWORD_RESET'];
+      }
+      // 'all' sẽ dùng allSecurityActions
+
+      let whereClause = `WHERE al.action IN (${targetActions.map(() => '?').join(',')})
+                        AND al.timestamp >= datetime('now', '-${parseInt(hours, 10)} hours')`;
+      let params = [...targetActions];
+
+      const events = await dbManager.all(
+        `SELECT al.*, u.name as user_name, u.email as user_email, u.department as user_department
+         FROM audit_logs al
+         LEFT JOIN users u ON al.user_id = u.id
+         ${whereClause}
+         ORDER BY al.timestamp DESC
+         LIMIT ?`, // Thêm LIMIT
+        [...params, parseInt(limit, 10)] // Thêm tham số cho LIMIT
+      );
+
+      // Parse details and categorize by severity
       events.forEach(event => {
         if (event.details) {
           try {
             event.details = JSON.parse(event.details);
           } catch (e) {
-            event.details = {};
+            event.details = { raw_details: event.details, parse_error: e.message };
           }
         }
+        // Add severity classification
+        event.severity = this.classifyEventSeverity(event.action);
       });
 
-      return events;
-
+      return {
+        success: true,
+        data: events,
+        summary: {
+          total: events.length,
+          high: events.filter(e => e.severity === 'high').length,
+          medium: events.filter(e => e.severity === 'medium').length,
+          low: events.filter(e => e.severity === 'low').length
+        }
+      };
     } catch (error) {
-      logError(error, null, { 
-        operation: 'AuditService.getSecurityEvents', 
-        hours 
+      logError(error, null, {
+        operation: 'AuditService.getSecurityEvents',
+        hours,
+        severity
       });
-      throw error;
+      return { success: false, error: error.message, data: [] };
     }
   }
 
   /**
    * Clean old audit logs based on retention policy
-   * @param {number} retentionDays - Number of days to retain logs
    */
-  static async cleanOldLogs(retentionDays = 365) {
+  static async cleanOldLogs(retentionDays = null) {
     try {
-      const result = await dbManager.run(`
-        DELETE FROM audit_logs 
-        WHERE timestamp < date('now', '-${retentionDays} days')
-      `);
+      // Use config default if not specified
+      const retention = retentionDays || config.logging?.audit?.retentionDays || 365; // Sử dụng giá trị từ config
 
-      console.log(`Cleaned ${result.changes} old audit log entries`);
-      
+      const result = await dbManager.run(
+        `DELETE FROM audit_logs WHERE timestamp < datetime('now', '-${retention} days')`
+      );
+
+      appLogger.info(`Cleaned ${result.changes} old audit log entries older than ${retention} days`, {
+        retentionDays: retention,
+        deletedCount: result.changes
+      });
+
       // Log the cleanup operation
-      await this.log({
-        action: 'SYSTEM_MAINTENANCE',
+      // Không await kết quả của this.log ở đây để tránh vòng lặp vô hạn nếu log này lại thất bại
+      this.log({
+        action: 'SYSTEM_MAINTENANCE', // Đảm bảo action này có trong VALID_ACTIONS
+        userId: null, // System action
         resourceType: 'system',
         details: {
           operation: 'audit_log_cleanup',
           deleted_records: result.changes,
-          retention_days: retentionDays
-        }
+          retention_days: retention
+        },
+        // ipAddress, userAgent, sessionId có thể là null cho system action
+      }).catch(err => { // Bắt lỗi riêng cho việc log hành động cleanup
+          logError(err, null, { operation: 'AuditService.logCleanupAction', message: 'Failed to log cleanup action itself' });
       });
 
-      return result.changes;
 
+      return {
+        success: true,
+        deletedRecords: result.changes,
+        retentionDays: retention
+      };
     } catch (error) {
-      logError(error, null, { 
-        operation: 'AuditService.cleanOldLogs', 
-        retentionDays 
+      logError(error, null, {
+        operation: 'AuditService.cleanOldLogs',
+        retentionDays
       });
-      throw error;
+       return { success: false, error: error.message, deletedRecords: 0 };
     }
   }
 
   /**
    * Export audit logs for compliance reporting
-   * @param {Object} filters - Export filters
-   * @param {string} format - Export format ('csv', 'json')
    */
   static async exportAuditLogs(filters = {}, format = 'csv') {
     try {
-      const { data } = await this.getAuditLogs({
-        ...filters,
-        limit: 10000 // Large limit for export
-      });
+      // Lấy tất cả log phù hợp (không phân trang cho export, hoặc giới hạn lớn)
+      const { data: logsToExport, success: fetchSuccess, error: fetchError } = await this.getAuditLogs({ ...filters, limit: 50000 }); // Giới hạn lớn cho export
 
-      if (format === 'csv') {
-        return this.convertToCSV(data);
-      } else if (format === 'json') {
-        return JSON.stringify(data, null, 2);
-      } else {
-        throw new Error(`Unsupported export format: ${format}`);
+      if (!fetchSuccess) {
+        throw new Error(fetchError || 'Failed to fetch logs for export');
       }
 
+      if (format === 'csv') {
+        return {
+          success: true,
+          data: this.convertToCSV(logsToExport),
+          filename: `audit_logs_export_${new Date().toISOString().split('T')[0]}.csv`,
+          contentType: 'text/csv'
+        };
+      } else if (format === 'json') {
+        return {
+          success: true,
+          data: JSON.stringify(logsToExport, null, 2),
+          filename: `audit_logs_export_${new Date().toISOString().split('T')[0]}.json`,
+          contentType: 'application/json'
+        };
+      } else {
+        throw new Error(`Unsupported export format: ${format}. Supported formats: csv, json.`);
+      }
     } catch (error) {
-      logError(error, null, { 
-        operation: 'AuditService.exportAuditLogs', 
-        filters, 
-        format 
+      logError(error, null, {
+        operation: 'AuditService.exportAuditLogs',
+        filters,
+        format
       });
-      throw error;
+      return { success: false, error: error.message };
     }
   }
 
@@ -489,32 +553,49 @@ class AuditService {
    * @private
    */
   static convertToCSV(logs) {
+    if (!logs || logs.length === 0) return "";
+
     const headers = [
+      'ID',
       'Timestamp',
+      'User ID',
       'User Name',
       'User Email',
+      'User Department',
       'Action',
       'Resource Type',
       'Resource ID',
       'IP Address',
-      'Details'
+      'User Agent',
+      'Session ID',
+      'Details (JSON)' // Ghi rõ là JSON
     ];
 
     const rows = logs.map(log => [
+      log.id,
       log.timestamp,
+      log.user_id || '',
       log.user_name || '',
       log.user_email || '',
+      log.user_department || '',
       log.action,
       log.resource_type,
       log.resource_id || '',
       log.ip_address || '',
-      log.details ? JSON.stringify(log.details) : ''
+      log.user_agent || '',
+      log.session_id || '',
+      log.details ? JSON.stringify(log.details) : '{}' // Xuất details dạng JSON string
     ]);
 
     return [headers, ...rows]
-      .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+      .map(row => row.map(field => {
+        const strField = String(field === null || field === undefined ? '' : field);
+        // Escape double quotes and handle commas/newlines within fields
+        return `"${strField.replace(/"/g, '""')}"`;
+      }).join(','))
       .join('\n');
   }
+
 
   /**
    * Check if event is high priority
@@ -526,9 +607,11 @@ class AuditService {
       'ACCOUNT_LOCKED',
       'USER_DELETED',
       'DOCUMENT_DELETED',
-      'PERMISSION_GRANTED',
+      'PERMISSION_GRANTED', // Granting permission is high priority
       'PERMISSION_REVOKED',
-      'SYSTEM_ERROR'
+      'PERMISSION_DENIED',
+      'SYSTEM_ERROR',
+      'DOCUMENT_DISPOSED'
     ];
     return highPriorityActions.includes(action);
   }
@@ -539,13 +622,43 @@ class AuditService {
    */
   static isCriticalAuditEvent(action) {
     const criticalActions = [
-      'USER_DELETED',
-      'DOCUMENT_DELETED',
-      'SYSTEM_BACKUP',
-      'SYSTEM_RESTORE',
-      'PERMISSION_REVOKED'
+      'USER_DELETED', // Deleting user is critical
+      'DOCUMENT_DELETED', // Deleting document is critical
+      'DOCUMENT_DISPOSED',
+      'SYSTEM_BACKUP', // Backup success/failure can be critical
+      'SYSTEM_RESTORE', // Restore success/failure is critical
+      'PERMISSION_REVOKED', // Revoking critical permissions
+      'ROLE_CHANGE_TO_ADMIN' // Example: A user's role changed to admin
     ];
     return criticalActions.includes(action);
+  }
+
+  /**
+   * Classify event severity
+   * @private
+   */
+  static classifyEventSeverity(action) {
+    // Ví dụ phân loại, có thể mở rộng
+    const highSeverity = [
+      'ACCOUNT_LOCKED', 'PERMISSION_DENIED', 'SYSTEM_ERROR',
+      'LOGIN_FAILED', // Coi là high
+      'USER_DELETED', 'DOCUMENT_DELETED', 'DOCUMENT_DISPOSED',
+      'SYSTEM_RESTORE_FAILED' // Ví dụ
+    ];
+    const mediumSeverity = [
+      'PASSWORD_CHANGE', // Có thể là medium nếu thành công, high nếu thất bại
+      'PASSWORD_RESET',
+      'USER_DEACTIVATED',
+      'DOCUMENT_ARCHIVED',
+      'PERMISSION_GRANTED',
+      'PERMISSION_REVOKED',
+      'SYSTEM_BACKUP_FAILED' // Ví dụ
+    ];
+
+    if (highSeverity.includes(action)) return 'high';
+    if (mediumSeverity.includes(action)) return 'medium';
+    // Mặc định là low cho các action khác
+    return 'low';
   }
 }
 

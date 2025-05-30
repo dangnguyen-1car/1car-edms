@@ -1,3 +1,5 @@
+// src/backend/models/Document.js
+
 /**
  * =================================================================
  * EDMS 1CAR - Document Model (Updated Complete)
@@ -607,10 +609,11 @@ class Document {
         }
     }
 
+    // ĐỔI TÊN: từ getAll thành search để khớp với DocumentService
     /**
-     * Get all documents with filtering and pagination
+     * Search documents with filtering and pagination
      */
-    static async getAll(filters = {}, page = 1, limit = 20) {
+    static async search(filters = {}, page = 1, limit = 20) {
         try {
             const {
                 type,
