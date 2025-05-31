@@ -1,73 +1,34 @@
-// src/components/documents/SearchFilters.js
+// src/frontend/src/components/documents/SearchFilters.js
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FiSearch, FiFilter, FiX, FiCalendar } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiX, FiCalendar, FiLoader } from 'react-icons/fi';
+import LoadingSpinner from '../common/LoadingSpinner'; // Import LoadingSpinner
 
-function SearchFilters({ 
-  filters, 
-  onFiltersChange, 
-  onClearFilters, 
-  showAdvanced = false, 
-  onToggleAdvanced 
+function SearchFilters({
+  filters,
+  onFiltersChange,
+  onClearFilters,
+  showAdvanced = false,
+  onToggleAdvanced,
+  // Props mới để nhận options từ component cha
+  documentTypeOptions = [], // [{ value: 'PL', label: 'Chính sách' }, ...]
+  departmentOptions = [],   // [{ value: 'Ban Giám đốc', label: 'Ban Giám đốc' }, ...]
+  statusOptions = [],       // [{ value: 'draft', label: 'Bản nháp' }, ...]
+  securityLevelOptions = [],// [{ value: 'internal', label: 'Nội bộ' }, ...]
+  priorityOptions = [],     // [{ value: 'normal', label: 'Bình thường' }, ...]
+  isLoadingOptions = false, // Cờ để biết options có đang được tải không
 }) {
   const [localFilters, setLocalFilters] = useState(filters);
   const debounceTimeoutRef = useRef(null);
 
-  // Danh sách các lựa chọn theo chuẩn EDMS 1CAR
-  const documentTypes = [
-    { code: '', name: 'Tất cả loại tài liệu' },
-    { code: 'PL', name: 'Chính sách' },
-    { code: 'PR', name: 'Quy trình' },
-    { code: 'WI', name: 'Hướng dẫn' },
-    { code: 'FM', name: 'Biểu mẫu' },
-    { code: 'TD', name: 'Tài liệu kỹ thuật' },
-    { code: 'TR', name: 'Tài liệu đào tạo' },
-    { code: 'RC', name: 'Hồ sơ' },
-  ];
+  // Danh sách mặc định nếu props không được truyền hoặc rỗng (có thể dùng làm fallback)
+  const defaultDocumentTypes = [{ value: '', label: 'Tất cả loại tài liệu' }, ...documentTypeOptions];
+  const defaultDepartments = [{ value: '', label: 'Tất cả phòng ban' }, ...departmentOptions];
+  const defaultStatuses = [{ value: '', label: 'Tất cả trạng thái' }, ...statusOptions];
+  const defaultSecurityLevels = [{ value: '', label: 'Tất cả mức bảo mật' }, ...securityLevelOptions];
+  const defaultPriorities = [{ value: '', label: 'Tất cả mức ưu tiên' }, ...priorityOptions];
 
-  const departments = [
-    '',
-    'Ban Giám đốc',
-    'Phòng Phát triển Nhượng quyền',
-    'Phòng Đào tạo Tiêu chuẩn',
-    'Phòng Marketing',
-    'Phòng Kỹ thuật QC',
-    'Phòng Tài chính',
-    'Phòng Công nghệ Hệ thống',
-    'Phòng Pháp lý',
-    'Bộ phận Tiếp nhận CSKH',
-    'Bộ phận Kỹ thuật Garage',
-    'Bộ phận QC Garage',
-    'Bộ phận Kho/Kế toán Garage',
-    'Bộ phận Marketing Garage',
-    'Quản lý Garage',
-  ];
-
-  const statuses = [
-    { code: '', name: 'Tất cả trạng thái' },
-    { code: 'draft', name: 'Bản nháp' },
-    { code: 'review', name: 'Đang xem xét' },
-    { code: 'published', name: 'Đã phê duyệt' },
-    { code: 'archived', name: 'Đã lưu trữ' },
-  ];
-
-  const securityLevels = [
-    { code: '', name: 'Tất cả mức bảo mật' },
-    { code: 'public', name: 'Công khai (P)' },
-    { code: 'internal', name: 'Nội bộ (I)' },
-    { code: 'confidential', name: 'Bảo mật (C)' },
-    { code: 'restricted', name: 'Hạn chế (R)' },
-  ];
-
-  const priorities = [
-    { code: '', name: 'Tất cả mức ưu tiên' },
-    { code: 'low', name: 'Thấp' },
-    { code: 'normal', name: 'Bình thường' },
-    { code: 'high', name: 'Cao' },
-    { code: 'urgent', name: 'Khẩn cấp' },
-  ];
-
-  // Sync local filters với props khi props thay đổi
+  // Sync local filters với props khi props thay đổi từ bên ngoài
   useEffect(() => {
     setLocalFilters(filters);
   }, [filters]);
@@ -77,10 +38,9 @@ function SearchFilters({
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
-    
     debounceTimeoutRef.current = setTimeout(() => {
       onFiltersChange(newFilters);
-    }, 300); // 300ms debounce delay
+    }, 500); // Tăng debounce một chút cho search input
   }, [onFiltersChange]);
 
   // Cleanup timeout khi component unmount
@@ -92,16 +52,13 @@ function SearchFilters({
     };
   }, []);
 
-  // Handle input changes với debounce cho search, immediate cho các field khác
   const handleInputChange = (name, value) => {
     const newFilters = { ...localFilters, [name]: value };
     setLocalFilters(newFilters);
-    
-    // Chỉ debounce cho search field, các field khác thì immediate
+
     if (name === 'search') {
       debouncedFiltersChange(newFilters);
     } else {
-      // Clear debounce timeout nếu có
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
         debounceTimeoutRef.current = null;
@@ -110,295 +67,217 @@ function SearchFilters({
     }
   };
 
-  // Handle search submit (khi nhấn Enter)
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    
-    // Clear debounce timeout và gọi ngay lập tức
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
       debounceTimeoutRef.current = null;
     }
-    
     onFiltersChange(localFilters);
   };
 
-  // Clear all filters
   const handleClearAll = () => {
-    // Clear debounce timeout
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
       debounceTimeoutRef.current = null;
     }
-    
     const clearedFilters = {
-      search: '',
-      type: '',
-      department: '',
-      status: '',
-      security_level: '',
-      priority: '',
-      date_from: '',
-      date_to: '',
-      include_archived: false,
-      search_content: false,
-      exact_match: false,
+      search: '', type: '', department: '', status: '',
+      security_level: '', priority: '', date_from: '', date_to: '',
+      include_archived: false, search_content: false, exact_match: false,
+      sort: filters.sort || 'relevance' // Giữ lại sort filter nếu có
     };
-    
     setLocalFilters(clearedFilters);
-    onClearFilters();
+    if(onClearFilters) onClearFilters(); // Gọi hàm onClearFilters từ props
+    else onFiltersChange(clearedFilters); // Nếu không có onClearFilters, thì coi như là thay đổi filter về rỗng
   };
 
-  // Check if any filters are active
-  const hasActiveFilters = Object.values(localFilters).some(value => 
-    value !== '' && value !== false
-  );
+  const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
+    if (key === 'sort') return false; // Bỏ qua sort khỏi việc check "active"
+    return value !== '' && value !== false && value !== null && value !== undefined;
+  });
+
+  // Helper để render select options
+  const renderOptions = (optionsArray, defaultOptionLabel = "Tất cả") => {
+    // Nếu optionsArray chưa có option "Tất cả", thêm vào đầu
+    const hasDefaultAll = optionsArray.some(opt => opt.value === '');
+    const finalOptions = hasDefaultAll ? optionsArray : [{value: '', label: defaultOptionLabel}, ...optionsArray];
+
+    return finalOptions.map(opt => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ));
+  };
+
 
   return (
     <div className="space-y-4">
-      {/* Basic Search */}
-      <form onSubmit={handleSearchSubmit} className="flex gap-3">
-        <div className="flex-1 relative">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+      <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-grow relative">
+          <FiSearch className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Tìm kiếm theo tiêu đề, mã tài liệu, nội dung..."
+            name="search" // Thêm name để handleInputChange có thể dùng
+            placeholder="Tìm theo tiêu đề, mã, từ khóa..."
             value={localFilters.search || ''}
             onChange={(e) => handleInputChange('search', e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="form-input w-full pl-10 pr-8 py-2.5" // Tăng padding cho đẹp hơn
           />
           {localFilters.search && (
             <button
               type="button"
               onClick={() => handleInputChange('search', '')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+              aria-label="Xóa tìm kiếm"
             >
               <FiX size={16} />
             </button>
           )}
         </div>
         
-        <button
-          type="button"
-          onClick={onToggleAdvanced}
-          className={`px-4 py-2 border rounded-lg transition-colors flex items-center gap-2 ${
-            showAdvanced 
-              ? 'bg-blue-50 border-blue-300 text-blue-700' 
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          <FiFilter size={16} />
-          Bộ lọc
-        </button>
-
-        {hasActiveFilters && (
-          <button
+        <div className="flex gap-3 flex-shrink-0">
+            <button
             type="button"
-            onClick={handleClearAll}
-            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-          >
-            <FiX size={16} />
-            Xóa lọc
-          </button>
-        )}
+            onClick={onToggleAdvanced}
+            className={`btn ${showAdvanced ? 'btn-secondary-outline' : 'btn-outline'} flex items-center`}
+            >
+            <FiFilter size={16} className="mr-1.5" />
+            {showAdvanced ? 'Ẩn lọc' : 'Bộ lọc'}
+            </button>
+
+            {hasActiveFilters && (
+            <button
+                type="button"
+                onClick={handleClearAll}
+                className="btn btn-danger-outline flex items-center"
+            >
+                <FiX size={16} className="mr-1.5" />
+                Xóa lọc
+            </button>
+            )}
+            <button type="submit" className="btn btn-primary flex items-center">
+                <FiSearch size={16} className="mr-1.5" /> Tìm
+            </button>
+        </div>
       </form>
 
-      {/* Advanced Filters */}
       {showAdvanced && (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-          <h3 className="font-medium text-gray-900 mb-3">Bộ lọc nâng cao</h3>
-          
-          {/* Row 1: Type, Department, Status */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Loại tài liệu
-              </label>
-              <select
-                value={localFilters.type || ''}
-                onChange={(e) => handleInputChange('type', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {documentTypes.map(type => (
-                  <option key={type.code} value={type.code}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
+        <div className="bg-gray-50 rounded-lg p-4 mt-4 border border-gray-200">
+          {isLoadingOptions ? (
+            <div className="flex justify-center items-center py-4">
+              <LoadingSpinner size="sm" message="Đang tải tùy chọn lọc..." />
             </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-base font-semibold text-gray-800 mb-3">Bộ lọc nâng cao</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                <div>
+                  <label htmlFor="filter-type" className="form-label">Loại tài liệu</label>
+                  <select id="filter-type" name="type" value={localFilters.type || ''} onChange={(e) => handleInputChange('type', e.target.value)} className="form-select">
+                    {renderOptions(documentTypeOptions, "Tất cả loại tài liệu")}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="filter-department" className="form-label">Phòng ban</label>
+                  <select id="filter-department" name="department" value={localFilters.department || ''} onChange={(e) => handleInputChange('department', e.target.value)} className="form-select">
+                     {renderOptions(departmentOptions, "Tất cả phòng ban")}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="filter-status" className="form-label">Trạng thái</label>
+                  <select id="filter-status" name="status" value={localFilters.status || ''} onChange={(e) => handleInputChange('status', e.target.value)} className="form-select">
+                    {renderOptions(statusOptions, "Tất cả trạng thái")}
+                  </select>
+                </div>
+                {/* Giả sử securityLevelOptions và priorityOptions cũng được truyền vào tương tự */}
+                {securityLevelOptions.length > 0 && (
+                  <div>
+                    <label htmlFor="filter-security" className="form-label">Mức bảo mật</label>
+                    <select id="filter-security" name="security_level" value={localFilters.security_level || ''} onChange={(e) => handleInputChange('security_level', e.target.value)} className="form-select">
+                      {renderOptions(securityLevelOptions, "Tất cả mức bảo mật")}
+                    </select>
+                  </div>
+                )}
+                {priorityOptions.length > 0 && (
+                  <div>
+                    <label htmlFor="filter-priority" className="form-label">Mức ưu tiên</label>
+                    <select id="filter-priority" name="priority" value={localFilters.priority || ''} onChange={(e) => handleInputChange('priority', e.target.value)} className="form-select">
+                       {renderOptions(priorityOptions, "Tất cả mức ưu tiên")}
+                    </select>
+                  </div>
+                )}
+                 <div>
+                  <label htmlFor="filter-sort" className="form-label">Sắp xếp theo</label>
+                  <select id="filter-sort" name="sort" value={localFilters.sort || 'relevance'} onChange={(e) => handleInputChange('sort', e.target.value)} className="form-select">
+                    <option value="relevance">Liên quan nhất</option>
+                    <option value="date_desc">Ngày cập nhật (Mới nhất)</option>
+                    <option value="date_asc">Ngày cập nhật (Cũ nhất)</option>
+                    <option value="title_asc">Tiêu đề (A-Z)</option>
+                    <option value="title_desc">Tiêu đề (Z-A)</option>
+                  </select>
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phòng ban
-              </label>
-              <select
-                value={localFilters.department || ''}
-                onChange={(e) => handleInputChange('department', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Tất cả phòng ban</option>
-                {departments.filter(dept => dept).map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Trạng thái
-              </label>
-              <select
-                value={localFilters.status || ''}
-                onChange={(e) => handleInputChange('status', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {statuses.map(status => (
-                  <option key={status.code} value={status.code}>
-                    {status.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Row 2: Security Level, Priority, Date Range */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mức bảo mật
-              </label>
-              <select
-                value={localFilters.security_level || ''}
-                onChange={(e) => handleInputChange('security_level', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {securityLevels.map(level => (
-                  <option key={level.code} value={level.code}>
-                    {level.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mức ưu tiên
-              </label>
-              <select
-                value={localFilters.priority || ''}
-                onChange={(e) => handleInputChange('priority', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {priorities.map(priority => (
-                  <option key={priority.code} value={priority.code}>
-                    {priority.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Từ ngày
-              </label>
-              <div className="relative">
-                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="date"
-                  value={localFilters.date_from || ''}
-                  onChange={(e) => handleInputChange('date_from', e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 pt-3 border-t border-gray-200 mt-3">
+                <div>
+                  <label htmlFor="filter-date-from" className="form-label">Ngày cập nhật từ</label>
+                  <div className="relative"><FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" /><input id="filter-date-from" type="date" name="date_from" value={localFilters.date_from || ''} onChange={(e) => handleInputChange('date_from', e.target.value)} className="form-input pl-10"/></div>
+                </div>
+                <div>
+                  <label htmlFor="filter-date-to" className="form-label">Ngày cập nhật đến</label>
+                  <div className="relative"><FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" /><input id="filter-date-to" type="date" name="date_to" value={localFilters.date_to || ''} onChange={(e) => handleInputChange('date_to', e.target.value)} min={localFilters.date_from || ''} className="form-input pl-10"/></div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-x-6 gap-y-3 pt-3 border-t border-gray-200 mt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="include_archived" checked={localFilters.include_archived || false} onChange={(e) => handleInputChange('include_archived', e.target.checked)} className="form-checkbox"/>
+                  <span className="text-sm text-gray-700">Bao gồm tài liệu lưu trữ</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="search_content" checked={localFilters.search_content || false} onChange={(e) => handleInputChange('search_content', e.target.checked)} className="form-checkbox"/>
+                  <span className="text-sm text-gray-700">Tìm trong nội dung file</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="exact_match" checked={localFilters.exact_match || false} onChange={(e) => handleInputChange('exact_match', e.target.checked)} className="form-checkbox"/>
+                  <span className="text-sm text-gray-700">Tìm kiếm chính xác cụm từ</span>
+                </label>
               </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Đến ngày
-              </label>
-              <div className="relative">
-                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="date"
-                  value={localFilters.date_to || ''}
-                  onChange={(e) => handleInputChange('date_to', e.target.value)}
-                  min={localFilters.date_from || ''}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Additional Options */}
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={localFilters.include_archived || false}
-                onChange={(e) => handleInputChange('include_archived', e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Bao gồm tài liệu đã lưu trữ</span>
-            </label>
-
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={localFilters.search_content || false}
-                onChange={(e) => handleInputChange('search_content', e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Tìm kiếm trong nội dung</span>
-            </label>
-
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={localFilters.exact_match || false}
-                onChange={(e) => handleInputChange('exact_match', e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Tìm kiếm chính xác</span>
-            </label>
-          </div>
-
-          {/* Active Filters Summary */}
           {hasActiveFilters && (
-            <div className="border-t border-gray-200 pt-3">
-              <div className="flex flex-wrap gap-2">
-                <span className="text-sm text-gray-600">Bộ lọc đang áp dụng:</span>
+            <div className="border-t border-gray-200 pt-3 mt-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm text-gray-600 font-medium">Đang lọc bởi:</span>
                 {Object.entries(localFilters).map(([key, value]) => {
-                  if (!value || value === false) return null;
+                  if (key === 'sort' || !value && typeof value !== 'boolean') return null;
                   
-                  let displayValue = value;
-                  if (key === 'type') {
-                    displayValue = documentTypes.find(t => t.code === value)?.name || value;
-                  } else if (key === 'status') {
-                    displayValue = statuses.find(s => s.code === value)?.name || value;
-                  } else if (key === 'security_level') {
-                    displayValue = securityLevels.find(l => l.code === value)?.name || value;
-                  } else if (key === 'priority') {
-                    displayValue = priorities.find(p => p.code === value)?.name || value;
-                  } else if (key === 'date_from') {
-                    displayValue = `Từ: ${new Date(value).toLocaleDateString('vi-VN')}`;
-                  } else if (key === 'date_to') {
-                    displayValue = `Đến: ${new Date(value).toLocaleDateString('vi-VN')}`;
-                  } else if (typeof value === 'boolean') {
-                    displayValue = key === 'include_archived' ? 'Bao gồm lưu trữ' :
-                                  key === 'search_content' ? 'Tìm nội dung' :
-                                  key === 'exact_match' ? 'Tìm chính xác' : key;
+                  let displayValue = String(value);
+                  let displayKey = key;
+
+                  switch (key) {
+                    case 'type': displayKey = 'Loại'; displayValue = defaultDocumentTypes.find(t => t.value === value)?.label || value; break;
+                    case 'department': displayKey = 'P.Ban'; displayValue = defaultDepartments.find(d => d.value === value)?.label || value; break;
+                    case 'status': displayKey = 'T.Thái'; displayValue = defaultStatuses.find(s => s.value === value)?.label || value; break;
+                    case 'security_level': displayKey = 'B.Mật'; displayValue = defaultSecurityLevels.find(l => l.value === value)?.label || value; break;
+                    case 'priority': displayKey = 'Ư.Tiên'; displayValue = defaultPriorities.find(p => p.value === value)?.label || value; break;
+                    case 'date_from': displayKey = 'Từ ngày'; displayValue = new Date(value).toLocaleDateString('vi-VN'); break;
+                    case 'date_to': displayKey = 'Đến ngày'; displayValue = new Date(value).toLocaleDateString('vi-VN'); break;
+                    case 'include_archived': if(!value) return null; displayKey = ''; displayValue = 'Gồm Lưu trữ'; break;
+                    case 'search_content': if(!value) return null; displayKey = ''; displayValue = 'Tìm nội dung'; break;
+                    case 'exact_match': if(!value) return null; displayKey = ''; displayValue = 'Khớp chính xác'; break;
+                    default: displayKey = ''; break; // Không hiển thị key cho search
                   }
+                  if (key === 'search' && value) displayKey = 'Từ khóa';
+
 
                   return (
-                    <span
-                      key={key}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                    >
+                    <span key={key} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">
+                      {displayKey && <strong className="mr-0.5">{displayKey}:</strong>}
                       {displayValue}
-                      <button
-                        onClick={() => handleInputChange(key, key === 'include_archived' || key === 'search_content' || key === 'exact_match' ? false : '')}
-                        className="hover:text-blue-600"
-                      >
+                      <button onClick={() => handleInputChange(key, typeof value === 'boolean' ? false : '')} className="ml-1 hover:text-red-600" aria-label={`Xóa bộ lọc ${displayKey}`}>
                         <FiX size={12} />
                       </button>
                     </span>

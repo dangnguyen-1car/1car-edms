@@ -26,7 +26,7 @@ function DashboardPage() {
   }
 
   return (
-    <Layout>
+    <div>
       <div className="p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">
           Chào mừng, {user?.name}!
@@ -57,7 +57,7 @@ function DashboardPage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }
 

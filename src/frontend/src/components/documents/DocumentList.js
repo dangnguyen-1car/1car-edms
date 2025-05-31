@@ -1,47 +1,58 @@
-/** 
- * =================================================================
- * EDMS 1CAR - Document List Component (API Integration with useQuery)
- * Display documents with pagination and filtering for 40 users
- * Based on C-WI-AR-001, C-TD-VM-001, and C-PR-VM-001 requirements
+// src/frontend/src/components/documents/DocumentList.js
+/** * =================================================================
+ * EDMS 1CAR - Document List Component (REVISED to use documentService)
  * =================================================================
  */
 
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from 'react-query'; // Thêm useQueryClient
+import { useNavigate } from 'react-router-dom';
 import { 
   FiFileText, FiEye, FiEdit, FiDownload, FiUser, FiCalendar, 
   FiTag, FiSearch, FiFilter, FiRefreshCw, FiAlertCircle, FiPlus 
 } from 'react-icons/fi';
+import { toast } from 'react-hot-toast'; // Import toast
 import { useAuth } from '../../contexts/AuthContext';
-import { documentAPI } from '../../api/documentApi';
+import { documentService } from '../../services/documentService'; // ĐÃ THAY ĐỔI
 import LoadingSpinner from '../common/LoadingSpinner';
 import SkeletonLoader from '../common/SkeletonLoader';
 import Pagination from '../common/Pagination';
-import DocumentCard from './DocumentCard';
+import DocumentCard from './DocumentCard'; // Sử dụng DocumentCard đã sửa
 import SearchFilters from './SearchFilters';
-import CreateDocumentModal from './CreateDocumentModal'; // **THÊM MỚI**
+import CreateDocumentModal from './CreateDocumentModal';
 
-function DocumentList({ onDocumentSelect }) {
-  const { user, hasPermission, canAccessDepartment } = useAuth();
+function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùng để mở chi tiết ở một view khác (ví dụ: trong Dashboard)
+  const { user, hasPermission } = useAuth(); // Lấy canAccessDepartment nếu cần dùng trong logic ở đây
+  const queryClient = useQueryClient(); // Thêm queryClient
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [showFilters, setShowFilters] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false); // **THÊM MỚI**
+  const [pageSize, setPageSize] = useState(12); // Có thể tăng để hiển thị nhiều card hơn
+  const [showFilters, setShowFilters] = useState(false); // Mặc định có thể ẩn filter
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     type: '',
     department: '',
-    status: '',
-    author_id: '',
+    status: '', // Mặc định lấy tất cả status (trừ archived nếu backend xử lý vậy)
     date_from: '',
-    date_to: ''
+    date_to: '',
+    include_archived: false, 
+    search_content: false,
+    exact_match: false,
+    sort: 'updated_at_desc' // Mặc định sort theo ngày cập nhật mới nhất
   });
 
-  // Fetch documents with React Query - Updated to use documentAPI
+  // Fetch options for SearchFilters
+  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery('documentTypes', documentService.getDocumentTypes);
+  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery('departmentsList', documentService.getDepartments);
+  const { data: workflowStatesData, isLoading: isLoadingStatuses } = useQuery('workflowStates', documentService.getWorkflowStates);
+
+  const documentTypeOptions = docTypesData?.data?.documentTypes || [];
+  const departmentOptions = departmentsData?.data?.departments || [];
+  const statusOptions = workflowStatesData?.data?.workflowStates || [];
+
   const {
-    data: documentsData,
+    data: documentsResponse,
     isLoading,
     isError,
     error,
@@ -50,327 +61,178 @@ function DocumentList({ onDocumentSelect }) {
   } = useQuery(
     ['documents', currentPage, pageSize, filters],
     async () => {
-      // Prepare params for API call
       const params = {
         page: currentPage,
         limit: pageSize,
-        ...filters
+        search: filters.search || undefined, // Gửi undefined nếu rỗng để backend có thể bỏ qua
+        type: filters.type || undefined,
+        department: filters.department || undefined,
+        status: filters.status || undefined,
+        date_from: filters.date_from || undefined,
+        date_to: filters.date_to || undefined,
+        include_archived: filters.include_archived,
+        search_content: filters.search_content,
+        exact_match: filters.exact_match,
+        sort: filters.sort,
       };
-
-      // Remove empty filters
-      Object.keys(params).forEach(key => {
-        if (params[key] === '' || params[key] === null || params[key] === undefined) {
-          delete params[key];
-        }
-      });
-
-      // Call the real API
-      const response = await documentAPI.getDocuments(params);
-      return response;
+      // Không cần xóa key nữa nếu backend xử lý undefined params
+      return documentService.searchDocuments(params);
     },
     {
       keepPreviousData: true,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 2,
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
-      onError: (error) => {
-        console.error('Error fetching documents:', error);
+      staleTime: 1 * 60 * 1000,
+      onError: (err) => {
+        console.error('Error fetching documents:', err);
+        toast.error(err.response?.data?.message || err.message || 'Lỗi tải danh sách tài liệu');
       }
     }
   );
 
-  // Handle filter changes
   const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    setCurrentPage(1); // Reset to first page when filters change
-  };
-
-  // Handle page change
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
-  // Handle page size change
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
+    setFilters(prev => ({...prev, ...newFilters}));
     setCurrentPage(1);
   };
 
-  // Handle document click
-  const handleDocumentClick = (document) => {
-    if (onDocumentSelect) {
-      onDocumentSelect(document);
-    }
-  };
-
-  // Handle refresh
-  const handleRefresh = () => {
-    refetch();
-  };
-
-  // **THÊM MỚI: Xử lý sau khi tạo tài liệu thành công**
-  const handleDocumentCreated = () => {
-    refetch(); // Refresh danh sách tài liệu
-  };
-
-  // Clear filters
   const handleClearFilters = () => {
     setFilters({
-      search: '',
-      type: '',
-      department: '',
-      status: '',
-      author_id: '',
-      date_from: '',
-      date_to: ''
+      search: '', type: '', department: '', status: '',
+      date_from: '', date_to: '', include_archived: false,
+      search_content: false, exact_match: false, sort: 'updated_at_desc'
     });
+    setCurrentPage(1);
   };
 
-  // Get document type display name based on C-TD-MG-005
-  const getDocumentTypeDisplay = (type) => {
-    const types = {
-      'PL': 'Chính sách',
-      'PR': 'Quy trình',
-      'WI': 'Hướng dẫn',
-      'FM': 'Biểu mẫu',
-      'TD': 'Tài liệu kỹ thuật',
-      'TR': 'Tài liệu đào tạo',
-      'RC': 'Hồ sơ'
-    };
-    return types[type] || type;
+  const handlePageChange = (page) => setCurrentPage(page);
+  const handlePageSizeChange = (size) => { setPageSize(size); setCurrentPage(1); };
+  const handleRefresh = () => refetch();
+  
+  const handleDocumentCreated = () => {
+    setShowCreateModal(false);
+    toast.success("Tài liệu đã được tạo thành công!");
+    queryClient.invalidateQueries('documents'); // Làm mới danh sách
+  };
+  
+  const handleViewDocument = (documentId) => {
+    // TODO: Navigate to a proper document detail page
+    // navigate(`/documents/${documentId}`); 
+    toast.info(`Xem chi tiết tài liệu ID: ${documentId} (chưa triển khai navigation)`);
+    if(onDocumentSelect) onDocumentSelect(documentId);
   };
 
-  // Get status badge color
-  const getStatusBadgeColor = (status) => {
-    const colors = {
-      'draft': 'bg-yellow-100 text-yellow-800',
-      'review': 'bg-blue-100 text-blue-800',
-      'published': 'bg-green-100 text-green-800',
-      'archived': 'bg-gray-100 text-gray-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+  const handleEditDocument = (documentId) => {
+    // TODO: Navigate to document edit page
+    // navigate(`/documents/${documentId}/edit`);
+    toast.info(`Chỉnh sửa tài liệu ID: ${documentId} (chưa triển khai navigation)`);
   };
 
-  // Get status display name
-  const getStatusDisplay = (status) => {
-    const statuses = {
-      'draft': 'Bản nháp',
-      'review': 'Đang xem xét',
-      'published': 'Đã phê duyệt',
-      'archived': 'Đã lưu trữ'
-    };
-    return statuses[status] || status;
-  };
+  const documents = documentsResponse?.data?.documents || [];
+  const pagination = documentsResponse?.data?.pagination || { total: 0, totalPages: 1, page: currentPage, limit: pageSize };
 
-  // Check if user can edit document
-  const canEditDocument = (document) => {
-    if (hasPermission('manage_system')) return true;
-    if (document.author_id === user.id) return true;
-    if (canAccessDepartment(document.department) && document.status === 'draft') return true;
-    return false;
-  };
-
-  // Check if user can view document
-  const canViewDocument = (document) => {
-    if (hasPermission('view_all_documents')) return true;
-    if (document.author_id === user.id) return true;
-    if (canAccessDepartment(document.department)) return true;
-    // Check if user is in recipients list
-    if (document.recipients && document.recipients.includes(user.department)) return true;
-    return false;
-  };
-
-  // Extract data from API response
-  const documents = documentsData?.data?.documents || [];
-  const pagination = documentsData?.data?.pagination || { total: 0 };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <SkeletonLoader />
-        <SkeletonLoader />
-        <SkeletonLoader />
-      </div>
-    );
+  if (isLoading && !documentsResponse) {
+    return <div className="py-8"><SkeletonLoader type="card" count={6} /></div>;
   }
 
-  if (isError) {
+  if (isError && !documentsResponse) { // Chỉ hiển thị lỗi lớn nếu không có dữ liệu cache
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <FiAlertCircle className="w-12 h-12 text-red-500 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Lỗi kết nối</h3>
-        <p className="text-gray-500 text-center mb-4">
-          {error?.message || 'Đã xảy ra lỗi khi kết nối với server'}
-        </p>
-        <button
-          onClick={handleRefresh}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-        >
-          <FiRefreshCw size={16} />
-          Thử lại
-        </button>
+      <div className="text-center py-10">
+        <FiAlertCircle className="mx-auto text-red-500 h-12 w-12 mb-2" />
+        <p className="text-red-600">Lỗi tải danh sách tài liệu: {error.message}</p>
+        <button onClick={handleRefresh} className="btn btn-primary mt-4">Thử lại</button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* **THÊM MỚI: Header với nút tạo tài liệu** */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý tài liệu</h1>
-          <p className="text-gray-600 mt-1">
-            {pagination.total || 0} tài liệu được tìm thấy
-            {isFetching && (
-              <span className="ml-2 text-blue-600">
-                <LoadingSpinner size="sm" className="inline" /> Đang tải...
-              </span>
-            )}
+          {/* Tiêu đề có thể được đặt ở page cha (DocumentsPage) */}
+          {/* <h1 className="text-2xl font-bold text-gray-900">Danh sách Tài liệu</h1> */}
+          <p className="text-gray-600">
+            {isFetching && !isLoading ? <LoadingSpinner size="sm" className="inline mr-2" /> : null}
+            Tìm thấy {pagination.total || 0} tài liệu.
           </p>
         </div>
-        
-        {/* Nút tạo tài liệu mới */}
-        {hasPermission('create_documents') && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <FiPlus size={16} />
-            Tạo tài liệu mới
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={() => setShowFilters(!showFilters)} 
+                className={`btn btn-secondary-outline ${showFilters ? 'bg-gray-100' : ''}`}
+            >
+                <FiFilter className="mr-1.5" /> {showFilters ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
+            </button>
+            {hasPermission('create_documents') && (
+            <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+                <FiPlus className="mr-1.5" /> Tạo mới
+            </button>
+            )}
+            <button onClick={handleRefresh} className="btn-icon" title="Làm mới danh sách">
+                <FiRefreshCw className={`h-5 w-5 ${isFetching ? 'animate-spin' : ''}`} />
+            </button>
+        </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-4">
+      {showFilters && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <SearchFilters
             filters={filters}
             onFiltersChange={handleFilterChange}
             onClearFilters={handleClearFilters}
-            showAdvanced={showFilters}
-            onToggleAdvanced={() => setShowFilters(!showFilters)}
+            // Truyền các options đã fetch được vào SearchFilters
+            documentTypeOptions={documentTypeOptions.map(dt => ({ value: dt.code, label: dt.name }))}
+            departmentOptions={departmentOptions.map(d => ({ value: d, label: d }))} // Giả sử departmentsData.data.departments là mảng string
+            statusOptions={statusOptions.map(s => ({ value: s.code, label: s.name }))}
+            // Cần thêm API backend và fetch cho securityLevels, priorities nếu muốn chúng động
+            // securityLevelOptions={...} 
+            // priorityOptions={...}
+            isLoadingOptions={isLoadingDocTypes || isLoadingDepts || isLoadingStatuses}
           />
         </div>
-      </div>
+      )}
 
-      {/* Documents Grid/List */}
-      {documents.length === 0 ? (
+      {isLoading && !documents.length ? ( // Spinner khi đang tải lần đầu và chưa có data
+          <div className="py-8"><SkeletonLoader type="card" count={pageSize} /></div>
+      ) : !isLoading && documents.length === 0 && !isFetching ? (
         <div className="text-center py-12">
-          <FiFileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Không tìm thấy tài liệu</h3>
-          <p className="text-gray-500 mb-4">
-            Thử thay đổi bộ lọc hoặc tạo tài liệu mới.
-          </p>
-          {hasPermission('create_documents') && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Tạo tài liệu đầu tiên
-            </button>
-          )}
+          <FiFileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">Không tìm thấy tài liệu</h3>
+          <p className="text-gray-500">Vui lòng thử lại với bộ lọc khác hoặc tạo tài liệu mới.</p>
         </div>
       ) : (
-        <div className={`grid gap-4 ${
-          viewMode === 'grid' 
-            ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' 
-            : 'grid-cols-1'
-        }`}>
-          {documents.map((document) => (
-            <div
-              key={document.id}
-              className="bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => handleDocumentClick(document)}
-            >
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900 line-clamp-2 mb-1">
-                      {document.title}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {document.document_code} • {getDocumentTypeDisplay(document.type)}
-                    </p>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(document.status)}`}>
-                    {getStatusDisplay(document.status)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-sm text-gray-500">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <FiUser size={14} />
-                      <span>{document.author_name || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <FiCalendar size={14} />
-                      <span>{new Date(document.created_at).toLocaleDateString('vi-VN')}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {canViewDocument(document) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle view action
-                        }}
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Xem tài liệu"
-                      >
-                        <FiEye size={16} />
-                      </button>
-                    )}
-                    {canEditDocument(document) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle edit action
-                        }}
-                        className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                        title="Chỉnh sửa"
-                      >
-                        <FiEdit size={16} />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        documentAPI.downloadDocument(document.id);
-                      }}
-                      className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
-                      title="Tải xuống"
-                    >
-                      <FiDownload size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {documents.map((doc) => (
+            <DocumentCard 
+              key={doc.id} 
+              document={doc} 
+              onViewClick={handleViewDocument}
+              onEditClick={handleEditDocument} // Truyền hàm xử lý edit
+            />
           ))}
         </div>
       )}
 
-      {/* Pagination */}
-      {documents.length > 0 && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={pagination.totalPages || 1}
-          totalItems={pagination.total || 0}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-        />
+      {pagination.totalPages > 1 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.total}
+            pageSize={pagination.limit}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        </div>
       )}
 
-      {/* **THÊM MỚI: Modal tạo tài liệu** */}
-      <CreateDocumentModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreated={handleDocumentCreated}
-      />
+      {showCreateModal && ( // Chỉ render modal khi showCreateModal là true
+        <CreateDocumentModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={handleDocumentCreated}
+            // Truyền documentTypes và departmentOptions vào CreateDocumentModal nếu nó cần để hiển thị dropdown
+            documentTypeOptions={documentTypeOptions}
+            departmentOptions={departmentOptions}
+        />
+      )}
     </div>
   );
 }
