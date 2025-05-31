@@ -1,35 +1,29 @@
-/**
- * =================================================================
- * EDMS 1CAR - Metadata Panel Component
- * Display comprehensive document metadata based on C-TD-VM-001
- * Support for version history, workflow tracking, and compliance data
- * =================================================================
- */
-
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+// src/components/documents/MetadataPanel.js
+import React, { useState, useEffect } from 'react';
 import { 
   FiFileText, 
   FiUser, 
   FiCalendar, 
   FiTag, 
-  FiClock,
-  FiEye,
-  FiEdit,
-  FiDownload,
-  FiArchive,
-  FiRefreshCw,
-  FiChevronDown,
-  FiChevronRight,
-  FiInfo,
-  FiUsers,
-  FiMapPin
+  FiClock, 
+  FiEye, 
+  FiEdit, 
+  FiDownload, 
+  FiArchive, 
+  FiRefreshCw, 
+  FiChevronDown, 
+  FiChevronRight, 
+  FiInfo, 
+  FiUsers, 
+  FiMapPin,
+  FiAlertCircle
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
-import { documentService } from '../../services/documentService';
+import { documentAPI } from '../../api/documentApi';
 import { formatDate, formatFileSize } from '../../utils/formatters';
 import VersionHistory from './VersionHistory';
 import WorkflowHistory from './WorkflowHistory';
+import SkeletonLoader from '../common/SkeletonLoader';
 
 function MetadataPanel({ document, onRefresh, className = '' }) {
   const { user, hasPermission, canAccessDepartment } = useAuth();
@@ -41,26 +35,43 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
     access: true,
     compliance: true
   });
+  
+  // State for API data
+  const [metadata, setMetadata] = useState(null);
+  const [versions, setVersions] = useState([]);
+  const [workflowHistory, setWorkflowHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Get document versions
-  const { data: versionsData } = useQuery(
-    ['documentVersions', document.id],
-    () => documentService.getDocumentVersions(document.id),
-    {
-      enabled: !!document.id,
-      staleTime: 5 * 60 * 1000,
+  // Fetch document metadata
+  const fetchMetadata = async () => {
+    if (!document?.id) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const [metadataResponse, versionsResponse, workflowResponse] = await Promise.all([
+        documentAPI.getDocumentMetadata(document.id),
+        documentAPI.getDocumentVersions(document.id),
+        documentAPI.getDocumentWorkflow(document.id)
+      ]);
+      
+      setMetadata(metadataResponse.data);
+      setVersions(versionsResponse.data?.versions || []);
+      setWorkflowHistory(workflowResponse.data?.workflow || []);
+    } catch (err) {
+      setError(err.message || 'Không thể tải metadata');
+      console.error('Error fetching metadata:', err);
+    } finally {
+      setLoading(false);
     }
-  );
+  };
 
-  // Get workflow history
-  const { data: workflowData } = useQuery(
-    ['workflowHistory', document.id],
-    () => documentService.getWorkflowHistory(document.id),
-    {
-      enabled: !!document.id,
-      staleTime: 5 * 60 * 1000,
-    }
-  );
+  // Load metadata when document changes
+  useEffect(() => {
+    fetchMetadata();
+  }, [document?.id]);
 
   // Toggle section expansion
   const toggleSection = (section) => {
@@ -70,11 +81,11 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
     }));
   };
 
-  // Get document type display name based on C-TD-MG-005
+  // Get document type display name
   const getDocumentTypeDisplay = (type) => {
     const types = {
       'PL': 'Chính sách (Policy)',
-      'PR': 'Quy trình (Procedure)', 
+      'PR': 'Quy trình (Procedure)',
       'WI': 'Hướng dẫn (Work Instruction)',
       'FM': 'Biểu mẫu (Form)',
       'TD': 'Tài liệu kỹ thuật (Technical Document)',
@@ -99,9 +110,7 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
   const getRecipients = () => {
     if (!document.recipients) return [];
     try {
-      return typeof document.recipients === 'string' 
-        ? JSON.parse(document.recipients) 
-        : document.recipients;
+      return typeof document.recipients === 'string' ? JSON.parse(document.recipients) : document.recipients;
     } catch {
       return [];
     }
@@ -113,83 +122,85 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
     const now = new Date();
     const diffTime = Math.abs(now - created);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
     if (diffDays < 30) return `${diffDays} ngày`;
     if (diffDays < 365) return `${Math.floor(diffDays / 30)} tháng`;
     return `${Math.floor(diffDays / 365)} năm`;
   };
 
-  // Calculate next review date
-  const getNextReviewDate = () => {
-    if (!document.review_cycle || !document.published_at) return null;
-    const publishedDate = new Date(document.published_at);
-    const nextReview = new Date(publishedDate);
-    nextReview.setDate(nextReview.getDate() + document.review_cycle);
-    return nextReview;
-  };
+  if (loading) {
+    return (
+      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
+        <div className="p-6">
+          <SkeletonLoader type="metadata" count={1} />
+        </div>
+      </div>
+    );
+  }
 
-  // Calculate disposal date
-  const getDisposalDate = () => {
-    if (!document.retention_period || !document.published_at) return null;
-    const publishedDate = new Date(document.published_at);
-    const disposalDate = new Date(publishedDate);
-    disposalDate.setDate(disposalDate.getDate() + document.retention_period);
-    return disposalDate;
-  };
+  if (error) {
+    return (
+      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
+        <div className="p-6 text-center">
+          <FiAlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Không thể tải metadata
+          </h3>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <button
+            onClick={fetchMetadata}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <FiRefreshCw className="mr-2 h-4 w-4" />
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const statusInfo = getStatusInfo(document.status);
   const StatusIcon = statusInfo.icon;
   const recipients = getRecipients();
-  const nextReviewDate = getNextReviewDate();
-  const disposalDate = getDisposalDate();
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 ${className}`}>
+    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <FiFileText className="h-5 w-5 mr-2 text-primary-600" />
-            Thông tin tài liệu
+          <h3 className="text-lg font-medium text-gray-900">
+            Chi tiết tài liệu
           </h3>
-          <div className="flex items-center space-x-2">
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-              <StatusIcon className="h-3 w-3 mr-1" />
-              {statusInfo.name}
-            </span>
-            <span className="text-sm text-gray-500 font-mono">
-              v{document.version}
-            </span>
-          </div>
+          <button
+            onClick={fetchMetadata}
+            className="p-2 text-gray-400 hover:text-gray-600 rounded"
+            title="Làm mới"
+          >
+            <FiRefreshCw className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="flex space-x-8 px-6">
+        <nav className="-mb-px flex space-x-8 px-6">
           {[
-            { id: 'metadata', name: 'Metadata', icon: FiInfo },
-            { id: 'versions', name: 'Phiên bản', icon: FiClock },
-            { id: 'workflow', name: 'Workflow', icon: FiRefreshCw }
-          ].map((tab) => {
+            { id: 'metadata', label: 'Metadata', icon: FiInfo },
+            { id: 'versions', label: 'Phiên bản', icon: FiClock },
+            { id: 'workflow', label: 'Workflow', icon: FiRefreshCw }
+          ].map(tab => {
             const TabIcon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
                   activeTab === tab.id
-                    ? 'border-primary-500 text-primary-600'
+                    ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <TabIcon className="h-4 w-4 mr-2" />
-                {tab.name}
-                {tab.id === 'versions' && versionsData?.data?.versionHistory?.length > 0 && (
-                  <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-primary-500 rounded-full">
-                    {versionsData.data.versionHistory.length}
-                  </span>
-                )}
+                <TabIcon className="mr-2 h-4 w-4" />
+                {tab.label}
               </button>
             );
           })}
@@ -206,50 +217,47 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
                 onClick={() => toggleSection('basic')}
                 className="flex items-center justify-between w-full text-left"
               >
-                <h4 className="text-md font-medium text-gray-900 flex items-center">
-                  <FiFileText className="h-4 w-4 mr-2" />
-                  Thông tin cơ bản
-                </h4>
+                <h4 className="text-base font-medium text-gray-900">Thông tin cơ bản</h4>
                 {expandedSections.basic ? (
-                  <FiChevronDown className="h-4 w-4 text-gray-500" />
+                  <FiChevronDown className="h-5 w-5 text-gray-400" />
                 ) : (
-                  <FiChevronRight className="h-4 w-4 text-gray-500" />
+                  <FiChevronRight className="h-5 w-5 text-gray-400" />
                 )}
               </button>
               
               {expandedSections.basic && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Tiêu đề</label>
-                    <p className="mt-1 text-sm text-gray-900">{document.title}</p>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center">
+                    <StatusIcon className="mr-2 h-4 w-4" />
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                      {statusInfo.name}
+                    </span>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Mã tài liệu</label>
-                    <p className="mt-1 text-sm text-gray-900 font-mono">{document.document_code}</p>
+                    <dt className="text-sm font-medium text-gray-500">Tiêu đề</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{document.title}</dd>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Loại tài liệu</label>
-                    <p className="mt-1 text-sm text-gray-900">{getDocumentTypeDisplay(document.type)}</p>
+                    <dt className="text-sm font-medium text-gray-500">Mã tài liệu</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{document.document_code}</dd>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nơi ban hành</label>
-                    <p className="mt-1 text-sm text-gray-900">{document.department}</p>
+                    <dt className="text-sm font-medium text-gray-500">Loại tài liệu</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{getDocumentTypeDisplay(document.type)}</dd>
+                  </div>
+                  
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Phòng ban</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{document.department}</dd>
                   </div>
                   
                   {document.description && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">Mô tả</label>
-                      <p className="mt-1 text-sm text-gray-900">{document.description}</p>
-                    </div>
-                  )}
-                  
-                  {document.scope_of_application && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">Phạm vi áp dụng của phiên bản</label>
-                      <p className="mt-1 text-sm text-gray-900">{document.scope_of_application}</p>
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500">Mô tả</dt>
+                      <dd className="mt-1 text-sm text-gray-900">{document.description}</dd>
                     </div>
                   )}
                 </div>
@@ -257,277 +265,88 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
             </div>
 
             {/* Technical Information */}
-            <div className="border-t border-gray-200 pt-6">
+            <div>
               <button
                 onClick={() => toggleSection('technical')}
                 className="flex items-center justify-between w-full text-left"
               >
-                <h4 className="text-md font-medium text-gray-900 flex items-center">
-                  <FiTag className="h-4 w-4 mr-2" />
-                  Thông tin kỹ thuật
-                </h4>
+                <h4 className="text-base font-medium text-gray-900">Thông tin kỹ thuật</h4>
                 {expandedSections.technical ? (
-                  <FiChevronDown className="h-4 w-4 text-gray-500" />
+                  <FiChevronDown className="h-5 w-5 text-gray-400" />
                 ) : (
-                  <FiChevronRight className="h-4 w-4 text-gray-500" />
+                  <FiChevronRight className="h-5 w-5 text-gray-400" />
                 )}
               </button>
               
               {expandedSections.technical && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Phiên bản hiện tại</label>
-                    <p className="mt-1 text-sm text-gray-900 font-mono">{document.version}</p>
+                    <dt className="text-sm font-medium text-gray-500">Phiên bản</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{document.version || '1.0'}</dd>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Tuổi tài liệu</label>
-                    <p className="mt-1 text-sm text-gray-900">{getDocumentAge()}</p>
+                    <dt className="text-sm font-medium text-gray-500">Tuổi tài liệu</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{getDocumentAge()}</dd>
                   </div>
-                  
-                  {document.file_name && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Tệp đính kèm</label>
-                      <div className="mt-1 flex items-center">
-                        <FiFileText className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{document.file_name}</span>
-                        {document.file_size && (
-                          <span className="ml-2 text-xs text-gray-500">
-                            ({formatFileSize(document.file_size)})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
                   
                   {document.mime_type && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Loại tệp</label>
-                      <p className="mt-1 text-sm text-gray-900">{document.mime_type}</p>
+                      <dt className="text-sm font-medium text-gray-500">Định dạng</dt>
+                      <dd className="mt-1 text-sm text-gray-900">{document.mime_type}</dd>
                     </div>
                   )}
                   
-                  {document.change_reason && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">Lý do thay đổi</label>
-                      <p className="mt-1 text-sm text-gray-900">{document.change_reason}</p>
-                    </div>
-                  )}
-                  
-                  {document.change_summary && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">Tóm tắt thay đổi</label>
-                      <p className="mt-1 text-sm text-gray-900">{document.change_summary}</p>
+                  {document.file_size && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500">Kích thước</dt>
+                      <dd className="mt-1 text-sm text-gray-900">{formatFileSize(document.file_size)}</dd>
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Workflow Information */}
-            <div className="border-t border-gray-200 pt-6">
-              <button
-                onClick={() => toggleSection('workflow')}
-                className="flex items-center justify-between w-full text-left"
-              >
-                <h4 className="text-md font-medium text-gray-900 flex items-center">
-                  <FiRefreshCw className="h-4 w-4 mr-2" />
-                  Thông tin quy trình
-                </h4>
-                {expandedSections.workflow ? (
-                  <FiChevronDown className="h-4 w-4 text-gray-500" />
-                ) : (
-                  <FiChevronRight className="h-4 w-4 text-gray-500" />
-                )}
-              </button>
-              
-              {expandedSections.workflow && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Tác giả</label>
-                    <div className="mt-1 flex items-center">
-                      <FiUser className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{document.author_name || 'N/A'}</span>
-                    </div>
-                  </div>
-                  
-                  {document.reviewer_name && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Người xem xét</label>
-                      <div className="mt-1 flex items-center">
-                        <FiEye className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{document.reviewer_name}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {document.approver_name && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Người phê duyệt</label>
-                      <div className="mt-1 flex items-center">
-                        <FiRefreshCw className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{document.approver_name}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Ngày tạo</label>
-                    <div className="mt-1 flex items-center">
-                      <FiCalendar className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{formatDate(document.created_at)}</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Ngày cập nhật</label>
-                    <div className="mt-1 flex items-center">
-                      <FiClock className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{formatDate(document.updated_at)}</span>
-                    </div>
-                  </div>
-                  
-                  {document.published_at && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Ngày phê duyệt</label>
-                      <div className="mt-1 flex items-center">
-                        <FiRefreshCw className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{formatDate(document.published_at)}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {document.archived_at && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Ngày lưu trữ</label>
-                      <div className="mt-1 flex items-center">
-                        <FiArchive className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{formatDate(document.archived_at)}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Access Control */}
-            <div className="border-t border-gray-200 pt-6">
+            {/* Access Information */}
+            <div>
               <button
                 onClick={() => toggleSection('access')}
                 className="flex items-center justify-between w-full text-left"
               >
-                <h4 className="text-md font-medium text-gray-900 flex items-center">
-                  <FiUsers className="h-4 w-4 mr-2" />
-                  Kiểm soát truy cập
-                </h4>
+                <h4 className="text-base font-medium text-gray-900">Quyền truy cập</h4>
                 {expandedSections.access ? (
-                  <FiChevronDown className="h-4 w-4 text-gray-500" />
+                  <FiChevronDown className="h-5 w-5 text-gray-400" />
                 ) : (
-                  <FiChevronRight className="h-4 w-4 text-gray-500" />
+                  <FiChevronRight className="h-5 w-5 text-gray-400" />
                 )}
               </button>
               
               {expandedSections.access && (
-                <div className="mt-4 space-y-4">
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Quyền truy cập</dt>
+                    <dd className="mt-1 text-sm text-gray-900">
+                      {canAccessDepartment(document.department) ? 'Có quyền truy cập' : 'Hạn chế truy cập'}
+                    </dd>
+                  </div>
+                  
                   {recipients.length > 0 && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Người nhận tài liệu
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {recipients.map((recipient, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                          >
-                            <FiMapPin className="h-3 w-3 mr-1" />
-                            {recipient}
-                          </span>
-                        ))}
-                      </div>
+                      <dt className="text-sm font-medium text-gray-500">Người nhận</dt>
+                      <dd className="mt-1">
+                        <div className="flex flex-wrap gap-1">
+                          {recipients.map((recipient, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {recipient}
+                            </span>
+                          ))}
+                        </div>
+                      </dd>
                     </div>
                   )}
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Quyền truy cập</label>
-                      <p className="mt-1 text-sm text-gray-900">
-                        {canAccessDepartment(document.department) ? 'Có quyền truy cập' : 'Hạn chế truy cập'}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Mức độ bảo mật</label>
-                      <p className="mt-1 text-sm text-gray-900">
-                        {document.type === 'RC' ? 'Cao' : 'Thông thường'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Compliance Information */}
-            <div className="border-t border-gray-200 pt-6">
-              <button
-                onClick={() => toggleSection('compliance')}
-                className="flex items-center justify-between w-full text-left"
-              >
-                <h4 className="text-md font-medium text-gray-900 flex items-center">
-                  <FiArchive className="h-4 w-4 mr-2" />
-                  Thông tin tuân thủ
-                </h4>
-                {expandedSections.compliance ? (
-                  <FiChevronDown className="h-4 w-4 text-gray-500" />
-                ) : (
-                  <FiChevronRight className="h-4 w-4 text-gray-500" />
-                )}
-              </button>
-              
-              {expandedSections.compliance && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Chu kỳ xem xét</label>
-                    <p className="mt-1 text-sm text-gray-900">
-                      {document.review_cycle ? `${document.review_cycle} ngày` : 'Không xác định'}
-                    </p>
-                  </div>
-                  
-                  {nextReviewDate && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Ngày xem xét tiếp theo</label>
-                      <p className="mt-1 text-sm text-gray-900">{formatDate(nextReviewDate)}</p>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Thời gian lưu trữ</label>
-                    <p className="mt-1 text-sm text-gray-900">
-                      {document.retention_period ? `${document.retention_period} ngày` : 'Không xác định'}
-                    </p>
-                  </div>
-                  
-                  {disposalDate && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Ngày hủy bỏ dự kiến</label>
-                      <p className="mt-1 text-sm text-gray-900">{formatDate(disposalDate)}</p>
-                    </div>
-                  )}
-                  
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700">Tuân thủ tiêu chuẩn</label>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        C-PR-VM-001
-                      </span>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        C-TD-VM-001
-                      </span>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        C-WI-AR-001
-                      </span>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -537,16 +356,16 @@ function MetadataPanel({ document, onRefresh, className = '' }) {
         {activeTab === 'versions' && (
           <VersionHistory
             document={document}
-            versions={versionsData?.data?.versionHistory || []}
-            onRefresh={onRefresh}
+            versions={versions}
+            onRefresh={fetchMetadata}
           />
         )}
 
         {activeTab === 'workflow' && (
           <WorkflowHistory
             document={document}
-            workflowHistory={workflowData?.data?.workflowHistory || []}
-            onRefresh={onRefresh}
+            workflowHistory={workflowHistory}
+            onRefresh={fetchMetadata}
           />
         )}
       </div>

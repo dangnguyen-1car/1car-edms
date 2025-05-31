@@ -1,7 +1,7 @@
-/**
+/** src/style/index.css
  * =================================================================
  * 1CAR EDMS - Global Styles
- * Tailwind CSS base styles and custom components
+ * Tailwind CSS base styles, custom components, and utilities
  * =================================================================
  */
 
@@ -9,189 +9,218 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles */
+/* Base styles (từ file cũ) */
 @layer base {
   html {
-    font-family: 'Inter', ui-sans-serif, system-ui;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; /* Thêm fallback fonts */
+    -webkit-font-smoothing: antialiased; /* Cải thiện rendering font trên Webkit */
+    -moz-osx-font-smoothing: grayscale; /* Cải thiện rendering font trên Firefox */
   }
-  
+
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-gray-50 text-gray-900 antialiased; /* Giữ nguyên từ file cũ */
   }
-  
-  * {
+
+  /* Default border color (từ file cũ, nhưng có thể Tailwind đã xử lý) */
+  /* * {
     @apply border-gray-200;
-  }
+  } */
+  /* Bỏ đi nếu không thực sự cần thiết vì Tailwind có các utility cho border */
 }
 
-/* Component styles */
+/* Component styles (Hợp nhất và tổ chức lại) */
 @layer components {
-  /* Button styles */
+  /* Button styles (Kết hợp cả hai, ưu tiên cấu trúc file cũ, bổ sung từ .new) */
   .btn {
     @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
-  
-  .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+
+  .btn-primary { /* Từ file cũ, nhưng sử dụng biến màu primary nếu có */
+    @apply btn bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500; /* Sử dụng màu blue trực tiếp nếu không có biến --color-primary */
   }
-  
-  .btn-secondary {
+
+  .btn-secondary { /* Từ file cũ */
     @apply btn bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500;
   }
   
-  .btn-outline {
-    @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-primary-500;
+  .btn-secondary-outline { /* Đổi tên từ .btn-secondary của file .new.css để tránh trùng, hoặc chọn 1 trong 2 */
+     @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-100 focus:ring-gray-300; /* Điều chỉnh focus ring */
   }
-  
-  .btn-danger {
+
+  .btn-outline { /* Từ file cũ */
+    @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-blue-500; /* Giữ focus ring primary */
+  }
+
+  .btn-success { /* Từ cả hai file, chọn một cách định nghĩa */
+    @apply btn bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+
+  .btn-danger { /* Từ cả hai file, chọn một cách định nghĩa */
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
   
-  /* Form styles */
-  .form-input {
-    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm;
+  .btn-icon { /* Thêm một kiểu button chỉ có icon */
+    @apply p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500;
   }
-  
-  .form-label {
+
+
+  /* Form styles (Kết hợp cả hai) */
+  .form-label { /* Từ file cũ */
     @apply block text-sm font-medium text-gray-700 mb-1;
   }
-  
-  .form-error {
+
+  .form-input, .form-select, .form-textarea { /* Hợp nhất từ .new.css và .form-input của file cũ */
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+           sm:text-sm transition-colors;
+  }
+
+  .form-textarea {
+    @apply resize-vertical; /* Thêm từ .new.css */
+  }
+
+  .form-error { /* Từ file cũ */
     @apply mt-1 text-sm text-red-600;
   }
-  
-  /* Card styles */
+
+  /* Card styles (từ file cũ, chi tiết hơn) */
   .card {
     @apply bg-white shadow rounded-lg border border-gray-200;
   }
-  
+
   .card-header {
     @apply px-6 py-4 border-b border-gray-200;
   }
-  
+
   .card-body {
     @apply px-6 py-4;
   }
-  
+
   .card-footer {
     @apply px-6 py-4 border-t border-gray-200 bg-gray-50;
   }
-  
-  /* Table styles */
+
+  /* Table styles (từ file cũ) */
   .table {
     @apply min-w-full divide-y divide-gray-200;
   }
-  
-  .table-header {
+  .table-header th {
+    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50; /* Thêm bg-gray-50 */
+  }
+  .table-body tr:nth-child(even) { /* Thêm zebra stripes */
     @apply bg-gray-50;
   }
-  
-  .table-header th {
-    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
-  }
-  
-  .table-body {
-    @apply bg-white divide-y divide-gray-200;
-  }
-  
   .table-body td {
     @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
   }
-  
-  /* Badge styles */
-  .badge {
+
+  /* Badge styles (Hợp nhất và chuẩn hóa tên class) */
+  .badge { /* Class cơ sở chung */
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
-  
-  .badge-success {
-    @apply badge bg-green-100 text-green-800;
-  }
-  
-  .badge-warning {
-    @apply badge bg-yellow-100 text-yellow-800;
-  }
-  
-  .badge-danger {
-    @apply badge bg-red-100 text-red-800;
-  }
-  
-  .badge-info {
-    @apply badge bg-blue-100 text-blue-800;
-  }
-  
-  /* Loading styles */
-  .loading-spinner {
-    @apply animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600;
-  }
-  
-  /* Sidebar styles */
+
+  /* Document Status Badges (kết hợp từ cả hai, dùng tên class cụ thể hơn) */
+  .badge-status-draft { @apply badge bg-yellow-100 text-yellow-800; }
+  .badge-status-review { @apply badge bg-blue-100 text-blue-800; }
+  .badge-status-published { @apply badge bg-green-100 text-green-800; }
+  .badge-status-archived { @apply badge bg-gray-100 text-gray-800; }
+  /* Các badge khác từ file cũ có thể được thêm vào nếu cần: .badge-success, .badge-warning, .badge-danger, .badge-info */
+  /* Nếu các badge này trùng mục đích với status, priority, security thì không cần */
+
+
+  /* Priority Badges (từ .new.css, chuẩn hóa tên class) */
+  .badge-priority-urgent { @apply badge bg-red-100 text-red-700; }
+  .badge-priority-high { @apply badge bg-orange-100 text-orange-700; }
+  .badge-priority-normal { @apply badge bg-blue-100 text-blue-700; }
+  .badge-priority-low { @apply badge bg-gray-100 text-gray-700; }
+
+
+  /* Security Level Badges (từ .new.css, chuẩn hóa tên class) */
+  .badge-security-restricted { @apply badge bg-red-100 text-red-700; }
+  .badge-security-confidential { @apply badge bg-yellow-100 text-yellow-700; }
+  .badge-security-internal { @apply badge bg-blue-100 text-blue-700; }
+  .badge-security-public { @apply badge bg-green-100 text-green-700; }
+
+
+  /* Sidebar styles (từ file cũ) */
   .sidebar-link {
     @apply flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200;
   }
-  
-  .sidebar-link-active {
-    @apply sidebar-link bg-primary-100 text-primary-900 border-r-2 border-primary-600;
+  .sidebar-link-active { /* Sử dụng màu primary nếu có */
+    @apply sidebar-link bg-blue-100 text-blue-900 border-r-2 border-blue-600 font-semibold; /* Thêm font-semibold */
   }
-  
   .sidebar-link-inactive {
-    @apply sidebar-link text-gray-600 hover:bg-gray-50 hover:text-gray-900;
+    @apply sidebar-link text-gray-600 hover:bg-gray-100 hover:text-gray-900; /* Tăng độ tương phản hover */
   }
+
+  /* Text truncation utilities (từ .new.css) */
+  .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+  .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 }
 
-/* Utility styles */
+/* Utility styles (Hợp nhất) */
 @layer utilities {
-  .text-balance {
+  .text-balance { /* Từ file cũ */
     text-wrap: balance;
   }
-  
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+
+  /* Custom Scrollbar (từ .new.css) */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; /* slate-100 */ }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; /* slate-300 */ border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; /* slate-400 */ }
+
+  /* Hide scrollbar utility (từ file cũ) */
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Focus styles for accessibility (từ .new.css, nhưng có thể Tailwind đã có focus-visible) */
+  /* .focus-visible:focus {
+    outline: 2px solid #3b82f6; // blue-500
+    outline-offset: 2px;
+  } */
+  /* Tailwind's `focus-visible:ring-2` thường đủ dùng */
 }
 
-/* Custom animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* Animations (Hợp nhất) */
+@keyframes spin { /* Từ .new.css */
+  to { transform: rotate(360deg); }
+}
+.animate-spin { /* Từ .new.css */
+  animation: spin 1s linear infinite;
+}
+/* Giữ lại .loading-spinner từ file cũ nếu nó khác .animate-spin */
+.loading-spinner { /* Từ file cũ */
+  @apply animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600; /* Sử dụng màu blue trực tiếp */
 }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
 
-/* Print styles */
+@keyframes fadeIn { /* Từ file cũ */
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; } /* Thêm class sử dụng */
+
+
+@keyframes slideUp { /* Từ file cũ */
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slideUp { animation: slideUp 0.3s ease-out; } /* Thêm class sử dụng */
+
+
+/* Print styles (Hợp nhất) */
 @media print {
-  .no-print {
-    display: none !important;
-  }
-  
-  .print-only {
-    display: block !important;
-  }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; } /* Từ file cũ */
 }
 
-/* Mobile responsive adjustments */
-@media (max-width: 640px) {
+/* Mobile responsive adjustments (từ file cũ, rất hữu ích) */
+@media (max-width: 640px) { /* sm breakpoint của Tailwind */
   .card {
-    @apply mx-4 rounded-lg;
+    @apply mx-0 rounded-none sm:mx-4 sm:rounded-lg; /* Điều chỉnh cho mobile */
   }
-  
   .table-responsive {
     @apply overflow-x-auto;
   }

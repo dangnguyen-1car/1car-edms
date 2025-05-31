@@ -1,38 +1,34 @@
-/**
+/** 
  * =================================================================
- * EDMS 1CAR - Document List Component (Fixed Warnings)
+ * EDMS 1CAR - Document List Component (API Integration with useQuery)
  * Display documents with pagination and filtering for 40 users
  * Based on C-WI-AR-001, C-TD-VM-001, and C-PR-VM-001 requirements
  * =================================================================
  */
 
-import React, { useState } from 'react'; // Removed unused useEffect
+import React, { useState } from 'react';
 import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import { 
-  FiFileText, 
-  FiEye, 
-  FiEdit, 
-  FiDownload, 
-  FiUser,
-  FiCalendar,
-  FiTag,
-  FiSearch,
-  FiFilter
-} from 'react-icons/fi'; // Removed unused FiClock
+  FiFileText, FiEye, FiEdit, FiDownload, FiUser, FiCalendar, 
+  FiTag, FiSearch, FiFilter, FiRefreshCw, FiAlertCircle, FiPlus 
+} from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
-import { documentService } from '../../services/documentService';
+import { documentAPI } from '../../api/documentApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import SkeletonLoader from '../common/SkeletonLoader';
 import Pagination from '../common/Pagination';
 import DocumentCard from './DocumentCard';
 import SearchFilters from './SearchFilters';
+import CreateDocumentModal from './CreateDocumentModal'; // **THÊM MỚI**
 
-function DocumentList() {
+function DocumentList({ onDocumentSelect }) {
   const { user, hasPermission, canAccessDepartment } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [showFilters, setShowFilters] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false); // **THÊM MỚI**
   const [filters, setFilters] = useState({
     search: '',
     type: '',
@@ -43,23 +39,43 @@ function DocumentList() {
     date_to: ''
   });
 
-  // Fetch documents with React Query
+  // Fetch documents with React Query - Updated to use documentAPI
   const {
     data: documentsData,
     isLoading,
     isError,
     error,
-    refetch
+    refetch,
+    isFetching
   } = useQuery(
     ['documents', currentPage, pageSize, filters],
-    () => documentService.searchDocuments({
-      ...filters,
-      page: currentPage,
-      limit: pageSize
-    }),
+    async () => {
+      // Prepare params for API call
+      const params = {
+        page: currentPage,
+        limit: pageSize,
+        ...filters
+      };
+
+      // Remove empty filters
+      Object.keys(params).forEach(key => {
+        if (params[key] === '' || params[key] === null || params[key] === undefined) {
+          delete params[key];
+        }
+      });
+
+      // Call the real API
+      const response = await documentAPI.getDocuments(params);
+      return response;
+    },
     {
       keepPreviousData: true,
       staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 2,
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+      onError: (error) => {
+        console.error('Error fetching documents:', error);
+      }
     }
   );
 
@@ -80,11 +96,41 @@ function DocumentList() {
     setCurrentPage(1);
   };
 
+  // Handle document click
+  const handleDocumentClick = (document) => {
+    if (onDocumentSelect) {
+      onDocumentSelect(document);
+    }
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    refetch();
+  };
+
+  // **THÊM MỚI: Xử lý sau khi tạo tài liệu thành công**
+  const handleDocumentCreated = () => {
+    refetch(); // Refresh danh sách tài liệu
+  };
+
+  // Clear filters
+  const handleClearFilters = () => {
+    setFilters({
+      search: '',
+      type: '',
+      department: '',
+      status: '',
+      author_id: '',
+      date_from: '',
+      date_to: ''
+    });
+  };
+
   // Get document type display name based on C-TD-MG-005
   const getDocumentTypeDisplay = (type) => {
     const types = {
       'PL': 'Chính sách',
-      'PR': 'Quy trình', 
+      'PR': 'Quy trình',
       'WI': 'Hướng dẫn',
       'FM': 'Biểu mẫu',
       'TD': 'Tài liệu kỹ thuật',
@@ -97,12 +143,12 @@ function DocumentList() {
   // Get status badge color
   const getStatusBadgeColor = (status) => {
     const colors = {
-      'draft': 'badge-warning',
-      'review': 'badge-info',
-      'published': 'badge-success',
-      'archived': 'badge-danger'
+      'draft': 'bg-yellow-100 text-yellow-800',
+      'review': 'bg-blue-100 text-blue-800',
+      'published': 'bg-green-100 text-green-800',
+      'archived': 'bg-gray-100 text-gray-800'
     };
-    return colors[status] || 'badge-info';
+    return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
   // Get status display name
@@ -134,279 +180,197 @@ function DocumentList() {
     return false;
   };
 
+  // Extract data from API response
+  const documents = documentsData?.data?.documents || [];
+  const pagination = documentsData?.data?.pagination || { total: 0 };
+
   if (isLoading) {
-    return <LoadingSpinner message="Đang tải danh sách tài liệu..." />;
+    return (
+      <div className="space-y-4">
+        <SkeletonLoader />
+        <SkeletonLoader />
+        <SkeletonLoader />
+      </div>
+    );
   }
 
   if (isError) {
     return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">
-          <FiFileText className="h-12 w-12 mx-auto mb-4" />
-          <p className="text-lg font-medium">Không thể tải danh sách tài liệu</p>
-          <p className="text-sm">{error?.message || 'Đã xảy ra lỗi'}</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-12">
+        <FiAlertCircle className="w-12 h-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Lỗi kết nối</h3>
+        <p className="text-gray-500 text-center mb-4">
+          {error?.message || 'Đã xảy ra lỗi khi kết nối với server'}
+        </p>
         <button
-          onClick={() => refetch()}
-          className="btn btn-primary"
+          onClick={handleRefresh}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
+          <FiRefreshCw size={16} />
           Thử lại
         </button>
       </div>
     );
   }
 
-  const documents = documentsData?.data || [];
-  const pagination = documentsData?.pagination || {};
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      {/* **THÊM MỚI: Header với nút tạo tài liệu** */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý Tài liệu</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-gray-900">Quản lý tài liệu</h1>
+          <p className="text-gray-600 mt-1">
             {pagination.total || 0} tài liệu được tìm thấy
+            {isFetching && (
+              <span className="ml-2 text-blue-600">
+                <LoadingSpinner size="sm" className="inline" /> Đang tải...
+              </span>
+            )}
           </p>
         </div>
         
-        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          {/* View mode toggle */}
-          <div className="flex rounded-md shadow-sm">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-2 text-sm font-medium rounded-l-md border ${
-                viewMode === 'grid'
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Lưới
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b ${
-                viewMode === 'list'
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Danh sách
-            </button>
-          </div>
-
-          {/* Filter toggle */}
+        {/* Nút tạo tài liệu mới */}
+        {hasPermission('create_documents') && (
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`btn ${showFilters ? 'btn-primary' : 'btn-outline'} flex items-center`}
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
           >
-            <FiFilter className="h-4 w-4 mr-2" />
-            Bộ lọc
+            <FiPlus size={16} />
+            Tạo tài liệu mới
           </button>
-
-          {/* Create document button */}
-          {hasPermission('create_documents') && (
-            <Link
-              to="/documents/create"
-              className="btn btn-primary flex items-center"
-            >
-              <FiFileText className="h-4 w-4 mr-2" />
-              Tạo tài liệu
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="space-y-4">
-        {/* Quick search */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiSearch className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            className="form-input pl-10"
-            placeholder="Tìm kiếm tài liệu theo tiêu đề, mã tài liệu..."
-            value={filters.search}
-            onChange={(e) => handleFilterChange({ ...filters, search: e.target.value })}
-          />
-        </div>
-
-        {/* Advanced filters */}
-        {showFilters && (
-          <SearchFilters
-            filters={filters}
-            onFiltersChange={handleFilterChange}
-            onClearFilters={() => handleFilterChange({
-              search: '',
-              type: '',
-              department: '',
-              status: '',
-              author_id: '',
-              date_from: '',
-              date_to: ''
-            })}
-          />
         )}
       </div>
 
-      {/* Documents display */}
+      {/* Search and Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="p-4">
+          <SearchFilters
+            filters={filters}
+            onFiltersChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+            showAdvanced={showFilters}
+            onToggleAdvanced={() => setShowFilters(!showFilters)}
+          />
+        </div>
+      </div>
+
+      {/* Documents Grid/List */}
       {documents.length === 0 ? (
         <div className="text-center py-12">
-          <FiFileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Không tìm thấy tài liệu
-          </h3>
-          <p className="text-gray-500 mb-6">
+          <FiFileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Không tìm thấy tài liệu</h3>
+          <p className="text-gray-500 mb-4">
             Thử thay đổi bộ lọc hoặc tạo tài liệu mới.
           </p>
           {hasPermission('create_documents') && (
-            <Link
-              to="/documents/create"
-              className="btn btn-primary"
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Tạo tài liệu đầu tiên
-            </Link>
+            </button>
           )}
         </div>
       ) : (
-        <>
-          {/* Grid view */}
-          {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {documents.map((document) => (
-                canViewDocument(document) && (
-                  <DocumentCard
-                    key={document.id}
-                    document={document}
-                    canEdit={canEditDocument(document)}
-                    onRefresh={refetch}
-                  />
-                )
-              ))}
-            </div>
-          )}
+        <div className={`grid gap-4 ${
+          viewMode === 'grid' 
+            ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' 
+            : 'grid-cols-1'
+        }`}>
+          {documents.map((document) => (
+            <div
+              key={document.id}
+              className="bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => handleDocumentClick(document)}
+            >
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900 line-clamp-2 mb-1">
+                      {document.title}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {document.document_code} • {getDocumentTypeDisplay(document.type)}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(document.status)}`}>
+                    {getStatusDisplay(document.status)}
+                  </span>
+                </div>
 
-          {/* List view */}
-          {viewMode === 'list' && (
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
-                {documents.map((document) => (
-                  canViewDocument(document) && (
-                    <li key={document.id}>
-                      <div className="px-4 py-4 sm:px-6 hover:bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center min-w-0 flex-1">
-                            <div className="flex-shrink-0">
-                              <FiFileText className="h-8 w-8 text-primary-600" />
-                            </div>
-                            <div className="min-w-0 flex-1 px-4">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <Link
-                                    to={`/documents/${document.id}`}
-                                    className="text-sm font-medium text-primary-600 hover:text-primary-500 truncate"
-                                  >
-                                    {document.title}
-                                  </Link>
-                                  <p className="text-sm text-gray-500 truncate">
-                                    {document.document_code} • {getDocumentTypeDisplay(document.type)}
-                                  </p>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <span className={`badge ${getStatusBadgeColor(document.status)}`}>
-                                    {getStatusDisplay(document.status)}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    v{document.version}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="mt-2 flex items-center text-sm text-gray-500 space-x-4">
-                                <div className="flex items-center">
-                                  <FiUser className="h-4 w-4 mr-1" />
-                                  {document.author_name || 'N/A'}
-                                </div>
-                                <div className="flex items-center">
-                                  <FiTag className="h-4 w-4 mr-1" />
-                                  {document.department}
-                                </div>
-                                <div className="flex items-center">
-                                  <FiCalendar className="h-4 w-4 mr-1" />
-                                  {new Date(document.created_at).toLocaleDateString('vi-VN')}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Link
-                              to={`/documents/${document.id}`}
-                              className="btn btn-outline btn-sm flex items-center"
-                            >
-                              <FiEye className="h-4 w-4 mr-1" />
-                              Xem
-                            </Link>
-                            {canEditDocument(document) && (
-                              <Link
-                                to={`/documents/${document.id}/edit`}
-                                className="btn btn-outline btn-sm flex items-center"
-                              >
-                                <FiEdit className="h-4 w-4 mr-1" />
-                                Sửa
-                              </Link>
-                            )}
-                            {document.file_path && (
-                              <button
-                                onClick={() => documentService.downloadDocument(document.id)}
-                                className="btn btn-outline btn-sm flex items-center"
-                              >
-                                <FiDownload className="h-4 w-4 mr-1" />
-                                Tải
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  )
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-700">Hiển thị</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="form-input text-sm"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span className="text-sm text-gray-700">
-                  trên {pagination.total} tài liệu
-                </span>
-              </div>
-
-              <div className="mt-4 sm:mt-0">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={pagination.totalPages}
-                  onPageChange={handlePageChange}
-                  showFirstLast={true}
-                />
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1">
+                      <FiUser size={14} />
+                      <span>{document.author_name || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <FiCalendar size={14} />
+                      <span>{new Date(document.created_at).toLocaleDateString('vi-VN')}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {canViewDocument(document) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Handle view action
+                        }}
+                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Xem tài liệu"
+                      >
+                        <FiEye size={16} />
+                      </button>
+                    )}
+                    {canEditDocument(document) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Handle edit action
+                        }}
+                        className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                        title="Chỉnh sửa"
+                      >
+                        <FiEdit size={16} />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        documentAPI.downloadDocument(document.id);
+                      }}
+                      className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                      title="Tải xuống"
+                    >
+                      <FiDownload size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
+
+      {/* Pagination */}
+      {documents.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={pagination.totalPages || 1}
+          totalItems={pagination.total || 0}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
+
+      {/* **THÊM MỚI: Modal tạo tài liệu** */}
+      <CreateDocumentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleDocumentCreated}
+      />
     </div>
   );
 }

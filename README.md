@@ -111,34 +111,34 @@ async function setup() {
 
 setup().catch(console.error);
 Tuân Thủ
-Hệ thống EDMS 1CAR được xây dựng tuân thủ các quy trình và tiêu chuẩn sau:
 
+Hệ thống EDMS 1CAR được xây dựng tuân thủ các quy trình và tiêu chuẩn sau:
 C-PR-VM-001: Quy trình quản lý phiên bản
 C-PR-AR-001: Quy trình lưu trữ tài liệu
 C-PL-MG-005: Chính sách phân quyền
 IATF 16949: Tiêu chuẩn chất lượng
+
 Chi Tiết Cấu Trúc Tuân Thủ EDMS 1CAR
 Theo C-TD-MG-005 (Danh sách mã chuẩn):
-
 Loại garage: C (Company)
 Loại tài liệu: PR, WI, FM, TD, TR, RC, PL
 Phòng ban: MG, CS, TE, QC, HR, AR
 Số thứ tự: 001-999
 Phiên bản: 01-99
-Theo C-PR-VM-001 (Quy trình quản lý phiên bản):
 
+Theo C-PR-VM-001 (Quy trình quản lý phiên bản):
 Hệ thống kiểm soát phiên bản (Version control system)
 Quản lý vòng đời tài liệu (Document lifecycle management)
 Quy trình phê duyệt (Approval workflow)
 Quản lý lưu trữ (Archive management)
-Theo C-PL-MG-005 (Chính sách phân quyền):
 
+Theo C-PL-MG-005 (Chính sách phân quyền):
 Kiểm soát truy cập dựa trên vai trò (Role-based access control)
 Quyền hạn dựa trên phòng ban (Department-based permissions)
 Các mức độ bảo mật: R, C, I, P (Khả năng là Read, Create, Implement, Publish hoặc các mức độ khác tùy theo định nghĩa cụ thể của 1CAR)
 Tuân thủ dấu vết kiểm toán (Audit trail compliance)
-Theo C-PR-AR-001 (Quy trình lưu trữ tài liệu):
 
+Theo C-PR-AR-001 (Quy trình lưu trữ tài liệu):
 Cấu trúc lưu trữ tài liệu (Document storage structure)
 Chính sách lưu giữ (Retention policies)
 Thủ tục lưu trữ (Archive procedures)

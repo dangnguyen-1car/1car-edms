@@ -1,430 +1,414 @@
-/**
- * =================================================================
- * EDMS 1CAR - Search Filters Component
- * Advanced search and filtering based on C-WI-AR-001 requirements
- * Support for 7 document types and 14 departments
- * =================================================================
- */
+// src/components/documents/SearchFilters.js
 
-import React, { useState, useEffect } from 'react';
-import { useQuery } from 'react-query';
-import { 
-  FiSearch, 
-  FiFilter, 
-  FiX, 
-  FiCalendar,
-  FiUser,
-  FiTag,
-  FiFileText,
-  FiRefreshCw
-} from 'react-icons/fi';
-import { useAuth } from '../../contexts/AuthContext';
-import { documentService } from '../../services/documentService';
-import { userService } from '../../services/userService';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FiSearch, FiFilter, FiX, FiCalendar } from 'react-icons/fi';
 
-function SearchFilters({ filters, onFiltersChange, onClearFilters }) {
-  const { user, hasPermission, getAccessibleDepartments } = useAuth();
+function SearchFilters({ 
+  filters, 
+  onFiltersChange, 
+  onClearFilters, 
+  showAdvanced = false, 
+  onToggleAdvanced 
+}) {
   const [localFilters, setLocalFilters] = useState(filters);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const debounceTimeoutRef = useRef(null);
 
-  // Get document types based on C-TD-MG-005
-  const { data: documentTypes } = useQuery(
-    'documentTypes',
-    documentService.getDocumentTypes,
-    {
-      staleTime: 30 * 60 * 1000, // 30 minutes
-    }
-  );
+  // Danh sách các lựa chọn theo chuẩn EDMS 1CAR
+  const documentTypes = [
+    { code: '', name: 'Tất cả loại tài liệu' },
+    { code: 'PL', name: 'Chính sách' },
+    { code: 'PR', name: 'Quy trình' },
+    { code: 'WI', name: 'Hướng dẫn' },
+    { code: 'FM', name: 'Biểu mẫu' },
+    { code: 'TD', name: 'Tài liệu kỹ thuật' },
+    { code: 'TR', name: 'Tài liệu đào tạo' },
+    { code: 'RC', name: 'Hồ sơ' },
+  ];
 
-  // Get departments based on user permissions
-  const { data: departmentsData } = useQuery(
-    'departments',
-    documentService.getDepartments,
-    {
-      staleTime: 30 * 60 * 1000,
-    }
-  );
+  const departments = [
+    '',
+    'Ban Giám đốc',
+    'Phòng Phát triển Nhượng quyền',
+    'Phòng Đào tạo Tiêu chuẩn',
+    'Phòng Marketing',
+    'Phòng Kỹ thuật QC',
+    'Phòng Tài chính',
+    'Phòng Công nghệ Hệ thống',
+    'Phòng Pháp lý',
+    'Bộ phận Tiếp nhận CSKH',
+    'Bộ phận Kỹ thuật Garage',
+    'Bộ phận QC Garage',
+    'Bộ phận Kho/Kế toán Garage',
+    'Bộ phận Marketing Garage',
+    'Quản lý Garage',
+  ];
 
-  // Get workflow states
-  const { data: workflowStates } = useQuery(
-    'workflowStates',
-    documentService.getWorkflowStates,
-    {
-      staleTime: 30 * 60 * 1000,
-    }
-  );
+  const statuses = [
+    { code: '', name: 'Tất cả trạng thái' },
+    { code: 'draft', name: 'Bản nháp' },
+    { code: 'review', name: 'Đang xem xét' },
+    { code: 'published', name: 'Đã phê duyệt' },
+    { code: 'archived', name: 'Đã lưu trữ' },
+  ];
 
-  // Get users for author filter (admin only)
-  const { data: usersData } = useQuery(
-    'users',
-    () => userService.getUsers({ limit: 100 }),
-    {
-      enabled: hasPermission('view_all_documents'),
-      staleTime: 10 * 60 * 1000,
-    }
-  );
+  const securityLevels = [
+    { code: '', name: 'Tất cả mức bảo mật' },
+    { code: 'public', name: 'Công khai (P)' },
+    { code: 'internal', name: 'Nội bộ (I)' },
+    { code: 'confidential', name: 'Bảo mật (C)' },
+    { code: 'restricted', name: 'Hạn chế (R)' },
+  ];
 
-  // Update local filters when props change
+  const priorities = [
+    { code: '', name: 'Tất cả mức ưu tiên' },
+    { code: 'low', name: 'Thấp' },
+    { code: 'normal', name: 'Bình thường' },
+    { code: 'high', name: 'Cao' },
+    { code: 'urgent', name: 'Khẩn cấp' },
+  ];
+
+  // Sync local filters với props khi props thay đổi
   useEffect(() => {
     setLocalFilters(filters);
   }, [filters]);
 
-  // Handle filter change
-  const handleFilterChange = (field, value) => {
-    const newFilters = { ...localFilters, [field]: value };
+  // Debounced function để gọi onFiltersChange
+  const debouncedFiltersChange = useCallback((newFilters) => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    debounceTimeoutRef.current = setTimeout(() => {
+      onFiltersChange(newFilters);
+    }, 300); // 300ms debounce delay
+  }, [onFiltersChange]);
+
+  // Cleanup timeout khi component unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle input changes với debounce cho search, immediate cho các field khác
+  const handleInputChange = (name, value) => {
+    const newFilters = { ...localFilters, [name]: value };
     setLocalFilters(newFilters);
-    onFiltersChange(newFilters);
+    
+    // Chỉ debounce cho search field, các field khác thì immediate
+    if (name === 'search') {
+      debouncedFiltersChange(newFilters);
+    } else {
+      // Clear debounce timeout nếu có
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
+      onFiltersChange(newFilters);
+    }
   };
 
-  // Handle date range change
-  const handleDateRangeChange = (field, value) => {
-    handleFilterChange(field, value);
+  // Handle search submit (khi nhấn Enter)
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    
+    // Clear debounce timeout và gọi ngay lập tức
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+    
+    onFiltersChange(localFilters);
   };
 
   // Clear all filters
   const handleClearAll = () => {
+    // Clear debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+    
     const clearedFilters = {
       search: '',
       type: '',
       department: '',
       status: '',
-      author_id: '',
+      security_level: '',
+      priority: '',
       date_from: '',
-      date_to: ''
+      date_to: '',
+      include_archived: false,
+      search_content: false,
+      exact_match: false,
     };
+    
     setLocalFilters(clearedFilters);
     onClearFilters();
   };
 
-  // Get accessible departments for current user
-  const accessibleDepartments = getAccessibleDepartments();
-  const departments = departmentsData?.data?.departments || [];
-  const filteredDepartments = hasPermission('view_all_documents') 
-    ? departments 
-    : departments.filter(dept => accessibleDepartments.includes(dept));
-
-  // Check if any advanced filters are active
-  const hasAdvancedFilters = localFilters.type || 
-                            localFilters.department || 
-                            localFilters.status || 
-                            localFilters.author_id || 
-                            localFilters.date_from || 
-                            localFilters.date_to;
+  // Check if any filters are active
+  const hasActiveFilters = Object.values(localFilters).some(value => 
+    value !== '' && value !== false
+  );
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+    <div className="space-y-4">
       {/* Basic Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FiSearch className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              className="form-input pl-10 w-full"
-              placeholder="Tìm kiếm theo tiêu đề, mã tài liệu, nội dung..."
-              value={localFilters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          {/* Advanced filters toggle */}
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className={`btn ${showAdvanced ? 'btn-primary' : 'btn-outline'} flex items-center`}
-          >
-            <FiFilter className="h-4 w-4 mr-2" />
-            Bộ lọc nâng cao
-            {hasAdvancedFilters && (
-              <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-red-500 rounded-full">
-                {Object.values(localFilters).filter(v => v && v !== '').length - (localFilters.search ? 1 : 0)}
-              </span>
-            )}
-          </button>
-
-          {/* Clear all filters */}
-          {(localFilters.search || hasAdvancedFilters) && (
+      <form onSubmit={handleSearchSubmit} className="flex gap-3">
+        <div className="flex-1 relative">
+          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tiêu đề, mã tài liệu, nội dung..."
+            value={localFilters.search || ''}
+            onChange={(e) => handleInputChange('search', e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {localFilters.search && (
             <button
-              onClick={handleClearAll}
-              className="btn btn-outline flex items-center text-red-600 border-red-300 hover:bg-red-50"
+              type="button"
+              onClick={() => handleInputChange('search', '')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <FiX className="h-4 w-4 mr-2" />
-              Xóa bộ lọc
+              <FiX size={16} />
             </button>
           )}
         </div>
-      </div>
+        
+        <button
+          type="button"
+          onClick={onToggleAdvanced}
+          className={`px-4 py-2 border rounded-lg transition-colors flex items-center gap-2 ${
+            showAdvanced 
+              ? 'bg-blue-50 border-blue-300 text-blue-700' 
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <FiFilter size={16} />
+          Bộ lọc
+        </button>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={handleClearAll}
+            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+          >
+            <FiX size={16} />
+            Xóa lọc
+          </button>
+        )}
+      </form>
 
       {/* Advanced Filters */}
       {showAdvanced && (
-        <div className="border-t border-gray-200 pt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Document Type Filter */}
+        <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <h3 className="font-medium text-gray-900 mb-3">Bộ lọc nâng cao</h3>
+          
+          {/* Row 1: Type, Department, Status */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="form-label flex items-center">
-                <FiFileText className="h-4 w-4 mr-2" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Loại tài liệu
               </label>
               <select
-                className="form-input"
-                value={localFilters.type}
-                onChange={(e) => handleFilterChange('type', e.target.value)}
+                value={localFilters.type || ''}
+                onChange={(e) => handleInputChange('type', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">Tất cả loại</option>
-                {documentTypes?.data?.documentTypes?.map((type) => (
+                {documentTypes.map(type => (
                   <option key={type.code} value={type.code}>
-                    {type.code} - {type.name}
+                    {type.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Department Filter */}
             <div>
-              <label className="form-label flex items-center">
-                <FiTag className="h-4 w-4 mr-2" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Phòng ban
               </label>
               <select
-                className="form-input"
-                value={localFilters.department}
-                onChange={(e) => handleFilterChange('department', e.target.value)}
+                value={localFilters.department || ''}
+                onChange={(e) => handleInputChange('department', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Tất cả phòng ban</option>
-                {filteredDepartments.map((department) => (
-                  <option key={department} value={department}>
-                    {department}
-                  </option>
+                {departments.filter(dept => dept).map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
             </div>
 
-            {/* Status Filter */}
             <div>
-              <label className="form-label flex items-center">
-                <FiRefreshCw className="h-4 w-4 mr-2" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Trạng thái
               </label>
               <select
-                className="form-input"
-                value={localFilters.status}
-                onChange={(e) => handleFilterChange('status', e.target.value)}
+                value={localFilters.status || ''}
+                onChange={(e) => handleInputChange('status', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">Tất cả trạng thái</option>
-                {workflowStates?.data?.workflowStates?.map((state) => (
-                  <option key={state.code} value={state.code}>
-                    {state.name}
+                {statuses.map(status => (
+                  <option key={status.code} value={status.code}>
+                    {status.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 2: Security Level, Priority, Date Range */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mức bảo mật
+              </label>
+              <select
+                value={localFilters.security_level || ''}
+                onChange={(e) => handleInputChange('security_level', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {securityLevels.map(level => (
+                  <option key={level.code} value={level.code}>
+                    {level.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Author Filter (Admin only) */}
-            {hasPermission('view_all_documents') && (
-              <div>
-                <label className="form-label flex items-center">
-                  <FiUser className="h-4 w-4 mr-2" />
-                  Tác giả
-                </label>
-                <select
-                  className="form-input"
-                  value={localFilters.author_id}
-                  onChange={(e) => handleFilterChange('author_id', e.target.value)}
-                >
-                  <option value="">Tất cả tác giả</option>
-                  {usersData?.data?.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} ({user.department})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Date From */}
             <div>
-              <label className="form-label flex items-center">
-                <FiCalendar className="h-4 w-4 mr-2" />
-                Từ ngày
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mức ưu tiên
               </label>
-              <input
-                type="date"
-                className="form-input"
-                value={localFilters.date_from}
-                onChange={(e) => handleDateRangeChange('date_from', e.target.value)}
-                max={localFilters.date_to || new Date().toISOString().split('T')[0]}
-              />
+              <select
+                value={localFilters.priority || ''}
+                onChange={(e) => handleInputChange('priority', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {priorities.map(priority => (
+                  <option key={priority.code} value={priority.code}>
+                    {priority.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Date To */}
             <div>
-              <label className="form-label flex items-center">
-                <FiCalendar className="h-4 w-4 mr-2" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Từ ngày
+              </label>
+              <div className="relative">
+                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="date"
+                  value={localFilters.date_from || ''}
+                  onChange={(e) => handleInputChange('date_from', e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Đến ngày
               </label>
-              <input
-                type="date"
-                className="form-input"
-                value={localFilters.date_to}
-                onChange={(e) => handleDateRangeChange('date_to', e.target.value)}
-                min={localFilters.date_from}
-                max={new Date().toISOString().split('T')[0]}
-              />
+              <div className="relative">
+                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="date"
+                  value={localFilters.date_to || ''}
+                  onChange={(e) => handleInputChange('date_to', e.target.value)}
+                  min={localFilters.date_from || ''}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Quick Filter Buttons */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex flex-wrap gap-2">
-              <span className="text-sm font-medium text-gray-700 mr-2">Bộ lọc nhanh:</span>
-              
-              {/* My Documents */}
-              <button
-                onClick={() => handleFilterChange('author_id', user.id.toString())}
-                className={`btn btn-sm ${localFilters.author_id === user.id.toString() ? 'btn-primary' : 'btn-outline'}`}
-              >
-                Tài liệu của tôi
-              </button>
+          {/* Row 3: Additional Options */}
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localFilters.include_archived || false}
+                onChange={(e) => handleInputChange('include_archived', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Bao gồm tài liệu đã lưu trữ</span>
+            </label>
 
-              {/* My Department */}
-              <button
-                onClick={() => handleFilterChange('department', user.department)}
-                className={`btn btn-sm ${localFilters.department === user.department ? 'btn-primary' : 'btn-outline'}`}
-              >
-                Phòng ban của tôi
-              </button>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localFilters.search_content || false}
+                onChange={(e) => handleInputChange('search_content', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Tìm kiếm trong nội dung</span>
+            </label>
 
-              {/* Draft Documents */}
-              <button
-                onClick={() => handleFilterChange('status', 'draft')}
-                className={`btn btn-sm ${localFilters.status === 'draft' ? 'btn-primary' : 'btn-outline'}`}
-              >
-                Bản nháp
-              </button>
-
-              {/* Published Documents */}
-              <button
-                onClick={() => handleFilterChange('status', 'published')}
-                className={`btn btn-sm ${localFilters.status === 'published' ? 'btn-primary' : 'btn-outline'}`}
-              >
-                Đã phê duyệt
-              </button>
-
-              {/* Recent Documents (Last 7 days) */}
-              <button
-                onClick={() => {
-                  const sevenDaysAgo = new Date();
-                  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                  handleFilterChange('date_from', sevenDaysAgo.toISOString().split('T')[0]);
-                  handleFilterChange('date_to', new Date().toISOString().split('T')[0]);
-                }}
-                className={`btn btn-sm ${localFilters.date_from && localFilters.date_to ? 'btn-primary' : 'btn-outline'}`}
-              >
-                7 ngày qua
-              </button>
-
-              {/* This Month */}
-              <button
-                onClick={() => {
-                  const now = new Date();
-                  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-                  handleFilterChange('date_from', firstDay.toISOString().split('T')[0]);
-                  handleFilterChange('date_to', now.toISOString().split('T')[0]);
-                }}
-                className="btn btn-sm btn-outline"
-              >
-                Tháng này
-              </button>
-            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localFilters.exact_match || false}
+                onChange={(e) => handleInputChange('exact_match', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Tìm kiếm chính xác</span>
+            </label>
           </div>
 
           {/* Active Filters Summary */}
-          {hasAdvancedFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Bộ lọc đang áp dụng:</span>
-                
-                {localFilters.type && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Loại: {documentTypes?.data?.documentTypes?.find(t => t.code === localFilters.type)?.name}
-                    <button
-                      onClick={() => handleFilterChange('type', '')}
-                      className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-600"
-                    >
-                      <FiX className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
+          {hasActiveFilters && (
+            <div className="border-t border-gray-200 pt-3">
+              <div className="flex flex-wrap gap-2">
+                <span className="text-sm text-gray-600">Bộ lọc đang áp dụng:</span>
+                {Object.entries(localFilters).map(([key, value]) => {
+                  if (!value || value === false) return null;
+                  
+                  let displayValue = value;
+                  if (key === 'type') {
+                    displayValue = documentTypes.find(t => t.code === value)?.name || value;
+                  } else if (key === 'status') {
+                    displayValue = statuses.find(s => s.code === value)?.name || value;
+                  } else if (key === 'security_level') {
+                    displayValue = securityLevels.find(l => l.code === value)?.name || value;
+                  } else if (key === 'priority') {
+                    displayValue = priorities.find(p => p.code === value)?.name || value;
+                  } else if (key === 'date_from') {
+                    displayValue = `Từ: ${new Date(value).toLocaleDateString('vi-VN')}`;
+                  } else if (key === 'date_to') {
+                    displayValue = `Đến: ${new Date(value).toLocaleDateString('vi-VN')}`;
+                  } else if (typeof value === 'boolean') {
+                    displayValue = key === 'include_archived' ? 'Bao gồm lưu trữ' :
+                                  key === 'search_content' ? 'Tìm nội dung' :
+                                  key === 'exact_match' ? 'Tìm chính xác' : key;
+                  }
 
-                {localFilters.department && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Phòng ban: {localFilters.department}
-                    <button
-                      onClick={() => handleFilterChange('department', '')}
-                      className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-green-400 hover:bg-green-200 hover:text-green-600"
+                  return (
+                    <span
+                      key={key}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
                     >
-                      <FiX className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-
-                {localFilters.status && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    Trạng thái: {workflowStates?.data?.workflowStates?.find(s => s.code === localFilters.status)?.name}
-                    <button
-                      onClick={() => handleFilterChange('status', '')}
-                      className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-yellow-400 hover:bg-yellow-200 hover:text-yellow-600"
-                    >
-                      <FiX className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-
-                {localFilters.author_id && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    Tác giả: {usersData?.data?.find(u => u.id.toString() === localFilters.author_id)?.name || 'N/A'}
-                    <button
-                      onClick={() => handleFilterChange('author_id', '')}
-                      className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-purple-400 hover:bg-purple-200 hover:text-purple-600"
-                    >
-                      <FiX className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-
-                {(localFilters.date_from || localFilters.date_to) && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                    Thời gian: {localFilters.date_from || '...'} → {localFilters.date_to || '...'}
-                    <button
-                      onClick={() => {
-                        handleFilterChange('date_from', '');
-                        handleFilterChange('date_to', '');
-                      }}
-                      className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-indigo-400 hover:bg-indigo-200 hover:text-indigo-600"
-                    >
-                      <FiX className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
+                      {displayValue}
+                      <button
+                        onClick={() => handleInputChange(key, key === 'include_archived' || key === 'search_content' || key === 'exact_match' ? false : '')}
+                        className="hover:text-blue-600"
+                      >
+                        <FiX size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
       )}
-
-      {/* Search Tips */}
-      <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
-        <strong>Mẹo tìm kiếm:</strong>
-        <ul className="mt-1 space-y-1">
-          <li>• Tìm kiếm theo mã tài liệu: C-PR-VM-001, C-WI-AR-001</li>
-          <li>• Tìm kiếm theo tiêu đề: "Quy trình quản lý phiên bản"</li>
-          <li>• Sử dụng bộ lọc nâng cao để tìm kiếm chính xác hơn</li>
-          <li>• Bộ lọc nhanh giúp tìm kiếm các tài liệu thông dụng</li>
-        </ul>
-      </div>
     </div>
   );
 }

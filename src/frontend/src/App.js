@@ -1,3 +1,5 @@
+// src/frontend/src/App.js
+
 /**
  * =================================================================
  * EDMS 1CAR - Main App Component
@@ -7,7 +9,8 @@
 
 import React, { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+// Thay đổi import từ react-helmet sang react-helmet-async
+import { Helmet, HelmetProvider } from 'react-helmet-async';
 
 // Import contexts
 import { AuthProvider } from './contexts/AuthContext';
@@ -20,29 +23,35 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
 const DocumentsPage = React.lazy(() => import('./pages/DocumentsPage'));
+const SearchPage = React.lazy(() => import('./pages/SearchPage'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 
 function App() {
   return (
-    <ErrorBoundary>
-      <Helmet>
-        <title>1CAR - EDMS</title>
-        <meta name="description" content="Electronic Document Management System for 1CAR - 40 users capacity" />
-      </Helmet>
-      
-      <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/documents" element={<DocumentsPage />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Suspense>
-        </div>
-      </AuthProvider>
-    </ErrorBoundary>
+    // Bọc toàn bộ ứng dụng trong HelmetProvider
+    <HelmetProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <Helmet>
+            <title>1CAR - EDMS</title>
+            {/* Bạn có thể thêm các meta tags khác ở đây nếu cần */}
+            <meta name="description" content="Electronic Document Management System for 1CAR - 40 users capacity" />
+          </Helmet>
+          
+          <div className="min-h-screen bg-gray-50"> {/* Giả sử bạn muốn giữ div này làm container chính */}
+            <Suspense fallback={<LoadingSpinner />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/documents" element={<DocumentsPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </AuthProvider>
+      </ErrorBoundary>
+    </HelmetProvider>
   );
 }
 
