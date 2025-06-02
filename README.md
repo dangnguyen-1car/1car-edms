@@ -19,6 +19,13 @@
 │ ├── backend/ # Node.js API Server
 │ └── frontend/ # React Application
 ├── database/ # SQLite Database
+│ ├── migrations/
+│ │ └── 001-create-users.sql
+│ │ └── ... (các migration khác)
+│ ├── seeds/
+│ │ └── users.sql
+│ │ └── documents.sql
+│ └── schema.sql # Schema hoàn chỉnh
 ├── uploads/ # File Storage
 ├── logs/ # System Logs
 └── docs/ # Documentation
@@ -29,11 +36,15 @@
     git clone <repository-url>
     cd 1car-edms
     ```
-2.  **Setup hệ thống:**
+2.  **Setup hệ thống (tạo thư mục, cài đặt dependencies, khởi tạo CSDL và chạy migration):**
     ```bash
     npm run setup
     ```
-3.  **Chạy development:**
+3.  **(Tùy chọn) Seed dữ liệu người dùng và tài liệu mẫu:**
+    ```bash
+    npm run seed
+    ```
+4.  **Chạy môi trường phát triển:**
     ```bash
     npm run dev
     ```
@@ -41,11 +52,20 @@
 ### Truy Cập
 -   **Backend**: http://localhost:3000
 -   **Frontend**: http://localhost:3001
--   **Admin**: admin@1car.vn / admin123
+-   **Tài khoản Quản trị viên Hệ thống (mặc định, tạo tự động khi CSDL mới):**
+    -   Email: `admin@1car.vn`
+    -   Mật khẩu: `admin123`
+-   **Các tài khoản người dùng mẫu (sau khi chạy `npm run seed`):**
+    -   Mật khẩu chung cho tất cả tài khoản trong file seed: `1car2025`
+    -   Ví dụ tài khoản Admin từ seed: `giamdoc.dh@1car.vn` / `1car2025`
+    -   Ví dụ tài khoản User từ seed: `cskh.staff1@1car.vn` / `1car2025`
+    -   (Xem chi tiết 40 tài khoản mẫu trong `database/seeds/users.sql`)
 
 ### Cấu Trúc Cơ Sở Dữ Liệu (Database Structure)
-Vị trí: `database/migrations/001-create-users.sql`
+Tham khảo file `database/schema.sql` để xem cấu trúc bảng đầy đủ.
+File migration ban đầu cho bảng users (`database/migrations/001-create-users.sql`):
 ```sql
+-- database/migrations/001-create-users.sql
 -- Users table based on C-FM-MG-004 role matrix
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,11 +82,11 @@ CREATE TABLE IF NOT EXISTS users (
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
--- Insert default admin user
-INSERT OR IGNORE INTO users (email, password_hash, name, department, role, is_active)
-VALUES ('admin@1car.vn', '$2b$10$hash', 'System Administrator', 'Ban Giám đốc', 'admin', 1);
-Kịch Bản Cài Đặt (Setup Scripts)
-Vị trí: scripts/setup.js
+
+-- Ghi nhận migration này đã được thực thi
+INSERT OR IGNORE INTO schema_migrations (version, description)
+VALUES ('001', 'Initial schema creation with users table. Default admin user (admin@1car.vn) will be created by application logic in database.js.');
+
 
 JavaScript
 
