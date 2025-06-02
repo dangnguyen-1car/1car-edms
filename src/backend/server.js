@@ -17,9 +17,8 @@ const os = require('os');
 
 // Import configurations
 const { dbManager } = require('./config/database');
-const { appLogger } = require('./utils/logger'); // Đã có appLogger
+const { appLogger } = require('./utils/logger'); 
 
-// Create Express app first
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -54,8 +53,8 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Limit each IP to 1000 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: 1000, 
   message: {
     success: false,
     message: 'Quá nhiều requests từ IP này, vui lòng thử lại sau.',
@@ -101,7 +100,7 @@ function requestLogger(req, res, next) {
     next();
   } catch (error) {
     appLogger.error('Request logger error', { error: error.message });
-    next(); // Quan trọng: gọi next() ngay cả khi có lỗi trong logger để request không bị treo
+    next(); 
   }
 }
 app.use(requestLogger);
@@ -117,7 +116,7 @@ app.get('/health', async (req, res) => {
     const users = await dbManager.get('SELECT COUNT(*) as count FROM users');
     const documents = await dbManager.get('SELECT COUNT(*) as count FROM documents');
     const documentVersions = await dbManager.get('SELECT COUNT(*) as count FROM document_versions');
-    const auditLogs = await dbManager.get('SELECT COUNT(*) as count FROM audit_logs');
+    const auditLogsCount = await dbManager.get('SELECT COUNT(*) as count FROM audit_logs'); // Sửa tên biến
     const fileSizeResult = await dbManager.get(`
       SELECT COALESCE(SUM(file_size), 0) as total_size 
       FROM documents 
@@ -148,7 +147,7 @@ app.get('/health', async (req, res) => {
         users: users.count,
         documents: documents.count,
         document_versions: documentVersions.count,
-        audit_logs: auditLogs.count,
+        audit_logs: auditLogsCount.count, // Sửa tên biến
         file_size_mb: totalFileSizeMB,
         connected: true,
         database_path: './database/edms.db'
@@ -175,16 +174,18 @@ const authRoutes = require('./routes/auth');
 const documentRoutes = require('./routes/documents');
 const uploadRoutes = require('./routes/upload');
 const userRoutes = require('./routes/users');
-const systemSettingsRoutes = require('./routes/systemSettings'); // ++ IMPORT ROUTE MỚI
+const systemSettingsRoutes = require('./routes/systemSettings'); 
+const auditLogRoutes = require('./routes/auditLogRoutes'); // <<<### SỬA ĐỔI: IMPORT ROUTE MỚI ###>>>
 
 // API Routes - Mount routes properly
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/system-settings', systemSettingsRoutes); // ++ GẮN ROUTE MỚI
+app.use('/api/system-settings', systemSettingsRoutes); 
+app.use('/api/audit-logs', auditLogRoutes); // <<<### SỬA ĐỔI: GẮN ROUTE MỚI ###>>>
 
-// 404 handler for API routes (phải đặt SAU các app.use() của API routes)
+// 404 handler for API routes 
 app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -195,7 +196,7 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// Error handler middleware (phải đặt CUỐI CÙNG)
+// Error handler middleware 
 function errorHandler(err, req, res, next) {
   try {
     appLogger.error('Application Error', {
@@ -262,13 +263,13 @@ async function startServer() {
       appLogger.info(`EDMS 1CAR Server started on localhost:${PORT}`);
       appLogger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       appLogger.info(`Database: ./database/edms.db`);
-      // Thông tin log các route đã được cập nhật khi gắn systemSettingsRoutes
       appLogger.info('Available API routes:');
       appLogger.info('  - Authentication: /api/auth/*');
       appLogger.info('  - Documents: /api/documents/*');
       appLogger.info('  - File Upload: /api/upload/*');
       appLogger.info('  - User Management: /api/users/*');
-      appLogger.info('  - System Settings: /api/system-settings/*'); // ++ THÊM THÔNG TIN ROUTE MỚI
+      appLogger.info('  - System Settings: /api/system-settings/*'); 
+      appLogger.info('  - Audit Logs: /api/audit-logs/*'); // <<<### SỬA ĐỔI: THÊM THÔNG TIN ROUTE MỚI ###>>>
       appLogger.info('EDMS 1CAR ready for 40 users with compliance:');
       appLogger.info('  - C-PR-MG-003: Access control procedures');
       appLogger.info('  - C-FM-MG-004: Role-based permission matrix');
