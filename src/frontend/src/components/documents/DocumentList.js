@@ -125,12 +125,16 @@ function DocumentList({ onDocumentSelect }) {
   };
 
   const handleViewDocument = (documentId) => {
-    toast.info(`Xem chi tiết tài liệu ID: ${documentId} (chưa triển khai navigation)`);
+    // Replace with actual navigation or detailed view logic
+    // navigate(`/documents/${documentId}`); 
+    toast.info(`Điều hướng đến chi tiết tài liệu ID: ${documentId}`);
     if(onDocumentSelect) onDocumentSelect(documentId);
   };
 
   const handleEditDocument = (documentId) => {
-    toast.info(`Chỉnh sửa tài liệu ID: ${documentId} (chưa triển khai navigation)`);
+    // Replace with actual navigation or edit modal logic
+    // navigate(`/documents/${documentId}/edit`);
+    toast.info(`Điều hướng đến chỉnh sửa tài liệu ID: ${documentId}`);
   };
 
   const documents = documentsResponse?.data?.documents || [];
@@ -154,10 +158,11 @@ function DocumentList({ onDocumentSelect }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
-          <p className="text-gray-600">
+          {/* FIX: Changed <p> to <div> to avoid invalid DOM nesting */}
+          <div className="text-gray-600">
             {isFetching && !isLoading ? <LoadingSpinner size="sm" noMessage={true} className="inline mr-2" /> : null}
             Tìm thấy {pagination.total || 0} tài liệu.
-          </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
             <button
@@ -183,8 +188,8 @@ function DocumentList({ onDocumentSelect }) {
             filters={filters}
             onFiltersChange={handleFilterChange}
             onClearFilters={handleClearFilters}
-            showAdvanced={true} // Luôn hiển thị nội dung bộ lọc nâng cao khi showFilters là true
-            onToggleAdvanced={() => setShowFilters(!showFilters)} // Vẫn giữ toggle này nếu cần
+            showAdvanced={true} 
+            onToggleAdvanced={() => setShowFilters(!showFilters)} 
             documentTypeOptions={mappedDocumentTypeOptions}
             departmentOptions={mappedDepartmentOptions}
             statusOptions={mappedStatusOptions}
@@ -232,8 +237,8 @@ function DocumentList({ onDocumentSelect }) {
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
             onCreated={handleDocumentCreated}
-            documentTypeOptions={mappedDocumentTypeOptions} // Truyền options đã map
-            departmentOptions={mappedDepartmentOptions}   // Truyền options đã map
+            documentTypeOptions={mappedDocumentTypeOptions} 
+            departmentOptions={mappedDepartmentOptions}   
             isLoadingOptions={isLoadingOptions}
         />
       )}

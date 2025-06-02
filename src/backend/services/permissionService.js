@@ -26,7 +26,8 @@ class PermissionService {
       'VIEW_AUDIT_LOGS', 'EXPORT_AUDIT_LOGS', 'MANAGE_SYSTEM', 'BACKUP_SYSTEM', 'RESTORE_SYSTEM',
       'SUBMIT_FOR_REVIEW', 'REVIEW_DOCUMENT', 'APPROVE_WORKFLOW', 'REJECT_WORKFLOW',
       // Thêm các action kiểm tra quyền nội bộ nếu cần, ví dụ:
-      'CHECK_PERMISSION_INTERNAL' // Dùng cho các hàm check phức tạp hơn
+      'CHECK_PERMISSION_INTERNAL', // Dùng cho các hàm check phức tạp hơn
+      'CREATE_DOCUMENT' // <--- *** FIX: Added CREATE_DOCUMENT action ***
     ];
   }
 
@@ -37,12 +38,18 @@ class PermissionService {
 
   static get ROLE_PERMISSIONS() {
     return {
-      admin: PermissionService.VALID_ACTIONS,
+      admin: PermissionService.VALID_ACTIONS, // Admin has all, now including CREATE_DOCUMENT
       user: [
-        'VIEW_DOCUMENT', 'EDIT_DOCUMENT', 'CREATE_VERSION', 'VIEW_VERSION_HISTORY',
-        'SUBMIT_FOR_REVIEW', 'VIEW_USERS', 'EDIT_USER_PROFILE'
+        'VIEW_DOCUMENT', 
+        'CREATE_DOCUMENT', // <-- Added for 'user' role, assuming users can create documents
+        'EDIT_DOCUMENT', 
+        'CREATE_VERSION', 
+        'VIEW_VERSION_HISTORY',
+        'SUBMIT_FOR_REVIEW', 
+        'VIEW_USERS', // Typically users might only view their own profile or limited user info
+        'EDIT_USER_PROFILE'
       ],
-      guest: ['VIEW_DOCUMENT']
+      guest: ['VIEW_DOCUMENT'] // Guests can usually only view public documents
     };
   }
 
@@ -71,7 +78,7 @@ class PermissionService {
     const auditDetailsBase = { action_attempted: action, user_id_checked: userId, resource_type: resourceType, resource_id: resourceId };
 
     try {
-      if (!userId && userId !== 0) {
+      if (!userId && userId !== 0) { // Handles userId being 0 if that's a valid system/guest ID
         await AuditService.log({
           action: 'PERMISSION_DENIED', userId: null, resourceType, resourceId,
           details: { ...auditDetailsBase, reason: 'User ID not provided' },
@@ -145,6 +152,23 @@ class PermissionService {
         return { allowed: false, reason: 'Insufficient role permissions' };
       }
 
+      // Specific logic for document creation, as resourceId might not exist yet.
+      // If it's a CREATE_DOCUMENT action, and role allows it, generally it's permitted at this stage.
+      // Further validation (e.g., department specific creation rights) might happen in the service layer.
+      if (action === 'CREATE_DOCUMENT' && resourceType === 'document') {
+          // If user role has CREATE_DOCUMENT, allow here.
+          // Additional logic can be added, e.g., can user create this TYPE of document in THIS department?
+          // For now, if the role permits general creation, we allow.
+          // Department-specific creation rules can be checked in the DocumentService.createDocument itself.
+          await AuditService.log({
+            action: 'PERMISSION_CHECKED', userId, resourceType, resourceId: null, // resourceId is null for creation
+            details: { ...auditDetailsBase, result: 'allowed', reason: 'Role allows document creation' },
+            ipAddress, userAgent, sessionId
+          });
+          return { allowed: true, reason: 'Role allows document creation' };
+      }
+
+
       if (resourceType === 'document' && resourceId) {
         // Không cần await AuditService.log ở đây nữa, vì _checkDocumentSpecificPermission sẽ log
         return await PermissionService._checkDocumentSpecificPermission(user, action, resourceId, context, auditDetailsBase);
@@ -170,6 +194,7 @@ class PermissionService {
         // Các trường hợp khác của resourceType 'user' (như VIEW_USERS, EDIT_USER bởi admin) đã được xử lý bởi rolePermissions
       }
 
+      // If no specific rules apply, but action is in rolePermissions, grant permission.
       await AuditService.log({
         action: 'PERMISSION_CHECKED', userId, resourceType, resourceId,
         details: { ...auditDetailsBase, result: 'allowed', reason: 'General role permission granted' },
@@ -202,11 +227,9 @@ class PermissionService {
       );
 
       if (!document) {
-        // Không log PERMISSION_DENIED vì resource không tồn tại, checkPermission sẽ log lỗi hệ thống nếu cần
         return { allowed: false, reason: 'Document not found for permission check.' };
       }
       
-      // Thêm thông tin tài liệu vào auditDetailsBase để log một lần cuối cùng
       const currentAuditDetails = {
           ...auditDetailsBase,
           document_code: document.document_code,
@@ -216,37 +239,32 @@ class PermissionService {
           document_department: document.department
       };
 
-
-      // Ưu tiên 1: Quyền tường minh (Explicit Grants)
       const explicitPerm = await PermissionService._checkExplicitGrants(user, documentId, action);
       if (explicitPerm.hasExplicitGrant) {
-        permissionResult = { allowed: explicitPerm.allowed, reason: explicitPerm.reason || (explicitPerm.allowed ? 'Explicit permission granted.' : 'Explicit permission denied by specific grant.') };
+        permissionResult = { allowed: explicitPerm.allowed, reason: explicitPerm.reason || (explicitPerm.allowed ? 'Explicit permission granted.' : 'Explicit permission denied by specific grant.'), explicitPermissionType: explicitPerm.explicitPermissionType };
       }
 
-      // Ưu tiên 2: Quyền tác giả (nếu chưa có quyết định từ explicit grant hoặc explicit grant cho phép)
-      if (!explicitPerm.hasExplicitGrant || permissionResult.allowed) {
-        if (document.author_id === user.id) {
-          const authorAllowedActions = {
-            'VIEW_DOCUMENT': true, 'EDIT_DOCUMENT': true, 'CREATE_VERSION': true,
-            'VIEW_VERSION_HISTORY': true, 'SUBMIT_FOR_REVIEW': true,
-            'DELETE_DOCUMENT': document.status === 'draft'
-          };
-          if (authorAllowedActions[action]) {
-            if (action === 'DELETE_DOCUMENT' && document.status !== 'draft') {
-              if (!permissionResult.allowed) { // Chỉ cập nhật nếu chưa được phép bởi explicit grant
-                 permissionResult = { allowed: false, reason: 'Author can only delete their own draft documents.' };
-              }
-            } else {
-              // Nếu explicit grant đã cho phép, không ghi đè. Nếu chưa có quyết định, hoặc explicit grant cũng cho phép, thì đây là lý do
-              if (!explicitPerm.hasExplicitGrant || (explicitPerm.hasExplicitGrant && explicitPerm.allowed)) {
-                permissionResult = { allowed: true, reason: 'Document author' };
-              }
+
+      if ((!explicitPerm.hasExplicitGrant || explicitPerm.allowed) && document.author_id === user.id) {
+        const authorAllowedActions = {
+          'VIEW_DOCUMENT': true, 'EDIT_DOCUMENT': true, 'CREATE_VERSION': true,
+          'VIEW_VERSION_HISTORY': true, 'SUBMIT_FOR_REVIEW': true,
+          'DELETE_DOCUMENT': document.status === 'draft'
+        };
+        if (authorAllowedActions[action]) {
+          if (action === 'DELETE_DOCUMENT' && document.status !== 'draft') {
+            if (!permissionResult.allowed) { 
+               permissionResult = { allowed: false, reason: 'Author can only delete their own draft documents.' };
+            }
+          } else {
+            if (!explicitPerm.hasExplicitGrant || (explicitPerm.hasExplicitGrant && explicitPerm.allowed)) {
+              permissionResult = { allowed: true, reason: 'Document author' };
             }
           }
         }
       }
 
-      // Ưu tiên 3: Quyền theo phòng ban và loại tài liệu (CHỈ XÉT NẾU CHƯA ĐƯỢC PHÉP bởi tác giả hoặc quyền tường minh)
+
       if (!permissionResult.allowed) {
         const departmentDocTypes = (PermissionService.DEPARTMENT_DOCUMENT_PERMISSIONS[user.department]) || [];
         if (departmentDocTypes.includes(document.type)) {
@@ -255,13 +273,11 @@ class PermissionService {
           } else if (action === 'EDIT_DOCUMENT' && document.status === 'draft' && document.department === user.department) {
             permissionResult = { allowed: true, reason: 'Allowed to edit draft within own department.' };
           }
-        } else if (!explicitPerm.hasExplicitGrant) { // Nếu không có explicit grant và department cũng không có quyền
+        } else if (!explicitPerm.hasExplicitGrant) { 
             permissionResult = { allowed: false, reason: `User's department (${user.department}) has no default access to document type (${document.type}).` };
         }
       }
 
-      // Ưu tiên 4: Ràng buộc mức độ bảo mật (GHI ĐÈ NẾU KHÔNG ĐẠT)
-      // Kiểm tra này áp dụng ngay cả khi các bước trước đã cho phép, trừ khi có quyền tường minh 'admin' cho tài liệu
       if (permissionResult.allowed && !(explicitPerm.hasExplicitGrant && explicitPerm.allowed && explicitPerm.explicitPermissionType === 'admin')) {
         const securityLevelsHierarchy = { 'public': 0, 'internal': 1, 'confidential': 2, 'restricted': 3 };
         const userSecurityClearance = user.role === 'admin' ? 3 : ((UserModel.USER_SECURITY_CLEARANCE || {})[user.role] || 1);
@@ -272,10 +288,8 @@ class PermissionService {
         }
       }
 
-      // Ưu tiên 5: Ràng buộc trạng thái tài liệu (GHI ĐÈ NẾU KHÔNG ĐẠT)
       if (permissionResult.allowed) {
         if (document.status === 'published' && (action === 'EDIT_DOCUMENT' || action === 'DELETE_DOCUMENT')) {
-          // Cho phép admin hệ thống hoặc người có quyền 'admin' tường minh trên tài liệu được sửa/xóa published doc
           const isAdminEquivalent = user.role === 'admin' || (explicitPerm.hasExplicitGrant && explicitPerm.allowed && explicitPerm.explicitPermissionType === 'admin');
           if (!isAdminEquivalent) {
             permissionResult = { allowed: false, reason: 'Published documents cannot be edited or deleted by general users/roles without explicit admin rights on document.' };
@@ -289,7 +303,7 @@ class PermissionService {
         }
       }
       
-      currentAuditDetails.final_reason = permissionResult.reason; // Thêm lý do cuối cùng vào audit
+      currentAuditDetails.final_reason = permissionResult.reason;
       await AuditService.log({
         action: permissionResult.allowed ? 'PERMISSION_CHECKED' : 'PERMISSION_DENIED',
         userId: user.id,
@@ -314,7 +328,6 @@ class PermissionService {
   }
 
   static async _checkExplicitGrants(user, documentId, action) {
-    // (Giữ nguyên như phiên bản trước, nhưng đảm bảo nó trả về thêm explicitPermissionType)
     try {
       const permissions = await dbManager.all(`
         SELECT permission_type FROM document_permissions
@@ -324,7 +337,7 @@ class PermissionService {
       `, [documentId, user.id, user.department]);
 
       if (permissions.length === 0) {
-        return { hasExplicitGrant: false, allowed: false, reason: 'No explicit permissions found for user/department.' };
+        return { hasExplicitGrant: false, allowed: false, reason: 'No explicit permissions found for user/department.', explicitPermissionType: null };
       }
 
       const actionToPermissionMap = {
@@ -347,56 +360,59 @@ class PermissionService {
           return { hasExplicitGrant: true, allowed: true, reason: `Explicit '${reqPerm}' permission found.`, explicitPermissionType: reqPerm };
         }
       }
-      return { hasExplicitGrant: true, allowed: false, reason: `Found explicit permissions [${userExplicitPermissionTypes.join(', ')}], but none match action '${action}'.` };
+      return { hasExplicitGrant: true, allowed: false, reason: `Found explicit permissions [${userExplicitPermissionTypes.join(', ')}], but none match action '${action}'.`, explicitPermissionType: userExplicitPermissionTypes.join(',') };
 
     } catch (error) {
       logError(error, null, { operation: '_checkExplicitGrants', userId: user.id, documentId, action });
-      return { hasExplicitGrant: false, allowed: false, reason: `Error checking explicit grants: ${error.message}` };
+      return { hasExplicitGrant: false, allowed: false, reason: `Error checking explicit grants: ${error.message}`, explicitPermissionType: null };
     }
   }
   
-  // Các hàm grantDocumentPermission, revokeDocumentPermission, getDocumentPermissions, getUserPermissionsForDocument, getEffectivePermissions giữ nguyên như phiên bản trước của bạn
-  // Chỉ cần đảm bảo chúng gọi checkPermission (nếu cần kiểm tra quyền của người thực hiện) và AuditService.log với đầy đủ context.
 
-  // ... (Sao chép các hàm grant, revoke, getPermissions, getEffectivePermissions từ phiên bản trước của bạn)
-  // Đảm bảo truyền `context` vào các lời gọi `checkPermission` và `AuditService.log` bên trong các hàm này.
-  // Ví dụ cho grantDocumentPermission:
   static async grantDocumentPermission(documentId, targetType, targetId, permissionType, grantedByUserId, context = {}) {
     const { ipAddress = null, userAgent = null, sessionId = null } = context;
     const auditDetailsBase = { granting_user_id: grantedByUserId, target_type: targetType, target_id: String(targetId), permission_type_granted: permissionType };
     try {
-      // ... (validate inputs) ...
+      const validPermissionTypes = ['read', 'write', 'approve', 'admin'];
+      if (!validPermissionTypes.includes(permissionType)) {
+          throw new Error(`Invalid permission type: ${permissionType}`);
+      }
+      if (!['user', 'department'].includes(targetType)) {
+          throw new Error(`Invalid target type: ${targetType}`);
+      }
 
       const canGrantCheck = await PermissionService.checkPermission(grantedByUserId, 'MANAGE_PERMISSIONS', 'document', documentId, context);
       if (!canGrantCheck.allowed) {
-        // AuditService.log đã được gọi bên trong checkPermission
         throw new Error(`Granter (ID: ${grantedByUserId}) lacks permission to manage permissions for document ID ${documentId}. Reason: ${canGrantCheck.reason}`);
       }
 
-      // ... (logic insert/delete from document_permissions) ...
-       const userIdCol = targetType === 'user' ? 'user_id' : 'NULL';
-       const departmentCol = targetType === 'department' ? 'department' : 'NULL';
-       const targetVal = targetId;
+       const userIdToInsert = targetType === 'user' ? targetId : null;
+       const departmentToInsert = targetType === 'department' ? targetId : null;
 
-       // Xóa quyền cũ (nếu có) trước khi thêm quyền mới để tránh trùng lặp hoặc xung đột
-       // Hoặc có thể cập nhật is_active = 0 cho quyền cũ và tạo quyền mới
        await dbManager.run(`
         DELETE FROM document_permissions
         WHERE document_id = ? AND
-              (${userIdCol !== 'NULL' ? `user_id = ?` : `department = ?`}) AND
+              (user_id = ? OR (? IS NULL AND user_id IS NULL)) AND 
+              (department = ? OR (? IS NULL AND department IS NULL)) AND
               permission_type = ?
-      `, [documentId, targetVal, permissionType]);
+      `, [documentId, userIdToInsert, userIdToInsert, departmentToInsert, departmentToInsert, permissionType]);
 
 
       const result = await dbManager.run(`
-        INSERT INTO document_permissions (document_id, ${targetType === 'user' ? 'user_id' : 'department'}, permission_type, granted_by, granted_at, is_active)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
-      `, [documentId, targetVal, permissionType, grantedByUserId]);
+        INSERT INTO document_permissions (document_id, user_id, department, permission_type, granted_by, granted_at, is_active)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+      `, [documentId, userIdToInsert, departmentToInsert, permissionType, grantedByUserId]);
 
+
+      let targetEmail = null;
+      if (targetType === 'user') {
+          const targetUser = await dbManager.get('SELECT email FROM users WHERE id = ?', [targetId]);
+          targetEmail = targetUser?.email;
+      }
 
       await AuditService.log({
         action: 'PERMISSION_GRANTED', userId: grantedByUserId, resourceType: 'document', resourceId: documentId,
-        details: { ...auditDetailsBase, new_permission_id: result.lastID, granted_to_user_email: (targetType === 'user' ? (await dbManager.get('SELECT email FROM users WHERE id = ?', [targetVal]))?.email : null) },
+        details: { ...auditDetailsBase, new_permission_id: result.lastID, granted_to_user_email: targetEmail, granted_to_department: departmentToInsert },
         ipAddress, userAgent, sessionId
       });
 
@@ -418,36 +434,43 @@ class PermissionService {
     const { ipAddress = null, userAgent = null, sessionId = null } = context;
     const auditDetailsBase = { revoking_user_id: revokedByUserId, target_type: targetType, target_id: String(targetId), permission_type_revoked: permissionType };
     try {
-      // ... (validate inputs) ...
+      if (!['user', 'department'].includes(targetType)) {
+          throw new Error(`Invalid target type: ${targetType}`);
+      }
 
       const canRevokeCheck = await PermissionService.checkPermission(revokedByUserId, 'MANAGE_PERMISSIONS', 'document', documentId, context);
       if (!canRevokeCheck.allowed) {
         throw new Error(`Revoker (ID: ${revokedByUserId}) lacks permission to manage permissions for document ID ${documentId}. Reason: ${canRevokeCheck.reason}`);
       }
 
-      // ... (logic update document_permissions.is_active = 0) ...
-      const userIdCol = targetType === 'user' ? 'user_id' : 'NULL';
-      const departmentCol = targetType === 'department' ? 'department' : 'NULL';
-      const targetVal = targetId;
+      const userIdToUpdate = targetType === 'user' ? targetId : null;
+      const departmentToUpdate = targetType === 'department' ? targetId : null;
 
       const result = await dbManager.run(`
         UPDATE document_permissions
         SET is_active = 0, expires_at = CURRENT_TIMESTAMP 
         WHERE document_id = ? AND
-              (${userIdCol !== 'NULL' ? `user_id = ?` : `department = ?`}) AND
+              (user_id = ? OR (? IS NULL AND user_id IS NULL)) AND
+              (department = ? OR (? IS NULL AND department IS NULL)) AND
               permission_type = ? AND
               is_active = 1
-      `, [documentId, targetVal, permissionType]);
+      `, [documentId, userIdToUpdate, userIdToUpdate, departmentToUpdate, departmentToUpdate, permissionType]);
 
 
       if (result.changes === 0) {
         appLogger.warn('Attempted to revoke a permission that was not found or already inactive.',
             { documentId, targetType, targetId, permissionType, revokedByUserId });
       }
+      
+      let targetEmail = null;
+      if (targetType === 'user') {
+          const targetUser = await dbManager.get('SELECT email FROM users WHERE id = ?', [targetId]);
+          targetEmail = targetUser?.email;
+      }
 
       await AuditService.log({
         action: 'PERMISSION_REVOKED', userId: revokedByUserId, resourceType: 'document', resourceId: documentId,
-        details: { ...auditDetailsBase, revoked_from_user_email: (targetType === 'user' ? (await dbManager.get('SELECT email FROM users WHERE id = ?', [targetVal]))?.email : null) },
+        details: { ...auditDetailsBase, revoked_from_user_email: targetEmail, revoked_from_department: departmentToUpdate },
         ipAddress, userAgent, sessionId
       });
 
@@ -468,16 +491,13 @@ class PermissionService {
   static async getDocumentPermissions(documentId, context = {}) {
     const { userId: requesterUserId, ipAddress, userAgent, sessionId } = context;
     try {
-        // Kiểm tra quyền của người yêu cầu thông tin này (ví dụ: chỉ admin hoặc người có quyền MANAGE_PERMISSIONS trên tài liệu)
-        if (requesterUserId) { // Chỉ check nếu có requesterUserId
+        if (requesterUserId) { 
             const canViewPermissions = await PermissionService.checkPermission(requesterUserId, 'MANAGE_PERMISSIONS', 'document', documentId, context);
             if (!canViewPermissions.allowed) {
-                // Không throw error mà trả về rỗng, việc ghi log PERMISSION_DENIED đã được checkPermission xử lý
                 appLogger.warn("User tried to list document permissions without MANAGE_PERMISSIONS right", {requesterUserId, documentId});
                 return { success: true, data: [], message: "Insufficient rights to view all permissions for this document." };
             }
         }
-
 
       const permissions = await dbManager.all(`
         SELECT dp.id, dp.document_id, dp.user_id, u.name as user_name, u.email as user_email,
@@ -491,7 +511,7 @@ class PermissionService {
       `, [documentId]);
 
        await AuditService.log({
-          action: 'PERMISSION_CHECKED', // Hoặc 'DOCUMENT_PERMISSIONS_LISTED'
+          action: 'PERMISSION_CHECKED', 
           userId: requesterUserId || null,
           resourceType: 'document',
           resourceId: documentId,
@@ -566,15 +586,6 @@ class PermissionService {
   }
 
   static async getEffectivePermissions(userId, resourceType, resourceId = null, context = {}) {
-    // (Giữ nguyên logic hàm này từ phiên bản bạn cung cấp ở lượt trước, chỉ cần đảm bảo
-    // các lời gọi đến checkPermission, getUserPermissionsForDocument và AuditService.log
-    // truyền đúng context và xử lý kết quả một cách nhất quán.)
-    // ... (logic của getEffectivePermissions đã được cung cấp trước đó) ...
-    // Quan trọng là phải gọi _checkDocumentSpecificPermission nếu resourceType là 'document'
-    // thay vì chỉ dựa vào getUserPermissionsForDocument, vì _checkDocumentSpecificPermission
-    // đã bao gồm nhiều logic hơn (tác giả, phòng ban/loại, security, status).
-
-    // Phiên bản rút gọn của getEffectivePermissions, cần hoàn thiện dựa trên yêu cầu
     const { ipAddress = null, userAgent = null, sessionId = null } = context;
     try {
         const user = await dbManager.get('SELECT id, email, name, department, role, is_active FROM users WHERE id = ?', [userId]);
@@ -585,26 +596,23 @@ class PermissionService {
         let effectivePermissions = new Set((PermissionService.ROLE_PERMISSIONS[user.role]) || []);
 
         if (resourceType === 'document' && resourceId) {
-            // Thay vì lặp lại logic, ta có thể "mô phỏng" việc check từng action
-            // hoặc có một hàm trả về tất cả các "quyền cơ sở" cho tài liệu đó
-            // đối với người dùng này.
-            // Ví dụ, kiểm tra quyền VIEW_DOCUMENT
-            const viewCheck = await PermissionService._checkDocumentSpecificPermission(user, 'VIEW_DOCUMENT', resourceId, context, {user_email: user.email, user_role: user.role});
-            if (viewCheck.allowed) effectivePermissions.add('VIEW_DOCUMENT');
-
-            const editCheck = await PermissionService._checkDocumentSpecificPermission(user, 'EDIT_DOCUMENT', resourceId, context, {user_email: user.email, user_role: user.role});
-            if (editCheck.allowed) effectivePermissions.add('EDIT_DOCUMENT');
-            // Làm tương tự cho các actions quan trọng khác...
-            // Đây là cách đơn giản, cách tốt hơn là _checkDocumentSpecificPermission trả về một tập các quyền
-            // thay vì chỉ true/false cho một action.
+            // Check for all relevant actions and add to set if allowed
+            const documentActions = ['VIEW_DOCUMENT', 'EDIT_DOCUMENT', 'DELETE_DOCUMENT', 'APPROVE_DOCUMENT', 'CREATE_VERSION']; // Add more as needed
+            for (const action of documentActions) {
+                if (effectivePermissions.has(action)) { // Only check specific doc perm if role already allows the general action
+                    const docPermCheck = await PermissionService._checkDocumentSpecificPermission(user, action, resourceId, context, {user_email: user.email, user_role: user.role});
+                    if (!docPermCheck.allowed) {
+                        effectivePermissions.delete(action); // Remove if specific document check fails
+                    }
+                }
+            }
         }
-        // ... (thêm logic cho các resource types khác) ...
-
+        
         const finalPermissionsArray = Array.from(effectivePermissions);
          await AuditService.log({
             action: 'PERMISSION_CHECKED',
             userId, resourceType, resourceId,
-            details: { operation: 'getEffectivePermissions', user_email: user.email, count: finalPermissionsArray.length },
+            details: { operation: 'getEffectivePermissions', user_email: user.email, count: finalPermissionsArray.length, effective_permissions: finalPermissionsArray },
             ipAddress, userAgent, sessionId
         });
         return {
@@ -616,7 +624,11 @@ class PermissionService {
         };
     } catch (error) {
         logError(error, context, {operation: 'getEffectivePermissions', userId, resourceType, resourceId});
-        // ... (log audit error) ...
+        await AuditService.log({
+            action: 'SYSTEM_ERROR', userId, resourceType: 'effective_permission_query', resourceId,
+            details: { error: error.message, operation: 'getEffectivePermissions' },
+            ipAddress, userAgent, sessionId
+        }).catch(e => appLogger.error("CRITICAL: Error logging audit for effective perm check failure itself:", { originalError: error.message, auditError: e.message }));
         throw error;
     }
   }
