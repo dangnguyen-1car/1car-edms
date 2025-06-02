@@ -3,26 +3,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FiX, FiSave, FiLoader, FiAlertCircle, FiPlus, FiMinus, FiCheck } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
-import { documentService } from '../../services/documentService'; // Sử dụng documentService thống nhất
-import { useAuth } from '../../contexts/AuthContext'; // Để lấy author_id
+import { documentService } from '../../services/documentService';
+import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 function CreateDocumentModal({
   isOpen,
   onClose,
   onCreated,
-  // Props mới để nhận options từ component cha
-  documentTypeOptions = [], // [{ value: 'PL', label: 'Chính sách' }, ...]
-  departmentOptions = [],   // [{ value: 'Ban Giám đốc', label: 'Ban Giám đốc' }, ...]
-  // Giữ lại securityLevels và priorities hardcode nếu chưa có API,
-  // hoặc cũng có thể truyền vào từ props nếu có API cho chúng
-  securityLevelOptionsProp = [
+  documentTypeOptions = [], // Sẽ nhận mảng [{value, label}]
+  departmentOptions = [],   // Sẽ nhận mảng [{value, label}]
+  securityLevelOptionsProp = [ // Giữ lại hardcode nếu không có API
     { value: 'public', label: 'Công khai (P)' },
     { value: 'internal', label: 'Nội bộ (I)' },
     { value: 'confidential', label: 'Bảo mật (C)' },
     { value: 'restricted', label: 'Hạn chế (R)' },
   ],
-  priorityOptionsProp = [
+  priorityOptionsProp = [ // Giữ lại hardcode nếu không có API
     { value: 'low', label: 'Thấp' },
     { value: 'normal', label: 'Bình thường' },
     { value: 'high', label: 'Cao' },
@@ -30,22 +27,22 @@ function CreateDocumentModal({
   ],
   isLoadingOptions = false,
 }) {
-  const { user: currentUser } = useAuth(); // Lấy thông tin người dùng hiện tại
+  const { user: currentUser } = useAuth();
 
   const initialFormData = {
     title: '',
     document_code: '',
-    type: '',
-    department: '',
+    type: '', // Sẽ là 'value' của option được chọn
+    department: '', // Sẽ là 'value' của option được chọn
     description: '',
     scope_of_application: '',
-    recipients: [], // Sẽ là mảng các string (tên phòng ban)
+    recipients: [],
     priority: 'normal',
     security_level: 'internal',
     review_cycle: 12,
     retention_period: 60,
-    keywords: '', // Thêm keywords
-    // author_id sẽ được gán khi submit
+    keywords: '',
+    author_id: currentUser?.id,
   };
 
   const [formData, setFormData] = useState(initialFormData);
@@ -56,35 +53,33 @@ function CreateDocumentModal({
   const [codeAvailable, setCodeAvailable] = useState(null);
   const [touched, setTouched] = useState({});
 
-  // Sử dụng options từ props, có fallback
+  // Tạo options cho select, thêm mục "chọn"
   const documentTypesForSelect = [{ value: '', label: '--- Chọn loại tài liệu ---' }, ...documentTypeOptions];
-  const departmentsForSelect = [{ value: '', label: '--- Chọn phòng ban ---' }, ...departmentOptions.map(d => ({ value: d, label: d }))]; // Giả sử departmentOptions là mảng string
-  const departmentsForRecipients = departmentOptions.map(d => ({ value: d, label: d }));
+  const departmentsForSelect = [{ value: '', label: '--- Chọn phòng ban ---' }, ...departmentOptions];
+  // departmentsForRecipients nên lấy từ departmentOptions truyền vào, vì đó là danh sách đầy đủ
+  const departmentsForRecipients = departmentOptions;
 
-  const securityLevelsForSelect = [{ value: '', label: '--- Chọn mức bảo mật ---' }, ...securityLevelOptionsProp.map(sl => ({ value: sl.code, label: sl.name }))];
-  const prioritiesForSelect = [{ value: '', label: '--- Chọn mức ưu tiên ---' }, ...priorityOptionsProp.map(p => ({ value: p.code, label: p.name }))];
+  // Sử dụng props cho security và priority, giả sử chúng cũng có cấu trúc value/label
+  // Hoặc bạn có thể map lại tương tự như documentTypeOptions nếu API trả về khác
+  const securityLevelsForSelect = [{ value: '', label: '--- Chọn mức bảo mật ---' }, ...securityLevelOptionsProp];
+  const prioritiesForSelect = [{ value: '', label: '--- Chọn mức ưu tiên ---' }, ...priorityOptionsProp];
 
 
   useEffect(() => {
     if (!isOpen) {
-      setFormData(initialFormData);
+      setFormData(prev => ({ ...initialFormData, author_id: currentUser?.id }));
       setErrors({});
       setTouched({});
       setRecipientInput('');
       setCodeAvailable(null);
     } else {
-      // Set default department and type if options are available and form is empty
-      if (!formData.department && departmentOptions.length > 0) {
-        // setFormData(prev => ({ ...prev, department: departmentOptions[0] })); // Or keep it empty
-      }
-      if (!formData.type && documentTypeOptions.length > 0) {
-        // setFormData(prev => ({ ...prev, type: documentTypeOptions[0].value })); // Or keep it empty
-      }
+      // Có thể set giá trị mặc định cho department/type ở đây nếu muốn
+      // Ví dụ: if (!formData.type && documentTypeOptions.length > 0) setFormData(prev => ({...prev, type: documentTypeOptions[0].value}))
     }
-  }, [isOpen, documentTypeOptions, departmentOptions]); // Thêm dependency
+  }, [isOpen, currentUser?.id, documentTypeOptions, departmentOptions]);
+
 
   const validateField = (name, value) => {
-    // ... (logic validateField của bạn giữ nguyên) ...
     const fieldErrors = {};
     switch (name) {
       case 'title':
@@ -124,14 +119,11 @@ function CreateDocumentModal({
   const validateForm = () => {
     const allErrors = {};
     Object.keys(formData).forEach(key => {
-      if (key !== 'recipients') {
+      if (key !== 'recipients' && key !== 'author_id') { // Bỏ qua author_id vì nó được set tự động
         const fieldErrors = validateField(key, formData[key]);
         Object.assign(allErrors, fieldErrors);
       }
     });
-    if (formData.recipients.length === 0) {
-      // allErrors.recipients = 'Phải có ít nhất một người nhận tài liệu'; // Có thể bỏ nếu không bắt buộc
-    }
      if (formData.review_cycle && formData.retention_period) {
         const reviewCycle = parseInt(formData.review_cycle);
         const retentionPeriod = parseInt(formData.retention_period);
@@ -143,41 +135,34 @@ function CreateDocumentModal({
     return Object.keys(allErrors).length === 0;
   };
 
-  const checkDocumentCodeAvailability = useCallback(async (code) => {
+ const checkDocumentCodeAvailability = useCallback(async (code) => {
     if (!code || !/^C-[A-Z]{2,3}-[A-Z0-9]{2,6}-\d{3}$/.test(code)) {
       setCodeAvailable(null);
+      setErrors(prev => ({ ...prev, document_code: prev.document_code && prev.document_code !== 'Mã tài liệu đã tồn tại.' ? prev.document_code : null }));
       return;
     }
     setIsCodeChecking(true);
+    setErrors(prev => ({ ...prev, document_code: null })); // Xóa lỗi cũ khi bắt đầu check
     try {
-      // TODO: Cần API backend /api/documents/check-code?code=...
-      // Giả sử documentService có hàm này
+      // GIẢ LẬP API CALL (Thay thế bằng API thật nếu có)
       // const response = await documentService.checkDocumentCode(code);
-      // setCodeAvailable(response.data.isAvailable);
-      // if (!response.data.isAvailable) {
-      //   setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu đã tồn tại.' }));
-      // } else {
-      //    setErrors(prev => ({ ...prev, document_code: null }));
-      // }
-      
-      // GIẢ LẬP API CALL
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const exists = code.toUpperCase().includes("EXIST");
-      setCodeAvailable(!exists);
-      if (exists) {
-        setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu đã tồn tại.' }));
-      } else {
-        setErrors(prev => ({ ...prev, document_code: null }));
-      }
+      // const isAvailable = response.data.isAvailable;
+      await new Promise(resolve => setTimeout(resolve, 500)); // Giả lập độ trễ mạng
+      const isAvailable = !code.toUpperCase().includes("EXIST"); // Giả lập mã "EXIST" đã tồn tại
 
+      setCodeAvailable(isAvailable);
+      if (!isAvailable) {
+        setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu đã tồn tại.' }));
+      }
     } catch (error) {
       console.error('Error checking document code:', error);
-      setCodeAvailable(null);
+      setCodeAvailable(null); // Trạng thái không xác định
       setErrors(prev => ({ ...prev, document_code: 'Lỗi kiểm tra mã tài liệu.' }));
     } finally {
       setIsCodeChecking(false);
     }
-  }, []); // Thêm mảng dependencies rỗng
+  }, []);
+
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -193,9 +178,17 @@ function CreateDocumentModal({
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     setTouched(prev => ({ ...prev, [name]: true }));
-    if (errors[name]) {
+
+    if (name !== 'document_code') { // Không validate document_code ngay khi gõ, để debounce xử lý
         const fieldErrors = validateField(name, value);
         setErrors(prev => ({ ...prev, [name]: fieldErrors[name] || null }));
+    } else {
+        // Khi người dùng gõ mã, xóa trạng thái codeAvailable để chờ debounce
+        setCodeAvailable(null);
+        // Xóa lỗi "Mã đã tồn tại" để không hiển thị khi đang gõ mã mới
+        if(errors.document_code === 'Mã tài liệu đã tồn tại.') {
+            setErrors(prev => ({ ...prev, document_code: null }));
+        }
     }
   };
 
@@ -206,35 +199,37 @@ function CreateDocumentModal({
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(prev => ({ ...prev, ...fieldErrors }));
     }
+     // Trigger check code on blur nếu là trường document_code và chưa có lỗi format
+    if (name === 'document_code' && !fieldErrors.document_code && value.trim()) {
+        checkDocumentCodeAvailability(value);
+    }
   };
-  
+
   const generateDocumentCode = async () => {
     if (formData.type && formData.department) {
-      // TODO: Lý tưởng là gọi API backend để generate code theo logic của DocumentCodeGenerator.js
-      // Ví dụ: const suggestedCode = await documentService.suggestDocumentCode(formData.type, formData.department);
-      // Hiện tại, giữ lại logic frontend cũ để demo
-      const typeCode = formData.type;
-      const deptWords = formData.department.split(' ');
+      const typeCode = formData.type; // formData.type bây giờ là code (VD: "PL")
+      const deptName = departmentOptions.find(d => d.value === formData.department)?.label || formData.department;
+      const deptWords = deptName.split(' ');
       let deptCodeGuess = '';
       if (deptWords.length > 1 && deptWords[0].length > 1 && deptWords[1].length > 0) {
         deptCodeGuess = (deptWords[0].substring(0,1) + deptWords[1].substring(0,1)).toUpperCase();
       } else {
         deptCodeGuess = deptWords[0].substring(0, Math.min(deptWords[0].length, 3)).toUpperCase();
       }
-      const randomNum = Math.floor(Math.random() * 899) + 100; // Tạm thời random
+      const randomNum = Math.floor(Math.random() * 899) + 100;
       const code = `C-${typeCode}-${deptCodeGuess}-${randomNum.toString().padStart(3, '0')}`;
       setFormData(prev => ({ ...prev, document_code: code }));
       setTouched(prev => ({ ...prev, document_code: true }));
-      await checkDocumentCodeAvailability(code);
+      await checkDocumentCodeAvailability(code); // Check ngay sau khi tạo
     } else {
         setErrors(prev => ({...prev, document_code: "Chọn Loại và Phòng ban để tạo mã."}));
     }
   };
 
   const addRecipient = () => {
-    if (recipientInput.trim() && !formData.recipients.includes(recipientInput.trim())) {
-      setFormData(prev => ({ ...prev, recipients: [...prev.recipients, recipientInput.trim()] }));
-      setRecipientInput('');
+    if (recipientInput && !formData.recipients.includes(recipientInput)) {
+      setFormData(prev => ({ ...prev, recipients: [...prev.recipients, recipientInput] }));
+      setRecipientInput(''); // Reset select về giá trị mặc định
       if (errors.recipients) setErrors(prev => ({ ...prev, recipients: null }));
     }
   };
@@ -243,8 +238,8 @@ function CreateDocumentModal({
     setFormData(prev => ({ ...prev, recipients: prev.recipients.filter(r => r !== recipientToRemove) }));
   };
 
-  const handleRecipientKeyPress = (e) => {
-    if (e.key === 'Enter' && recipientInput.trim()) { e.preventDefault(); addRecipient(); }
+  const handleRecipientKeyPress = (e) => { // Có thể không cần thiết nếu dùng button
+    if (e.key === 'Enter' && recipientInput) { e.preventDefault(); addRecipient(); }
   };
 
   const handleSubmit = async (e) => {
@@ -259,26 +254,30 @@ function CreateDocumentModal({
       return;
     }
     if (codeAvailable === null && formData.document_code) {
-      await checkDocumentCodeAvailability(formData.document_code);
-      if(isCodeChecking) return; 
-      if(codeAvailable === false || codeAvailable === null) {
-        setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu cần được xác thực.' }));
+      await checkDocumentCodeAvailability(formData.document_code); // Check lại lần cuối
+      if(isCodeChecking) return;
+      // Sau khi check xong, codeAvailable sẽ được cập nhật.
+      // Cần chờ state cập nhật rồi mới kiểm tra lại, hoặc check trực tiếp kết quả của checkDocumentCodeAvailability
+      // Tạm thời để đơn giản, nếu user click quá nhanh, có thể phải click lần nữa.
+      // Một giải pháp tốt hơn là disable nút submit khi isCodeChecking = true.
+      if(codeAvailable === false || codeAvailable === null) { // Check lại sau await
+        setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu cần được xác thực hoặc đã tồn tại.' }));
         return;
       }
     }
+
 
     setLoading(true);
     try {
       const documentPayload = {
         ...formData,
-        author_id: currentUser?.id, // Gán author_id từ người dùng đang đăng nhập
+        author_id: currentUser?.id,
         review_cycle: formData.review_cycle ? parseInt(formData.review_cycle) : null,
         retention_period: formData.retention_period ? parseInt(formData.retention_period) : null,
-        version: '01.00', // Version khởi tạo
-        status: 'draft',  // Trạng thái khởi tạo
+        version: '01.00',
+        status: 'draft',
       };
-      
-      // Loại bỏ các trường không cần thiết hoặc rỗng không muốn gửi
+
       if (!documentPayload.description) delete documentPayload.description;
       if (!documentPayload.scope_of_application) delete documentPayload.scope_of_application;
       if (documentPayload.recipients.length === 0) delete documentPayload.recipients;
@@ -288,7 +287,7 @@ function CreateDocumentModal({
 
       if (response.success) {
         toast.success('Tạo tài liệu thành công!');
-        if (onCreated) onCreated(response.document); // Giả sử backend trả về document đã tạo trong response.document
+        if (onCreated) onCreated(response.document);
         onClose();
       } else {
         throw new Error(response.message || "Lỗi không xác định từ server");
@@ -297,7 +296,7 @@ function CreateDocumentModal({
       console.error('Create document error:', err);
       const errorMsg = err.response?.data?.message || err.message || 'Đã xảy ra lỗi. Vui lòng thử lại.';
       toast.error(errorMsg);
-      if (err.response?.data?.errors) { // Nếu backend trả về lỗi cụ thể cho từng trường
+      if (err.response?.data?.errors) {
         setErrors(prev => ({ ...prev, ...err.response.data.errors }));
       } else {
         setErrors(prev => ({ ...prev, general: errorMsg }));
@@ -310,7 +309,7 @@ function CreateDocumentModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 p-4"> {/* Tăng z-index */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[95vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
           <h2 className="text-xl font-semibold text-gray-800">Tạo tài liệu mới</h2>
@@ -326,14 +325,14 @@ function CreateDocumentModal({
         ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-grow">
           {errors.general && (
-            <div className="alert alert-danger"><FiAlertCircle className="mr-2" />{errors.general}</div>
+            <div className="alert alert-danger flex items-center"><FiAlertCircle className="mr-2" />{errors.general}</div>
           )}
 
           <div>
             <label htmlFor="title-create" className="form-label">Tiêu đề <span className="text-red-500">*</span></label>
             <input id="title-create" type="text" name="title" value={formData.title} onChange={handleChange} onBlur={handleBlur}
                    className={`form-input ${errors.title ? 'border-red-500' : ''}`} placeholder="Nhập tiêu đề (5-200 ký tự)" disabled={loading} maxLength={200}/>
-            {errors.title && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.title}</p>}
+            {errors.title && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.title}</p>}
             <p className="text-xs text-gray-500 mt-1">{formData.title.length}/200</p>
           </div>
 
@@ -341,18 +340,18 @@ function CreateDocumentModal({
             <div>
               <label htmlFor="type-create" className="form-label">Loại tài liệu <span className="text-red-500">*</span></label>
               <select id="type-create" name="type" value={formData.type} onChange={handleChange} onBlur={handleBlur}
-                      className={`form-select ${errors.type ? 'border-red-500' : ''}`} disabled={loading || documentTypesForSelect.length <= 1}>
+                      className={`form-select ${errors.type ? 'border-red-500' : ''}`} disabled={loading || isLoadingOptions || documentTypesForSelect.length <= 1}>
                 {documentTypesForSelect.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
-              {errors.type && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.type}</p>}
+              {errors.type && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.type}</p>}
             </div>
             <div>
               <label htmlFor="department-create" className="form-label">Phòng ban <span className="text-red-500">*</span></label>
               <select id="department-create" name="department" value={formData.department} onChange={handleChange} onBlur={handleBlur}
-                      className={`form-select ${errors.department ? 'border-red-500' : ''}`} disabled={loading || departmentsForSelect.length <=1}>
+                      className={`form-select ${errors.department ? 'border-red-500' : ''}`} disabled={loading || isLoadingOptions || departmentsForSelect.length <=1}>
                 {departmentsForSelect.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
-              {errors.department && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.department}</p>}
+              {errors.department && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.department}</p>}
             </div>
           </div>
 
@@ -361,7 +360,7 @@ function CreateDocumentModal({
             <div className="flex gap-2 items-center">
               <div className="flex-grow relative">
                 <input id="document_code-create" type="text" name="document_code" value={formData.document_code} onChange={handleChange} onBlur={handleBlur}
-                       className={`form-input pr-10 ${errors.document_code ? 'border-red-500' : codeAvailable === true ? 'border-green-500' : codeAvailable === false ? 'border-red-500' : ''}`}
+                       className={`form-input pr-10 ${errors.document_code ? 'border-red-500' : codeAvailable === true && !isCodeChecking ? 'border-green-500' : codeAvailable === false && !isCodeChecking ? 'border-red-500' : ''}`}
                        placeholder="VD: C-PL-BGD-001" disabled={loading}/>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                   {isCodeChecking && <FiLoader className="animate-spin text-gray-400" />}
@@ -370,15 +369,15 @@ function CreateDocumentModal({
                 </div>
               </div>
               <button type="button" onClick={generateDocumentCode} className="btn btn-secondary flex-shrink-0"
-                      disabled={!formData.type || !formData.department || loading || isCodeChecking}>
+                      disabled={!formData.type || !formData.department || loading || isCodeChecking || isLoadingOptions}>
                 {isCodeChecking ? <FiLoader className="animate-spin" /> : "Tạo mã"}
               </button>
             </div>
-            {errors.document_code && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.document_code}</p>}
+            {errors.document_code && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.document_code}</p>}
             {codeAvailable === true && !errors.document_code && <p className="text-sm text-green-600 mt-1">Mã tài liệu có thể sử dụng.</p>}
             <p className="text-xs text-gray-500 mt-1">Định dạng: C-[LOẠI]-[P.BAN]-[STT].</p>
           </div>
-          
+
           <div>
             <label htmlFor="keywords-create" className="form-label">Từ khóa (phân cách bằng dấu phẩy)</label>
             <input id="keywords-create" type="text" name="keywords" value={formData.keywords} onChange={handleChange}
@@ -389,7 +388,7 @@ function CreateDocumentModal({
             <label htmlFor="description-create" className="form-label">Mô tả</label>
             <textarea id="description-create" name="description" value={formData.description} onChange={handleChange} onBlur={handleBlur} rows={3}
                       className={`form-input resize-vertical ${errors.description ? 'border-red-500' : ''}`} placeholder="Mô tả ngắn gọn (tối đa 1000 ký tự)" disabled={loading} maxLength={1000}/>
-            {errors.description && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.description}</p>}
+            {errors.description && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.description}</p>}
             <p className="text-xs text-gray-500 mt-1">{formData.description.length}/1000</p>
           </div>
 
@@ -397,45 +396,48 @@ function CreateDocumentModal({
             <label htmlFor="scope_of_application-create" className="form-label">Phạm vi áp dụng</label>
             <input id="scope_of_application-create" type="text" name="scope_of_application" value={formData.scope_of_application} onChange={handleChange} onBlur={handleBlur}
                    className={`form-input ${errors.scope_of_application ? 'border-red-500' : ''}`} placeholder="Phạm vi áp dụng (tối đa 500 ký tự)" disabled={loading} maxLength={500}/>
-            {errors.scope_of_application && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.scope_of_application}</p>}
+            {errors.scope_of_application && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.scope_of_application}</p>}
              <p className="text-xs text-gray-500 mt-1">{formData.scope_of_application.length}/500</p>
           </div>
 
           <div>
             <label htmlFor="recipient-select-create" className="form-label">Người/Phòng ban nhận</label>
             <div className="flex gap-2">
-              <select id="recipient-select-create" value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)} onKeyPress={handleRecipientKeyPress}
-                      className="form-select flex-grow" disabled={loading || departmentsForRecipients.length === 0}>
+              <select id="recipient-select-create" value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)}
+                      className="form-select flex-grow" disabled={loading || isLoadingOptions || departmentsForRecipients.length === 0}>
                 <option value="">-- Chọn phòng ban nhận --</option>
                 {departmentsForRecipients.filter(dept => !formData.recipients.includes(dept.value)).map(dept => (
                   <option key={dept.value} value={dept.value}>{dept.label}</option>
                 ))}
               </select>
-              <button type="button" onClick={addRecipient} className="btn btn-outline flex-shrink-0" disabled={!recipientInput.trim() || loading}><FiPlus className="mr-1"/>Thêm</button>
+              <button type="button" onClick={addRecipient} className="btn btn-outline flex-shrink-0" disabled={!recipientInput || loading}><FiPlus className="mr-1"/>Thêm</button>
             </div>
             {formData.recipients.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 p-2 bg-gray-50 rounded border">
-                {formData.recipients.map((recipient, index) => (
-                  <span key={index} className="badge-item bg-blue-100 text-blue-700">
-                    {recipient}
-                    <button type="button" onClick={() => removeRecipient(recipient)} className="ml-1.5 text-blue-500 hover:text-blue-700" disabled={loading}><FiMinus size={12}/></button>
-                  </span>
-                ))}
+                {formData.recipients.map((recipientValue, index) => {
+                  const recipientLabel = departmentsForRecipients.find(d => d.value === recipientValue)?.label || recipientValue;
+                  return (
+                    <span key={index} className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">
+                      {recipientLabel}
+                      <button type="button" onClick={() => removeRecipient(recipientValue)} className="ml-1.5 text-blue-500 hover:text-blue-700" disabled={loading}><FiMinus size={12}/></button>
+                    </span>
+                  );
+                })}
               </div>
             )}
-            {errors.recipients && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.recipients}</p>}
+            {errors.recipients && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.recipients}</p>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label htmlFor="priority-create" className="form-label">Mức ưu tiên</label>
-              <select id="priority-create" name="priority" value={formData.priority} onChange={handleChange} className="form-select" disabled={loading}>
+              <select id="priority-create" name="priority" value={formData.priority} onChange={handleChange} className="form-select" disabled={loading || isLoadingOptions}>
                  {prioritiesForSelect.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
             <div>
               <label htmlFor="security_level-create" className="form-label">Mức bảo mật</label>
-              <select id="security_level-create" name="security_level" value={formData.security_level} onChange={handleChange} className="form-select" disabled={loading}>
+              <select id="security_level-create" name="security_level" value={formData.security_level} onChange={handleChange} className="form-select" disabled={loading || isLoadingOptions}>
                 {securityLevelsForSelect.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
@@ -443,23 +445,23 @@ function CreateDocumentModal({
               <label htmlFor="review_cycle-create" className="form-label">Chu kỳ rà soát (tháng)</label>
               <input id="review_cycle-create" type="number" name="review_cycle" value={formData.review_cycle} onChange={handleChange} onBlur={handleBlur} min="1" max="60"
                      className={`form-input ${errors.review_cycle ? 'border-red-500' : ''}`} disabled={loading}/>
-              {errors.review_cycle && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.review_cycle}</p>}
+              {errors.review_cycle && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.review_cycle}</p>}
             </div>
             <div>
               <label htmlFor="retention_period-create" className="form-label">Thời hạn lưu trữ (tháng)</label>
               <input id="retention_period-create" type="number" name="retention_period" value={formData.retention_period} onChange={handleChange} onBlur={handleBlur} min="12" max="120"
                      className={`form-input ${errors.retention_period ? 'border-red-500' : ''}`} disabled={loading}/>
-              {errors.retention_period && <p className="form-error"><FiAlertCircle size={14} className="mr-1"/>{errors.retention_period}</p>}
+              {errors.retention_period && <p className="form-error flex items-center"><FiAlertCircle size={14} className="mr-1"/>{errors.retention_period}</p>}
             </div>
           </div>
         </form>
         )}
-        
+
         <div className="flex justify-end items-center space-x-3 px-6 py-4 border-t border-gray-200 sticky bottom-0 bg-white z-10">
           <button type="button" onClick={onClose} className="btn btn-secondary-outline" disabled={loading}>Hủy</button>
           <button type="button" onClick={handleSubmit} className="btn btn-primary min-w-[120px]"
                   disabled={loading || isCodeChecking || Object.values(errors).some(e => e) || codeAvailable === false || isLoadingOptions}>
-            {loading ? <LoadingSpinner size="sm" /> : <><FiSave className="mr-2"/>Tạo tài liệu</>}
+            {loading ? <LoadingSpinner size="sm" noMessage={true} /> : <><FiSave className="mr-2"/>Tạo tài liệu</>}
           </button>
         </div>
       </div>

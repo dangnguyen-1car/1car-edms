@@ -5,51 +5,64 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from 'react-query'; // Thêm useQueryClient
+import { useQuery, useQueryClient } from 'react-query';
 import { useNavigate } from 'react-router-dom';
-import { 
-  FiFileText, FiEye, FiEdit, FiDownload, FiUser, FiCalendar, 
-  FiTag, FiSearch, FiFilter, FiRefreshCw, FiAlertCircle, FiPlus 
+import {
+  FiFileText, FiEye, FiEdit, FiDownload, FiUser, FiCalendar,
+  FiTag, FiSearch, FiFilter, FiRefreshCw, FiAlertCircle, FiPlus
 } from 'react-icons/fi';
-import { toast } from 'react-hot-toast'; // Import toast
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
-import { documentService } from '../../services/documentService'; // ĐÃ THAY ĐỔI
+import { documentService } from '../../services/documentService';
 import LoadingSpinner from '../common/LoadingSpinner';
 import SkeletonLoader from '../common/SkeletonLoader';
 import Pagination from '../common/Pagination';
-import DocumentCard from './DocumentCard'; // Sử dụng DocumentCard đã sửa
+import DocumentCard from './DocumentCard';
 import SearchFilters from './SearchFilters';
 import CreateDocumentModal from './CreateDocumentModal';
 
-function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùng để mở chi tiết ở một view khác (ví dụ: trong Dashboard)
-  const { user, hasPermission } = useAuth(); // Lấy canAccessDepartment nếu cần dùng trong logic ở đây
-  const queryClient = useQueryClient(); // Thêm queryClient
+function DocumentList({ onDocumentSelect }) {
+  const { user, hasPermission } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12); // Có thể tăng để hiển thị nhiều card hơn
-  const [showFilters, setShowFilters] = useState(false); // Mặc định có thể ẩn filter
+  const [pageSize, setPageSize] = useState(12);
+  const [showFilters, setShowFilters] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     type: '',
     department: '',
-    status: '', // Mặc định lấy tất cả status (trừ archived nếu backend xử lý vậy)
+    status: '',
     date_from: '',
     date_to: '',
-    include_archived: false, 
+    include_archived: false,
     search_content: false,
     exact_match: false,
-    sort: 'updated_at_desc' // Mặc định sort theo ngày cập nhật mới nhất
+    sort: 'updated_at_desc'
   });
 
-  // Fetch options for SearchFilters
-  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery('documentTypes', documentService.getDocumentTypes);
-  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery('departmentsList', documentService.getDepartments);
-  const { data: workflowStatesData, isLoading: isLoadingStatuses } = useQuery('workflowStates', documentService.getWorkflowStates);
+  // Fetch options for SearchFilters and CreateDocumentModal
+  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery(
+    'documentTypes',
+    documentService.getDocumentTypes,
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery(
+    'departmentsList',
+    documentService.getDepartments,
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const { data: workflowStatesData, isLoading: isLoadingStatuses } = useQuery(
+    'workflowStates',
+    documentService.getWorkflowStates,
+    { staleTime: 5 * 60 * 1000 }
+  );
 
-  const documentTypeOptions = docTypesData?.data?.documentTypes || [];
-  const departmentOptions = departmentsData?.data?.departments || [];
-  const statusOptions = workflowStatesData?.data?.workflowStates || [];
+  const mappedDocumentTypeOptions = docTypesData?.data?.documentTypes.map(dt => ({ value: dt.code, label: dt.name })) || [];
+  const mappedDepartmentOptions = departmentsData?.data?.departments.map(d => ({ value: d, label: d })) || [];
+  const mappedStatusOptions = workflowStatesData?.data?.workflowStates.map(s => ({ value: s.code, label: s.name })) || [];
+  const isLoadingOptions = isLoadingDocTypes || isLoadingDepts || isLoadingStatuses;
 
   const {
     data: documentsResponse,
@@ -64,7 +77,7 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
       const params = {
         page: currentPage,
         limit: pageSize,
-        search: filters.search || undefined, // Gửi undefined nếu rỗng để backend có thể bỏ qua
+        search: filters.search || undefined,
         type: filters.type || undefined,
         department: filters.department || undefined,
         status: filters.status || undefined,
@@ -75,7 +88,6 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
         exact_match: filters.exact_match,
         sort: filters.sort,
       };
-      // Không cần xóa key nữa nếu backend xử lý undefined params
       return documentService.searchDocuments(params);
     },
     {
@@ -105,23 +117,19 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
   const handlePageChange = (page) => setCurrentPage(page);
   const handlePageSizeChange = (size) => { setPageSize(size); setCurrentPage(1); };
   const handleRefresh = () => refetch();
-  
+
   const handleDocumentCreated = () => {
     setShowCreateModal(false);
     toast.success("Tài liệu đã được tạo thành công!");
-    queryClient.invalidateQueries('documents'); // Làm mới danh sách
+    queryClient.invalidateQueries('documents');
   };
-  
+
   const handleViewDocument = (documentId) => {
-    // TODO: Navigate to a proper document detail page
-    // navigate(`/documents/${documentId}`); 
     toast.info(`Xem chi tiết tài liệu ID: ${documentId} (chưa triển khai navigation)`);
     if(onDocumentSelect) onDocumentSelect(documentId);
   };
 
   const handleEditDocument = (documentId) => {
-    // TODO: Navigate to document edit page
-    // navigate(`/documents/${documentId}/edit`);
     toast.info(`Chỉnh sửa tài liệu ID: ${documentId} (chưa triển khai navigation)`);
   };
 
@@ -132,7 +140,7 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
     return <div className="py-8"><SkeletonLoader type="card" count={6} /></div>;
   }
 
-  if (isError && !documentsResponse) { // Chỉ hiển thị lỗi lớn nếu không có dữ liệu cache
+  if (isError && !documentsResponse) {
     return (
       <div className="text-center py-10">
         <FiAlertCircle className="mx-auto text-red-500 h-12 w-12 mb-2" />
@@ -146,16 +154,14 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
-          {/* Tiêu đề có thể được đặt ở page cha (DocumentsPage) */}
-          {/* <h1 className="text-2xl font-bold text-gray-900">Danh sách Tài liệu</h1> */}
           <p className="text-gray-600">
-            {isFetching && !isLoading ? <LoadingSpinner size="sm" className="inline mr-2" /> : null}
+            {isFetching && !isLoading ? <LoadingSpinner size="sm" noMessage={true} className="inline mr-2" /> : null}
             Tìm thấy {pagination.total || 0} tài liệu.
           </p>
         </div>
         <div className="flex items-center gap-2">
-            <button 
-                onClick={() => setShowFilters(!showFilters)} 
+            <button
+                onClick={() => setShowFilters(!showFilters)}
                 className={`btn btn-secondary-outline ${showFilters ? 'bg-gray-100' : ''}`}
             >
                 <FiFilter className="mr-1.5" /> {showFilters ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
@@ -165,7 +171,7 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
                 <FiPlus className="mr-1.5" /> Tạo mới
             </button>
             )}
-            <button onClick={handleRefresh} className="btn-icon" title="Làm mới danh sách">
+            <button onClick={handleRefresh} className="btn-icon" title="Làm mới danh sách" disabled={isFetching}>
                 <FiRefreshCw className={`h-5 w-5 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
         </div>
@@ -177,19 +183,17 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
             filters={filters}
             onFiltersChange={handleFilterChange}
             onClearFilters={handleClearFilters}
-            // Truyền các options đã fetch được vào SearchFilters
-            documentTypeOptions={documentTypeOptions.map(dt => ({ value: dt.code, label: dt.name }))}
-            departmentOptions={departmentOptions.map(d => ({ value: d, label: d }))} // Giả sử departmentsData.data.departments là mảng string
-            statusOptions={statusOptions.map(s => ({ value: s.code, label: s.name }))}
-            // Cần thêm API backend và fetch cho securityLevels, priorities nếu muốn chúng động
-            // securityLevelOptions={...} 
-            // priorityOptions={...}
-            isLoadingOptions={isLoadingDocTypes || isLoadingDepts || isLoadingStatuses}
+            showAdvanced={true} // Luôn hiển thị nội dung bộ lọc nâng cao khi showFilters là true
+            onToggleAdvanced={() => setShowFilters(!showFilters)} // Vẫn giữ toggle này nếu cần
+            documentTypeOptions={mappedDocumentTypeOptions}
+            departmentOptions={mappedDepartmentOptions}
+            statusOptions={mappedStatusOptions}
+            isLoadingOptions={isLoadingOptions}
           />
         </div>
       )}
 
-      {isLoading && !documents.length ? ( // Spinner khi đang tải lần đầu và chưa có data
+      {isLoading && !documents.length ? (
           <div className="py-8"><SkeletonLoader type="card" count={pageSize} /></div>
       ) : !isLoading && documents.length === 0 && !isFetching ? (
         <div className="text-center py-12">
@@ -200,17 +204,17 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {documents.map((doc) => (
-            <DocumentCard 
-              key={doc.id} 
-              document={doc} 
+            <DocumentCard
+              key={doc.id}
+              document={doc}
               onViewClick={handleViewDocument}
-              onEditClick={handleEditDocument} // Truyền hàm xử lý edit
+              onEditClick={handleEditDocument}
             />
           ))}
         </div>
       )}
 
-      {pagination.totalPages > 1 && (
+      {pagination.totalPages > 1 && documents.length > 0 && (
         <div className="mt-8">
           <Pagination
             currentPage={pagination.page}
@@ -223,14 +227,14 @@ function DocumentList({ onDocumentSelect }) { // onDocumentSelect có thể dùn
         </div>
       )}
 
-      {showCreateModal && ( // Chỉ render modal khi showCreateModal là true
+      {showCreateModal && (
         <CreateDocumentModal
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
             onCreated={handleDocumentCreated}
-            // Truyền documentTypes và departmentOptions vào CreateDocumentModal nếu nó cần để hiển thị dropdown
-            documentTypeOptions={documentTypeOptions}
-            departmentOptions={departmentOptions}
+            documentTypeOptions={mappedDocumentTypeOptions} // Truyền options đã map
+            departmentOptions={mappedDepartmentOptions}   // Truyền options đã map
+            isLoadingOptions={isLoadingOptions}
         />
       )}
     </div>

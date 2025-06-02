@@ -51,10 +51,11 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
       setErrors({});
       
       setIsLoadingDepartments(true);
-      userService.getDepartments()
-        .then(response => {
-          if (response.success && Array.isArray(response.data?.departments)) {
-            setDepartments(response.data.departments);
+      userService.getDepartments() // Gọi hàm đã được sửa trong userService
+        .then(apiResponse => { // apiResponse ở đây là { success: true, data: { departments: [...] } }
+          if (apiResponse.success && Array.isArray(apiResponse.data?.departments)) {
+            // Truy cập đúng vào mảng departments: apiResponse.data.departments
+            setDepartments(apiResponse.data.departments);
           } else {
             // Fallback nếu API lỗi hoặc không trả về đúng định dạng
             console.warn("Failed to fetch departments from API or invalid format, using fallback.");
@@ -306,15 +307,18 @@ function UsersPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  const { data: departmentsData, isLoading: isLoadingDepartments } = useQuery(
+  const { data: departmentsDataFromService, isLoading: isLoadingDepartmentsForFilter } = useQuery( // Đổi tên biến để tránh xung đột
     'userFilterDepartments', 
-    userService.getDepartments,
+    userService.getDepartments, // Gọi hàm đã được sửa trong userService
     { 
         staleTime: 5 * 60 * 1000,
-        enabled: isAuthenticated && !isLoadingAuth // Chỉ fetch khi đã xác thực
+        enabled: isAuthenticated && !isLoadingAuth, // Chỉ fetch khi đã xác thực
+        select: (apiResponse) => apiResponse.data?.departments || [] // Trích xuất mảng departments từ cấu trúc mới
     }
   );
-  const departmentOptions = departmentsData?.data?.departments || [];
+  // departmentsDataFromService bây giờ sẽ là mảng string ['Ban Giám đốc', ...] hoặc []
+  const departmentOptionsForFilter = departmentsDataFromService || [];
+
 
   const canFetchUsers = isAuthenticated && !isLoadingAuth && (hasPermission('manage_users') || currentUser?.role === 'admin');
   const { 
@@ -419,9 +423,10 @@ function UsersPage() {
               </div>
               <div>
                 <label className="form-label">Phòng ban</label>
-                <select value={filters.department} onChange={(e) => handleFilterChange('department', e.target.value)} className="form-select" disabled={isLoadingDepartments}>
-                  <option value="">{isLoadingDepartments ? "Đang tải..." : "Tất cả phòng ban"}</option>
-                  {departmentOptions.map(dept => (<option key={dept} value={dept}>{dept}</option>))}
+                <select value={filters.department} onChange={(e) => handleFilterChange('department', e.target.value)} className="form-select" disabled={isLoadingDepartmentsForFilter}>
+                  <option value="">{isLoadingDepartmentsForFilter ? "Đang tải..." : "Tất cả phòng ban"}</option>
+                  {/* Sử dụng departmentOptionsForFilter đã được select từ useQuery */}
+                  {departmentOptionsForFilter.map(dept => (<option key={dept} value={dept}>{dept}</option>))}
                 </select>
               </div>
               <div>

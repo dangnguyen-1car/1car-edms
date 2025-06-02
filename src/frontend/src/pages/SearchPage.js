@@ -3,23 +3,23 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from 'react-query';
-import { FiSearch, FiFileText, FiAlertCircle, FiUser, FiCalendar, FiDownload } from 'react-icons/fi';
+import { FiSearch, FiFileText, FiAlertCircle } from 'react-icons/fi'; // Bỏ FiUser, FiCalendar, FiDownload nếu không dùng trực tiếp ở đây
 import { toast } from 'react-hot-toast';
 import SearchFilters from '../components/documents/SearchFilters';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import Pagination from '../components/common/Pagination';
-import { documentService } from '../services/documentService'; // ĐÃ THAY ĐỔI
+import { documentService } from '../services/documentService';
 import { useAuth } from '../contexts/AuthContext';
-import DocumentCard from '../components/documents/DocumentCard'; // Import DocumentCard
+import DocumentCard from '../components/documents/DocumentCard';
 
 function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, hasPermission } = useAuth(); // Lấy canAccessDepartment nếu cần
+  const { user } = useAuth(); // Bỏ hasPermission nếu không dùng
 
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page')) || 1);
   const [pageSize, setPageSize] = useState(parseInt(searchParams.get('limit')) || 12);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(true); // Mặc định hiển thị
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [filters, setFilters] = useState(() => {
     const initialFilters = {
       search: searchParams.get('q') || '',
@@ -35,30 +35,42 @@ function SearchPage() {
       exact_match: searchParams.get('exact_match') === 'true',
       sort: searchParams.get('sort') || 'relevance',
     };
-    // Nếu không có query params ban đầu, không tự động search (trừ khi người dùng nhập gì đó)
-    const hasInitialParams = Array.from(searchParams.keys()).length > 0;
-    setShowAdvancedFilters(hasInitialParams); // Hiện filter nếu có query params ban đầu
+    const hasInitialParams = Array.from(searchParams.keys()).some(key => key !== 'page' && key !== 'limit');
+    setShowAdvancedFilters(hasInitialParams || !!initialFilters.search);
     return initialFilters;
   });
 
   // Fetch options for SearchFilters
-  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery('documentTypes', documentService.getDocumentTypes);
-  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery('departmentsList', documentService.getDepartments);
-  const { data: workflowStatesData, isLoading: isLoadingStatuses } = useQuery('workflowStates', documentService.getWorkflowStates);
-  // TODO: Fetch securityLevels, priorities if APIs exist
+  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery(
+    'documentTypesSearch', // Key khác với DocumentList để tránh conflict cache nếu cần
+    documentService.getDocumentTypes,
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery(
+    'departmentsListSearch',
+    documentService.getDepartments,
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const { data: workflowStatesData, isLoading: isLoadingStatuses } = useQuery(
+    'workflowStatesSearch',
+    documentService.getWorkflowStates,
+    { staleTime: 5 * 60 * 1000 }
+  );
 
-  const documentTypeOptions = docTypesData?.data?.documentTypes || [];
-  const departmentOptions = departmentsData?.data?.departments || [];
-  const statusOptions = workflowStatesData?.data?.workflowStates || [];
+  const mappedDocumentTypeOptions = docTypesData?.data?.documentTypes.map(dt => ({ value: dt.code, label: dt.name })) || [];
+  const mappedDepartmentOptions = departmentsData?.data?.departments.map(d => ({ value: d, label: d })) || [];
+  const mappedStatusOptions = workflowStatesData?.data?.workflowStates.map(s => ({ value: s.code, label: s.name })) || [];
+  const isLoadingOptions = isLoadingDocTypes || isLoadingDepts || isLoadingStatuses;
+
 
   const hasActiveFiltersLogic = (filterObj) => {
     if (!filterObj) return false;
-    const { sort, search, ...restFilters } = filterObj; // 'search' (từ khóa chính) sẽ trigger query
+    const { sort, search, ...restFilters } = filterObj;
     return Object.values(restFilters).some(value =>
       value !== '' && value !== false && value !== null && value !== undefined
     );
   };
-  
+
   const {
     data: searchServiceResponse,
     isLoading,
@@ -70,7 +82,7 @@ function SearchPage() {
     ['documents-search-page', currentPage, pageSize, filters],
     async () => {
       if (!filters.search && !hasActiveFiltersLogic(filters)) {
-        return { data: { results: [], pagination: { total: 0, totalPages: 1 } } };
+        return { data: { documents: [], pagination: { total: 0, totalPages: 1, page: 1, limit: pageSize } } };
       }
       const params = {
         page: currentPage,
@@ -93,7 +105,7 @@ function SearchPage() {
     {
       keepPreviousData: true,
       staleTime: 1 * 60 * 1000,
-      enabled: !!filters.search || hasActiveFiltersLogic(filters),
+      enabled: !!filters.search || hasActiveFiltersLogic(filters), // Chỉ query khi có search term hoặc filter active
       onError: (err) => {
         console.error('Search error:', err);
         toast.error(`Lỗi tìm kiếm: ${err.response?.data?.message || err.message || 'Không thể kết nối'}`);
@@ -103,19 +115,25 @@ function SearchPage() {
 
   useEffect(() => {
     const params = new URLSearchParams();
+    let hasRelevantFilter = false;
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== '' && value !== false && value !== null && value !== undefined) {
         params.set(key === 'search' ? 'q' : key, value.toString());
+        if (key !== 'sort' && key !== 'page' && key !== 'limit') {
+            hasRelevantFilter = true;
+        }
       }
     });
     if (currentPage > 1) params.set('page', currentPage.toString());
-    if (pageSize !== 20) params.set('limit', pageSize.toString()); // Chỉ thêm limit nếu khác default
-    
+    if (pageSize !== 12) params.set('limit', pageSize.toString());
+
     const currentSearchString = searchParams.toString();
     const newSearchString = params.toString();
 
-    if (newSearchString !== currentSearchString) {
+    if (newSearchString !== currentSearchString && (hasRelevantFilter || filters.search)) {
         setSearchParams(params, { replace: true });
+    } else if (!hasRelevantFilter && !filters.search && currentSearchString) {
+        setSearchParams({}, {replace: true}); // Xóa params nếu không có filter active
     }
   }, [filters, currentPage, pageSize, setSearchParams, searchParams]);
 
@@ -132,23 +150,26 @@ function SearchPage() {
     });
     setCurrentPage(1);
     setPageSize(12);
-    setSearchParams({}, {replace: true}); // Xóa query params trên URL
+    setSearchParams({}, {replace: true});
+  };
+
+  const handleDocumentCardClick = (documentId) => {
+    navigate(`/documents/${documentId}`); // Sửa lại để navigate tới trang chi tiết
   };
   
-  const handleDocumentCardClick = (documentId) => {
-    // navigate(`/documents/${documentId}`, { state: { fromSearch: true, searchFilters: filters } });
-    toast.info(`Xem chi tiết tài liệu ID: ${documentId} (chưa triển khai navigation)`);
+  const handleEditDocument = (documentId) => {
+    navigate(`/documents/${documentId}/edit`); // Sửa lại nếu có trang edit
   };
+
 
   const handlePageChange = (page) => setCurrentPage(page);
   const handlePageSizeChange = (size) => { setPageSize(size); setCurrentPage(1); };
 
-  const documents = searchServiceResponse?.data?.documents || searchServiceResponse?.data?.results || []; // SearchService có thể trả về 'results'
+  const documents = searchServiceResponse?.data?.documents || searchServiceResponse?.data?.results || [];
   const paginationInfo = searchServiceResponse?.data?.pagination || { total: 0, totalPages: 1, page: currentPage, limit: pageSize };
   const searchWasPerformed = !!filters.search || hasActiveFiltersLogic(filters);
 
   return (
-    // ProtectedRoute sẽ bao bọc component này trong App.js
     <div className="container mx-auto px-4 py-6 max-w-7xl">
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
@@ -166,12 +187,12 @@ function SearchPage() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
-            showAdvanced={showAdvancedFilters} // State để quản lý việc ẩn/hiện
+            showAdvanced={showAdvancedFilters}
             onToggleAdvanced={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            documentTypeOptions={documentTypeOptions.map(dt => ({ value: dt.code, label: dt.name }))}
-            departmentOptions={departmentOptions.map(d => ({ value: d, label: d }))}
-            statusOptions={statusOptions.map(s => ({ value: s.code, label: s.name }))}
-            isLoadingOptions={isLoadingDocTypes || isLoadingDepts || isLoadingStatuses}
+            documentTypeOptions={mappedDocumentTypeOptions}
+            departmentOptions={mappedDepartmentOptions}
+            statusOptions={mappedStatusOptions}
+            isLoadingOptions={isLoadingOptions}
           />
         </div>
       </div>
@@ -183,7 +204,8 @@ function SearchPage() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Kết quả tìm kiếm</h2>
                 <p className="text-sm text-gray-600">
-                  {isFetching ? 'Đang làm mới...' : `${paginationInfo.total} tài liệu được tìm thấy.`}
+                  {isFetching && !isLoading ? <LoadingSpinner size="sm" noMessage={true} className="inline mr-2" /> : null}
+                  {`${paginationInfo.total} tài liệu được tìm thấy.`}
                 </p>
               </div>
               {documents.length > 0 && paginationInfo.totalPages > 1 && (
@@ -222,11 +244,11 @@ function SearchPage() {
              <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mb-6">
                 {documents.map((doc) => (
-                  <DocumentCard 
-                    key={doc.id} 
-                    document={doc} 
+                  <DocumentCard
+                    key={doc.id}
+                    document={doc}
                     onViewClick={handleDocumentCardClick}
-                    // onEditClick={handleEditDocument} // Thêm nếu có chức năng sửa từ trang search
+                    onEditClick={handleEditDocument} // Thêm nếu có chức năng sửa từ trang search
                   />
                 ))}
               </div>
