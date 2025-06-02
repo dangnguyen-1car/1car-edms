@@ -1,62 +1,55 @@
+// src/frontend/src/components/layout/Layout.js
 /**
  * =================================================================
  * EDMS 1CAR - Main Layout Component
- * Layout wrapper với sidebar navigation cho 40 users
- * Based on C-FM-MG-004 role matrix và C-WI-AR-001 navigation
+ * Component này quản lý trạng thái và sự tương tác giữa Header và Sidebar.
  * =================================================================
  */
 
 import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import Sidebar from './Sidebar';
 import Header from './Header';
+import Sidebar from './Sidebar';
 
 function Layout({ children }) {
+  // State để quản lý việc đóng/mở sidebar trên màn hình mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="loading-spinner"></div>
-      </div>
-    );
-  }
+  // Hàm này sẽ được truyền cho Header để khi người dùng nhấn nút menu,
+  // nó sẽ cập nhật state và ra lệnh cho Sidebar mở ra.
+  const handleMenuClick = () => {
+    setSidebarOpen(true);
+  };
+
+  // Hàm này được truyền cho Sidebar để nó có thể tự đóng lại
+  // (khi người dùng nhấn nút "X" hoặc click vào nền mờ).
+  const handleSidebarClose = () => {
+    setSidebarOpen(false);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)}
-        user={user}
-      />
+    <div className="min-h-screen bg-gray-100">
+      {/* Sidebar nhận vào trạng thái `isOpen` và hàm `onClose`.
+        Các component này đã được tối ưu để tự lấy user từ AuthContext,
+        do đó chúng ta không cần truyền user prop nữa.
+      */}
+      <Sidebar isOpen={sidebarOpen} onClose={handleSidebarClose} />
 
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Header */}
-        <Header 
-          onMenuClick={() => setSidebarOpen(true)}
-          user={user}
-        />
-
-        {/* Page content */}
-        <main className="py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {children}
+      {/* Class `md:pl-64` để tạo khoảng trống bên trái cho sidebar trên desktop.
+        Khi sidebar desktop hiển thị, nội dung chính sẽ không bị che lấp.
+      */}
+      <div className="md:pl-64 flex flex-col flex-1">
+        {/* Header nhận vào hàm `onMenuClick` để kích hoạt sidebar trên mobile. */}
+        <Header onMenuClick={handleMenuClick} />
+        
+        <main className="flex-1">
+          <div className="py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+              {/* Nội dung chính của các trang (Dashboard, Documents, etc.) sẽ được render ở đây */}
+              {children}
+            </div>
           </div>
         </main>
       </div>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        >
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-75"></div>
-        </div>
-      )}
     </div>
   );
 }
