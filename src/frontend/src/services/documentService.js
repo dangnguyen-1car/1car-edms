@@ -1,233 +1,298 @@
 // src/frontend/src/services/documentService.js
 /**
  * =================================================================
- * EDMS 1CAR - Document Service (REVISED)
- * API calls for document operations using the main Axios instance.
- * Fetches types, departments, and workflow states from API.
+ * EDMS 1CAR - Document Service (Frontend)
+ *
+ * Lớp dịch vụ này đóng vai trò là một lớp trung gian (API layer)
+ * để xử lý tất cả các yêu cầu liên quan đến tài liệu từ phía frontend.
+ * Nó giúp trừu tượng hóa các lệnh gọi API và quản lý lỗi một cách tập trung.
  * =================================================================
  */
 
-import api from './api'; // Sử dụng axios instance đã cấu hình từ src/frontend/src/services/api.js
+import api from './api';
 
-export const documentService = {
-  /**
-   * Search/filter documents. Also used for getting general document list.
-   * @param {object} params - Filtering and pagination parameters.
-   * @returns {Promise<object>} Backend response: { success: boolean, data: { documents: [], pagination: {} } }
-   */
-  async searchDocuments(params) {
-    const response = await api.get('/documents', { params });
-    return response.data;
-  },
+class DocumentService {
+
+  // =================================================================
+  // Lấy dữ liệu Metadata & Options
+  // =================================================================
 
   /**
-   * Get a single document by its ID.
-   * @param {string|number} id - The document ID.
-   * @returns {Promise<object>} Backend response: { success: boolean, document: {} }
+   * Lấy danh sách các loại tài liệu (ví dụ: Quy trình, Hướng dẫn).
+   * @returns {Promise<Object>} Dữ liệu trả về từ API.
    */
-  async getDocument(id) {
-    const response = await api.get(`/documents/${id}`);
-    return response.data;
-  },
-
-  /**
-   * Create a new document.
-   * @param {object} documentData - Data for the new document.
-   * @returns {Promise<object>} Backend response: { success: boolean, document: {} }
-   */
-  async createDocument(documentData) {
-    const response = await api.post('/documents', documentData);
-    return response.data;
-  },
-
-  /**
-   * Update an existing document.
-   * @param {string|number} id - The document ID.
-   * @param {object} documentData - Data to update.
-   * @returns {Promise<object>} Backend response.
-   */
-  async updateDocument(id, documentData) {
-    const response = await api.put(`/documents/${id}`, documentData);
-    return response.data;
-  },
-
-  /**
-   * Delete a document (soft delete by archiving or actual delete based on backend logic).
-   * @param {string|number} id - The document ID.
-   * @returns {Promise<object>} Backend response.
-   */
-  async deleteDocument(id) {
-    // Backend's documents.js route for DELETE /:id uses workflowService to archive.
-    // This is consistent.
-    const response = await api.delete(`/documents/${id}`);
-    return response.data;
-  },
-
-  /**
-   * Update the status of a document.
-   * @param {string|number} id - The document ID.
-   * @param {string} status - The new status.
-   * @param {string} [comment=''] - Optional comment for the transition.
-   * @returns {Promise<object>} Backend response.
-   */
-  async updateDocumentStatus(id, status, comment = '') {
-    const response = await api.put(`/documents/${id}/status`, { newStatus: status, comment }); // Backend expects `newStatus`
-    return response.data;
-  },
-
-  /**
-   * Create a new version for a document.
-   * @param {string|number} id - The document ID.
-   * @param {object} versionData - Data for the new version (e.g., newVersion, changeReason, changeSummary).
-   * @returns {Promise<object>} Backend response.
-   */
-  async createDocumentVersion(id, versionData) {
-    const response = await api.post(`/documents/${id}/versions`, versionData);
-    return response.data;
-  },
-
-  /**
-   * Get all versions of a document.
-   * @param {string|number} id - The document ID.
-   * @returns {Promise<object>} Backend response: { success: boolean, data: { versions: [] } }
-   */
-  async getDocumentVersions(id) {
-    const response = await api.get(`/documents/${id}/versions`);
-    return response.data;
-  },
-
-  /**
-   * Get the workflow history of a document.
-   * @param {string|number} id - The document ID.
-   * @returns {Promise<object>} Backend response: { success: boolean, data: { history: [] } }
-   */
-  async getWorkflowHistory(id) {
-    const response = await api.get(`/documents/${id}/workflow`);
-    return response.data;
-  },
-
-  /**
-   * Download a document file.
-   * @param {string|number} id - The document ID.
-   * @param {string} [documentTitle='document'] - Default title for the downloaded file.
-   * @returns {Promise<object>} { success: true } if download initiated.
-   * @throws Error if download fails.
-   */
-  async downloadDocument(id, documentTitle = 'document') {
+  async getDocumentTypes() {
     try {
-      const response = await api.get(`/documents/${id}/download`, {
-        responseType: 'blob'
+      const response = await api.get('/documents/types');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching document types:', error);
+      throw new Error('Không thể tải danh sách loại tài liệu');
+    }
+  }
+
+  /**
+   * Lấy danh sách các phòng ban.
+   * @returns {Promise<Object>} Dữ liệu trả về từ API.
+   */
+  async getDepartments() {
+    try {
+      const response = await api.get('/documents/departments');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      throw new Error('Không thể tải danh sách phòng ban');
+    }
+  }
+
+  /**
+   * Lấy danh sách các trạng thái của tài liệu (ví dụ: Nháp, Đang xem xét).
+   * @returns {Promise<Object>} Dữ liệu trả về từ API.
+   */
+  async getWorkflowStates() {
+    try {
+      const response = await api.get('/documents/workflow-states');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching workflow states:', error);
+      throw new Error('Không thể tải danh sách trạng thái workflow');
+    }
+  }
+  
+  /**
+   * Lấy metadata cho các bộ lọc tìm kiếm.
+   * @returns {Promise<Object>} Dữ liệu trả về từ API.
+   */
+  async getSearchFilters() {
+    try {
+      const response = await api.get('/documents/search-filters');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching search filters:', error);
+      throw new Error('Không thể tải bộ lọc tìm kiếm');
+    }
+  }
+
+
+  // =================================================================
+  // Tìm kiếm & Lấy danh sách
+  // =================================================================
+
+  /**
+   * Tìm kiếm tài liệu với các tiêu chí nâng cao.
+   * @param {Object} searchParams - Các tham số tìm kiếm (page, limit, type, status, v.v.).
+   * @returns {Promise<Object>} Kết quả tìm kiếm từ API.
+   */
+  async searchDocuments(searchParams) {
+    try {
+      // Tạo query string từ object searchParams, loại bỏ các giá trị rỗng.
+      const params = new URLSearchParams();
+      Object.entries(searchParams).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          params.append(key, value);
+        }
       });
       
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = `${documentTitle}.bin`; // Default filename
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename\*?=['"]?(?:UTF-\d'')?([^;\r\n"']*)['"]?/i);
-        if (filenameMatch && filenameMatch[1]) {
-          filename = decodeURIComponent(filenameMatch[1]);
-        } else {
-           const simpleFilenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-           if (simpleFilenameMatch && simpleFilenameMatch[1]) {
-             filename = simpleFilenameMatch[1];
-           }
-        }
-      } else {
-        const mimeType = response.headers['content-type'];
-        if (mimeType === 'application/pdf') filename = `${documentTitle}.pdf`;
-        else if (mimeType === 'application/msword') filename = `${documentTitle}.doc`;
-        else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') filename = `${documentTitle}.docx`;
+      // Endpoint đúng là /documents, không phải /documents/search
+      const response = await api.get(`/documents?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error searching documents:', error);
+      throw new Error('Không thể tìm kiếm tài liệu. Vui lòng kiểm tra lại bộ lọc.');
+    }
+  }
+  
+  /**
+   * Lấy các gợi ý tìm kiếm dựa trên từ khóa.
+   * @param {string} query - Từ khóa tìm kiếm.
+   * @param {number} limit - Số lượng gợi ý tối đa.
+   * @returns {Promise<Object>} Danh sách các gợi ý.
+   */
+  async getSearchSuggestions(query, limit = 10) {
+    try {
+      if (!query || query.trim().length < 2) {
+        return { success: true, data: { suggestions: [], query, count: 0 } };
       }
+      const response = await api.get(`/documents/search-suggestions?query=${encodeURIComponent(query)}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching search suggestions:', error);
+      throw new Error('Không thể tải gợi ý tìm kiếm');
+    }
+  }
+
+  // =================================================================
+  // Thao tác CRUD trên một tài liệu
+  // =================================================================
+
+  /**
+   * Lấy thông tin chi tiết của một tài liệu bằng ID.
+   * @param {number|string} id - ID của tài liệu.
+   * @returns {Promise<Object>} Chi tiết tài liệu.
+   */
+  async getDocument(id) {
+    try {
+      const response = await api.get(`/documents/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching document with ID ${id}:`, error);
+      if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy tài liệu.');
+      }
+      throw new Error('Không thể tải thông tin chi tiết tài liệu.');
+    }
+  }
+
+  /**
+   * Tạo một tài liệu mới.
+   * @param {Object} documentData - Dữ liệu của tài liệu cần tạo.
+   * @returns {Promise<Object>} Tài liệu vừa được tạo.
+   */
+  async createDocument(documentData) {
+    try {
+      const response = await api.post('/documents', documentData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating document:', error);
+      throw new Error(error.response?.data?.message || 'Không thể tạo tài liệu mới.');
+    }
+  }
+
+  /**
+   * Cập nhật một tài liệu đã có.
+   * @param {number|string} id - ID của tài liệu.
+   * @param {Object} documentData - Dữ liệu cần cập nhật.
+   * @returns {Promise<Object>} Tài liệu đã được cập nhật.
+   */
+  async updateDocument(id, documentData) {
+    try {
+      const response = await api.put(`/documents/${id}`, documentData);
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating document ${id}:`, error);
+      throw new Error(error.response?.data?.message || 'Không thể cập nhật tài liệu.');
+    }
+  }
+
+  /**
+   * Xóa một tài liệu.
+   * @param {number|string} id - ID của tài liệu.
+   * @returns {Promise<Object>} Kết quả xóa.
+   */
+  async deleteDocument(id) {
+    try {
+      const response = await api.delete(`/documents/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting document ${id}:`, error);
+      throw new Error(error.response?.data?.message || 'Không thể xóa tài liệu.');
+    }
+  }
+
+  /**
+   * Tải file của một tài liệu.
+   * @param {number|string} id - ID của tài liệu.
+   * @returns {Promise<void>}
+   */
+  async downloadDocument(id) {
+    try {
+      const response = await api.get(`/documents/${id}/download`, {
+        responseType: 'blob' // Yêu cầu trả về dưới dạng file
+      });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
+      
+      let filename = 'document';
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch.length > 1) {
+          filename = filenameMatch[1];
+        }
+      }
+      
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      return { success: true, filename };
     } catch (error) {
-      console.error("Download error in documentService:", error);
-      throw error; 
+      console.error(`Error downloading document ${id}:`, error);
+      throw new Error('Không thể tải xuống tài liệu.');
     }
-  },
+  }
+
+
+  // =================================================================
+  // Thao tác Workflow & Versioning
+  // =================================================================
 
   /**
-   * Download a specific version of a document file.
-   * @param {string|number} documentId - The document ID.
-   * @param {string|number} versionId - The version ID.
-   * @returns {Promise<void>}
+   * Cập nhật trạng thái của tài liệu (ví dụ: gửi duyệt, phê duyệt).
+   * @param {number|string} id - ID của tài liệu.
+   * @param {Object} statusData - Dữ liệu trạng thái mới.
+   * @returns {Promise<Object>} Kết quả cập nhật.
    */
-  async downloadDocumentVersion(documentId, versionId) {
-    // TODO: Implement filename extraction similar to downloadDocument
-    const response = await api.get(`/documents/${documentId}/versions/${versionId}/download`, {
-      responseType: 'blob'
-    });
-    
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `document-${documentId}-version-${versionId}.file`); // Generic name, improve with backend header
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-  },
+  async updateStatus(id, statusData) {
+    try {
+      const response = await api.put(`/documents/${id}/status`, statusData);
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating status for document ${id}:`, error);
+      throw new Error(error.response?.data?.message || 'Không thể cập nhật trạng thái.');
+    }
+  }
 
   /**
-   * Compare two document versions.
-   * @param {string|number} versionId1 - ID of the first version.
-   * @param {string|number} versionId2 - ID of the second version.
-   * @returns {Promise<object>} Backend response.
+   * Tạo một phiên bản mới cho tài liệu.
+   * @param {number|string} id - ID của tài liệu.
+   * @param {Object} versionData - Dữ liệu phiên bản mới.
+   * @returns {Promise<Object>} Chi tiết phiên bản mới.
    */
-  async compareVersions(versionId1, versionId2) {
-    const response = await api.get(`/documents/versions/compare`, {
-      params: { version1: versionId1, version2: versionId2 }
-    });
-    return response.data;
-  },
-
-  // --- Functions to fetch data for dropdowns/filters ---
+  async createVersion(id, versionData) {
+    try {
+      const response = await api.post(`/documents/${id}/versions`, versionData);
+      return response.data;
+    } catch (error) {
+      console.error(`Error creating version for document ${id}:`, error);
+      throw new Error(error.response?.data?.message || 'Không thể tạo phiên bản mới.');
+    }
+  }
 
   /**
-   * Get list of document types.
-   * @returns {Promise<object>} Backend response: { success: true, data: { documentTypes: [{code, name}, ...] } }
+   * Lấy lịch sử các phiên bản của tài liệu.
+   * @param {number|string} id - ID của tài liệu.
+   * @returns {Promise<Object>} Lịch sử phiên bản.
    */
-  async getDocumentTypes() {
-    const response = await api.get('/documents/types'); // API endpoint from src/backend/routes/documents.js
-    return response.data;
-  },
+  async getVersionHistory(id) {
+    try {
+      const response = await api.get(`/documents/${id}/versions`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching version history for document ${id}:`, error);
+      throw new Error('Không thể tải lịch sử phiên bản.');
+    }
+  }
 
   /**
-   * Get list of departments.
-   * @returns {Promise<object>} Backend response: { success: true, data: { departments: ["DeptA", "DeptB", ...] } }
+   * Lấy lịch sử luồng công việc (workflow) của tài liệu.
+   * @param {number|string} id - ID của tài liệu.
+   * @returns {Promise<Object>} Lịch sử workflow.
    */
-  async getDepartments() {
-    const response = await api.get('/documents/departments'); // API endpoint from src/backend/routes/documents.js
-    return response.data;
-  },
+  async getWorkflowHistory(id) {
+    try {
+      const response = await api.get(`/documents/${id}/workflow`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching workflow history for document ${id}:`, error);
+      throw new Error('Không thể tải lịch sử workflow.');
+    }
+  }
+}
 
-  /**
-   * Get list of workflow states.
-   * @returns {Promise<object>} Backend response: { success: true, data: { workflowStates: [{code, name}, ...] } }
-   */
-  async getWorkflowStates() {
-    const response = await api.get('/documents/workflow-states'); // API endpoint from src/backend/routes/documents.js
-    return response.data;
-  },
-
-  // Placeholder for metadata - if needed and different from getDocument()
-  // async getDocumentMetadata(documentId) {
-  //   const response = await api.get(`/documents/${documentId}/metadata`);
-  //   return response.data;
-  // }
-
-  // (Optional) Add other specific document-related API calls here if needed
-  // For example, if there's an API to check document code availability:
-  // async checkDocumentCode(code) {
-  //   const response = await api.get(`/documents/check-code?code=${code}`);
-  //   return response.data;
-  // }
-};
+// Xuất ra một instance duy nhất của class (Singleton Pattern)
+// để đảm bảo toàn bộ ứng dụng dùng chung một đối tượng service.
+export const documentService = new DocumentService();
+export default documentService;

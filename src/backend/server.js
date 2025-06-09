@@ -1,7 +1,7 @@
 // src/backend/server.js
 /**
  * =================================================================
- * EDMS 1CAR - Main Server (Fixed System Settings Route & Middleware)
+ * EDMS 1CAR - Main Server (Enhanced with Dashboard API Routes)
  * Express server with proper middleware and route mounting
  * Based on C-PR-MG-003, C-FM-MG-004, C-PL-MG-005 requirements
  * =================================================================
@@ -116,7 +116,7 @@ app.get('/health', async (req, res) => {
     const users = await dbManager.get('SELECT COUNT(*) as count FROM users');
     const documents = await dbManager.get('SELECT COUNT(*) as count FROM documents');
     const documentVersions = await dbManager.get('SELECT COUNT(*) as count FROM document_versions');
-    const auditLogsCount = await dbManager.get('SELECT COUNT(*) as count FROM audit_logs'); // Sửa tên biến
+    const auditLogsCount = await dbManager.get('SELECT COUNT(*) as count FROM audit_logs');
     const fileSizeResult = await dbManager.get(`
       SELECT COALESCE(SUM(file_size), 0) as total_size 
       FROM documents 
@@ -147,7 +147,7 @@ app.get('/health', async (req, res) => {
         users: users.count,
         documents: documents.count,
         document_versions: documentVersions.count,
-        audit_logs: auditLogsCount.count, // Sửa tên biến
+        audit_logs: auditLogsCount.count,
         file_size_mb: totalFileSizeMB,
         connected: true,
         database_path: './database/edms.db'
@@ -175,7 +175,7 @@ const documentRoutes = require('./routes/documents');
 const uploadRoutes = require('./routes/upload');
 const userRoutes = require('./routes/users');
 const systemSettingsRoutes = require('./routes/systemSettings'); 
-const auditLogRoutes = require('./routes/auditLogRoutes'); // <<<### SỬA ĐỔI: IMPORT ROUTE MỚI ###>>>
+const auditLogRoutes = require('./routes/auditLogRoutes');
 
 // API Routes - Mount routes properly
 app.use('/api/auth', authRoutes);
@@ -183,7 +183,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/system-settings', systemSettingsRoutes); 
-app.use('/api/audit-logs', auditLogRoutes); // <<<### SỬA ĐỔI: GẮN ROUTE MỚI ###>>>
+app.use('/api/audit-logs', auditLogRoutes);
 
 // 404 handler for API routes 
 app.use('/api/*', (req, res) => {
@@ -269,7 +269,7 @@ async function startServer() {
       appLogger.info('  - File Upload: /api/upload/*');
       appLogger.info('  - User Management: /api/users/*');
       appLogger.info('  - System Settings: /api/system-settings/*'); 
-      appLogger.info('  - Audit Logs: /api/audit-logs/*'); // <<<### SỬA ĐỔI: THÊM THÔNG TIN ROUTE MỚI ###>>>
+      appLogger.info('  - Audit Logs: /api/audit-logs/*');
       appLogger.info('EDMS 1CAR ready for 40 users with compliance:');
       appLogger.info('  - C-PR-MG-003: Access control procedures');
       appLogger.info('  - C-FM-MG-004: Role-based permission matrix');

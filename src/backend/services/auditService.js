@@ -1,14 +1,13 @@
 // src/backend/services/auditService.js
 /**
  * =================================================================
- * EDMS 1CAR - Audit Service
+ * EDMS 1CAR - Audit Service (Enhanced for Dashboard)
  * Comprehensive audit logging for compliance with IATF 16949
  * Based on C-PR-AR-001 and C-PR-MG-003 requirements
  * =================================================================
  */
 
 const { dbManager } = require('../config/database');
-// Đảm bảo import đúng và logger.js export đúng các hàm này
 const { logError, appLogger } = require('../utils/logger');
 const config = require('../config');
 const AuditLogModel = require('../models/AuditLog');
@@ -19,7 +18,6 @@ class AuditService {
   }
 
   static get VALID_RESOURCE_TYPES() {
-    // Sử dụng danh sách từ AuditLogModel đã được cập nhật
     return AuditLogModel.VALID_RESOURCE_TYPES;
   }
 
@@ -74,7 +72,7 @@ class AuditService {
         ]
       );
 
-      if (AuditService.isHighPriorityEvent(action)) { // Gọi qua AuditService
+      if (AuditService.isHighPriorityEvent(action)) {
         appLogger.info(`[AUDIT_HIGH_PRIORITY] ${action}`, {
           userId, resourceType, resourceId, details, ipAddress
         });
@@ -86,7 +84,6 @@ class AuditService {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      // Sử dụng logError đã được import
       if (typeof logError === 'function') {
         logError(error, null, {
           operation: 'AuditService.log',
@@ -94,14 +91,12 @@ class AuditService {
           message: 'Failed to log audit event'
         });
       } else {
-        // Fallback nếu logError không tồn tại
         appLogger.error('Failed to log audit event AND logError is not a function', {
             error: error.message, auditData
         });
       }
 
-
-      if (AuditService.isCriticalAuditEvent(auditData.action)) { // Gọi qua AuditService
+      if (AuditService.isCriticalAuditEvent(auditData.action)) {
         appLogger.error('CRITICAL AUDIT FAILURE', {
           error: error.message,
           auditData
@@ -111,6 +106,125 @@ class AuditService {
       return {
         success: false,
         error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get recent activities based on user role and permissions
+   * @param {Object} options - Query options
+   * @returns {Promise} - Recent activities
+   */
+  static async getRecentActivities(options = {}) {
+    try {
+      const {
+        limit = 10,
+        userId = null,
+        department = null,
+        requestingUser
+      } = options;
+
+      let whereConditions = [];
+      let params = [];
+
+      // Role-based filtering
+      if (requestingUser.role === 'user' && userId) {
+        // User chỉ xem hoạt động của chính mình
+        whereConditions.push('al.user_id = ?');
+        params.push(userId);
+      } else if (requestingUser.role === 'manager' && department) {
+        // Manager xem hoạt động của phòng ban
+        whereConditions.push('u.department = ?');
+        params.push(department);
+      } else if (requestingUser.role === 'manager' && !department) {
+        // Manager mặc định xem phòng ban của mình
+        whereConditions.push('u.department = ?');
+        params.push(requestingUser.department);
+      }
+      // Admin không có giới hạn, xem tất cả
+
+      // Filter out sensitive actions for non-admin users
+      if (requestingUser.role !== 'admin') {
+        const allowedActions = [
+          'DOCUMENT_CREATED', 'DOCUMENT_UPDATED', 'DOCUMENT_VIEWED',
+          'DOCUMENT_DOWNLOADED', 'DOCUMENT_VERSION_CREATED', 
+          'WORKFLOW_TRANSITION', 'LOGIN'
+        ];
+        const actionPlaceholders = allowedActions.map(() => '?').join(',');
+        whereConditions.push(`al.action IN (${actionPlaceholders})`);
+        params.push(...allowedActions);
+      }
+
+      const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+
+      const query = `
+        SELECT 
+          al.id,
+          al.action,
+          al.resource_type,
+          al.resource_id,
+          al.details,
+          al.timestamp,
+          al.ip_address,
+          u.name as user_name,
+          u.email as user_email,
+          u.department as user_department,
+          d.title as document_title,
+          d.document_code
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        LEFT JOIN documents d ON al.resource_type = 'document' AND al.resource_id = d.id
+        ${whereClause}
+        ORDER BY al.timestamp DESC
+        LIMIT ?
+      `;
+
+      params.push(parseInt(limit));
+      const activities = await dbManager.all(query, params);
+
+      // Process details JSON
+      activities.forEach(activity => {
+        if (activity.details) {
+          try {
+            activity.details = JSON.parse(activity.details);
+          } catch (e) {
+            activity.details = { raw_details: activity.details, parse_error: e.message };
+          }
+        }
+      });
+
+      // Log the access
+      await this.log({
+        action: 'RECENT_ACTIVITIES_VIEWED',
+        userId: requestingUser.id,
+        resourceType: 'system',
+        details: {
+          requestedLimit: limit,
+          filterUserId: userId,
+          filterDepartment: department,
+          resultCount: activities.length
+        }
+      });
+
+      return {
+        success: true,
+        data: activities
+      };
+    } catch (error) {
+      if (typeof logError === 'function') {
+        logError(error, null, {
+          operation: 'AuditService.getRecentActivities',
+          options
+        });
+      } else {
+        appLogger.error('Failed to get recent activities AND logError is not a function', {
+          error: error.message, options
+        });
+      }
+      return {
+        success: false,
+        error: error.message,
+        data: []
       };
     }
   }
@@ -126,9 +240,9 @@ class AuditService {
         dateTo,
         ipAddress,
         sessionId,
-        search, // search term từ ActivityPage (qua auditLogRoutes)
+        search,
         page = 1,
-        limit = 20 // Khớp với ActivityPage
+        limit = 20
       } = filters;
 
       let whereConditions = [];
@@ -183,7 +297,7 @@ class AuditService {
 
       return {
         success: true,
-        data: logs, // Trả về mảng logs trực tiếp
+        data: logs,
         pagination: {
           page: parseInt(page, 10), limit: parseInt(limit, 10),
           total, totalPages,
@@ -192,7 +306,6 @@ class AuditService {
         }
       };
     } catch (error) {
-      // Sử dụng logError đã được import
       if (typeof logError === 'function') {
         logError(error, null, {
           operation: 'AuditService.getAuditLogs',
@@ -210,44 +323,20 @@ class AuditService {
     }
   }
 
-  static async getAuditStatistics(filters = {}) { /* ... Giữ nguyên implementation ... */ }
-  static async getSecurityEvents(hours = 24, severity = 'all', limit = 100) { /* ... Giữ nguyên implementation ... */ }
-  static async cleanOldLogs(retentionDays = null) { /* ... Giữ nguyên implementation, đảm bảo this.log() được gọi đúng ... */ }
-  static convertToCSV(logs) { /* ... Giữ nguyên implementation ... */ }
-  static isHighPriorityEvent(action) { /* ... Giữ nguyên implementation ... */ }
-  static isCriticalAuditEvent(action) { /* ... Giữ nguyên implementation ... */ }
-  static classifyEventSeverity(action) { /* ... Giữ nguyên implementation ... */ }
-   static async exportAuditLogs(filters = {}, format = 'csv') { // Giữ nguyên
-    try {
-      const { data: logsToExport, success: fetchSuccess, error: fetchError } = await this.getAuditLogs({ ...filters, limit: 50000 }); 
-      if (!fetchSuccess) {
-        throw new Error(fetchError || 'Failed to fetch logs for export');
-      }
-      if (format === 'csv') {
-        return {
-          success: true,
-          data: this.convertToCSV(logsToExport),
-          filename: `audit_logs_export_${new Date().toISOString().split('T')[0]}.csv`,
-          contentType: 'text/csv'
-        };
-      } else if (format === 'json') {
-        return {
-          success: true,
-          data: JSON.stringify(logsToExport, null, 2),
-          filename: `audit_logs_export_${new Date().toISOString().split('T')[0]}.json`,
-          contentType: 'application/json'
-        };
-      } else {
-        throw new Error(`Unsupported export format: ${format}. Supported formats: csv, json.`);
-      }
-    } catch (error) {
-        if (typeof logError === 'function') {
-            logError(error, null, { operation: 'AuditService.exportAuditLogs', filters, format });
-        } else {
-            appLogger.error('Failed to export audit logs AND logError is not a function', { error: error.message, filters, format});
-        }
-      return { success: false, error: error.message };
-    }
+  static isHighPriorityEvent(action) {
+    const highPriorityEvents = [
+      'LOGIN_FAILED', 'UNAUTHORIZED_ACCESS', 'DOCUMENT_DELETED',
+      'USER_LOCKED', 'PERMISSION_DENIED', 'SYSTEM_ERROR'
+    ];
+    return highPriorityEvents.includes(action);
+  }
+
+  static isCriticalAuditEvent(action) {
+    const criticalEvents = [
+      'SYSTEM_BACKUP_FAILED', 'DATABASE_ERROR', 'SECURITY_BREACH',
+      'AUDIT_LOG_TAMPERING', 'UNAUTHORIZED_ADMIN_ACCESS'
+    ];
+    return criticalEvents.includes(action);
   }
 }
 

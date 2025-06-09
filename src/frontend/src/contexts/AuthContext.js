@@ -1,18 +1,9 @@
 // src/frontend/src/contexts/AuthContext.js
-/* =================================================================
- * EDMS 1CAR - Authentication Context (Fully Restored & Corrected)
- *
- * REFACTOR:
- * - Restored the complete implementation of 'initializeAuth' to fix infinite loading.
- * - Restored permission helper functions 'hasPermission', 'hasDocumentPermission', etc.
- * - Consolidated all previous fixes into a single, stable file.
- * ================================================================= */
-
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { authService } from '../services/authService';
-import { PageLoader } from '../components/common/LoadingSpinner'; // Import PageLoader for a consistent loading UI
+import { PageLoader } from '../components/common/LoadingSpinner';
 
 // =================================================================
 // 1. Constants & Initial State
@@ -31,46 +22,152 @@ const initialState = {
     user: null,
     tokens: null,
     isAuthenticated: false,
-    isLoading: true, // Starts as true, will be set to false after initialization
+    isLoading: true,
     error: null
 };
 
 // =================================================================
-// 2. Reducer Function
+// 2. Role Permissions Matrix (Based on C-FM-MG-004)
+// =================================================================
+
+const ROLE_PERMISSIONS = {
+    admin: [
+        'view_all_documents', 'create_documents', 'edit_all_documents', 'delete_documents',
+        'manage_users', 'manage_system', 'view_audit_logs', 'approve_documents',
+        'view_system_stats', 'view_all_activities', 'manage_workflows', 'upload_files'
+    ],
+    manager: [
+        'view_department_documents', 'create_documents', 'edit_department_documents',
+        'approve_department_documents', 'view_department_stats', 'view_department_activities',
+        'manage_department_workflows', 'upload_files'
+    ],
+    user: [
+        'view_own_documents', 'create_documents', 'edit_own_documents',
+        'view_shared_documents', 'view_own_activities', 'upload_files'
+    ],
+    guest: [
+        'view_public_documents'
+    ]
+};
+
+// =================================================================
+// 3. Reducer Function
 // =================================================================
 
 function authReducer(state, action) {
     switch (action.type) {
         case AUTH_ACTIONS.INITIALIZE_START:
             return { ...state, isLoading: true };
-        case AUTH_ACTIONS.INITIALIZE_SUCCESS: // Handles successful login/session verification
-            return { ...state, user: action.payload.user, tokens: action.payload.tokens, isAuthenticated: true, isLoading: false, error: null };
-        case AUTH_ACTIONS.INITIALIZE_FAILURE: // Handles failed session/logout
-            return { ...state, user: null, tokens: null, isAuthenticated: false, isLoading: false, error: null };
+        case AUTH_ACTIONS.INITIALIZE_SUCCESS:
+            return { 
+                ...state, 
+                user: action.payload.user, 
+                tokens: action.payload.tokens, 
+                isAuthenticated: true, 
+                isLoading: false, 
+                error: null 
+            };
+        case AUTH_ACTIONS.INITIALIZE_FAILURE:
+            return { 
+                ...state, 
+                user: null, 
+                tokens: null, 
+                isAuthenticated: false, 
+                isLoading: false, 
+                error: null 
+            };
         case AUTH_ACTIONS.LOGIN_FAILURE:
-            return { ...state, user: null, tokens: null, isAuthenticated: false, isLoading: false, error: action.payload };
-        // LOGOUT now effectively uses INITIALIZE_FAILURE to reset state
+            return { 
+                ...state, 
+                user: null, 
+                tokens: null, 
+                isAuthenticated: false, 
+                isLoading: false, 
+                error: action.payload 
+            };
         default:
             return state;
     }
 }
 
 // =================================================================
-// 3. Context Creation
+// 4. Context Creation
 // =================================================================
 
 const AuthContext = createContext();
 
 // =================================================================
-// 4. AuthProvider Component
+// 5. AuthProvider Component
 // =================================================================
 
 export function AuthProvider({ children }) {
     const [state, dispatch] = useReducer(authReducer, initialState);
 
     const cookieOptions = useMemo(() => ({
-        expires: 1, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/'
+        expires: 1, 
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'strict', 
+        path: '/'
     }), []);
+
+    // Enhanced permission checking functions
+    const hasPermission = useCallback((permission) => {
+        if (!state.user || !state.user.role) return false;
+        const rolePermissions = ROLE_PERMISSIONS[state.user.role] || [];
+        return rolePermissions.includes(permission);
+    }, [state.user]);
+
+    const hasDocumentPermission = useCallback((action, document) => {
+        if (!state.user || !state.user.role) return false;
+        
+        const userRole = state.user.role;
+        const userId = state.user.id;
+        const userDepartment = state.user.department;
+
+        switch (action) {
+            case 'view':
+                if (userRole === 'admin') return true;
+                if (userRole === 'manager' && document.department === userDepartment) return true;
+                if (userRole === 'user' && (document.author_id === userId || document.recipients?.includes(userDepartment))) return true;
+                if (userRole === 'guest' && document.security_level === 'public') return true;
+                return false;
+            
+            case 'edit':
+                if (userRole === 'admin') return true;
+                if (userRole === 'manager' && document.department === userDepartment) return true;
+                if (userRole === 'user' && document.author_id === userId) return true;
+                return false;
+            
+            case 'approve':
+                if (userRole === 'admin') return true;
+                if (userRole === 'manager' && document.department === userDepartment) return true;
+                return false;
+            
+            default:
+                return false;
+        }
+    }, [state.user]);
+
+    const canAccessDashboardWidget = useCallback((widgetType) => {
+        if (!state.user || !state.user.role) return false;
+        
+        const userRole = state.user.role;
+        
+        switch (widgetType) {
+            case 'system_stats':
+                return userRole === 'admin';
+            case 'document_stats':
+                return ['admin', 'manager'].includes(userRole);
+            case 'pending_approvals':
+                return ['admin', 'manager'].includes(userRole);
+            case 'recent_activities':
+                return ['admin', 'manager', 'user'].includes(userRole);
+            case 'notifications':
+                return ['admin', 'manager', 'user'].includes(userRole);
+            default:
+                return false;
+        }
+    }, [state.user]);
 
     const logout = useCallback(async () => {
         try {
@@ -95,8 +192,15 @@ export function AuthProvider({ children }) {
             if (response.success) {
                 const { user, tokens } = response.data;
                 Cookies.set('accessToken', tokens.accessToken, cookieOptions);
-                localStorage.setItem('user_context', JSON.stringify({ id: user.id, role: user.role }));
-                dispatch({ type: AUTH_ACTIONS.INITIALIZE_SUCCESS, payload: { user, tokens: { accessToken: tokens.accessToken, refreshToken } } });
+                localStorage.setItem('user_context', JSON.stringify({ 
+                    id: user.id, 
+                    role: user.role, 
+                    department: user.department 
+                }));
+                dispatch({ 
+                    type: AUTH_ACTIONS.INITIALIZE_SUCCESS, 
+                    payload: { user, tokens: { accessToken: tokens.accessToken, refreshToken } } 
+                });
                 return tokens.accessToken;
             } else {
                 throw new Error('Token refresh failed on server');
@@ -118,8 +222,15 @@ export function AuthProvider({ children }) {
                 const response = await authService.verifyToken(accessToken);
                 if (response.success) {
                     const { user } = response.data;
-                    localStorage.setItem('user_context', JSON.stringify({ id: user.id, role: user.role }));
-                    dispatch({ type: AUTH_ACTIONS.INITIALIZE_SUCCESS, payload: { user, tokens: { accessToken, refreshToken } } });
+                    localStorage.setItem('user_context', JSON.stringify({ 
+                        id: user.id, 
+                        role: user.role, 
+                        department: user.department 
+                    }));
+                    dispatch({ 
+                        type: AUTH_ACTIONS.INITIALIZE_SUCCESS, 
+                        payload: { user, tokens: { accessToken, refreshToken } } 
+                    });
                 } else {
                     await refreshAuthToken();
                 }
@@ -143,11 +254,21 @@ export function AuthProvider({ children }) {
                 const { user, tokens } = response.data;
                 Cookies.set('accessToken', tokens.accessToken, cookieOptions);
                 Cookies.set('refreshToken', tokens.refreshToken, { ...cookieOptions, expires: 7 });
-                localStorage.setItem('user_context', JSON.stringify({ id: user.id, role: user.role }));
-                dispatch({ type: AUTH_ACTIONS.INITIALIZE_SUCCESS, payload: { user, tokens } });
+                localStorage.setItem('user_context', JSON.stringify({ 
+                    id: user.id, 
+                    role: user.role, 
+                    department: user.department 
+                }));
+                dispatch({ 
+                    type: AUTH_ACTIONS.INITIALIZE_SUCCESS, 
+                    payload: { user, tokens } 
+                });
                 return { success: true };
             } else {
-                dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: response.message || 'Đăng nhập thất bại' });
+                dispatch({ 
+                    type: AUTH_ACTIONS.LOGIN_FAILURE, 
+                    payload: response.message || 'Đăng nhập thất bại' 
+                });
                 return { success: false, message: response.message };
             }
         } catch (error) {
@@ -157,25 +278,18 @@ export function AuthProvider({ children }) {
         }
     }, [cookieOptions]);
 
-    const hasPermission = useCallback((permission) => {
-        if (!state.user || !state.user.role) return false;
-        if (state.user.role === 'admin') return true;
-        // Add more detailed permission logic here if needed
-        const rolePermissions = {
-            manager: ['view_documents', 'create_documents', 'edit_department_documents'],
-            user: ['view_documents', 'create_documents', 'edit_own_documents'],
-        };
-        return rolePermissions[state.user.role]?.includes(permission) || false;
-    }, [state.user]);
-
-
     useEffect(() => {
         initializeAuth();
     }, [initializeAuth]);
 
     const value = useMemo(() => ({
-        ...state, login, logout, hasPermission
-    }), [state, login, logout, hasPermission]);
+        ...state, 
+        login, 
+        logout, 
+        hasPermission, 
+        hasDocumentPermission, 
+        canAccessDashboardWidget
+    }), [state, login, logout, hasPermission, hasDocumentPermission, canAccessDashboardWidget]);
 
     return (
         <AuthContext.Provider value={value}>
@@ -185,7 +299,7 @@ export function AuthProvider({ children }) {
 }
 
 // =================================================================
-// 5. Custom Hook and Protected Route
+// 6. Custom Hook and Protected Route
 // =================================================================
 
 export function useAuth() {

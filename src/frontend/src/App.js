@@ -1,23 +1,29 @@
-// src/frontend/src/App.js
 /**
  * =================================================================
- * EDMS 1CAR - Main App Component (Rewritten for Clarity)
- * Root component for Electronic Document Management System.
- * This version clarifies the role of ProtectedRoute and Layout.
+ * EDMS 1CAR - Main App Component
+ * * Chứa toàn bộ cấu trúc logic của ứng dụng, bao gồm:
+ * - Khởi tạo React Query Client.
+ * - Cung cấp các Context Provider (Query, Auth, Helmet).
+ * - Định nghĩa cấu trúc định tuyến (Routes và Protected Routes).
+ * - Cấu hình thông báo (Toaster) và React Query Devtools.
+ * - Quản lý Error Boundary.
  * =================================================================
  */
 
 import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from 'react-query';
+import { ReactQueryDevtools } from 'react-query/devtools';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
+import { Toaster } from 'react-hot-toast';
 
 // --- Contexts ---
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // --- Layout & Common Components ---
-import LoadingSpinner from './components/common/LoadingSpinner';
+import { PageLoader } from './components/common/LoadingSpinner';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import Layout from './components/layout/Layout'; // Component layout chính
+import Layout from './components/layout/Layout';
 
 // --- Page Components (Lazy Loaded) ---
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -30,88 +36,153 @@ const ArchivePage = React.lazy(() => import('./pages/ArchivePage'));
 const ActivityPage = React.lazy(() => import('./pages/ActivityPage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
+// const UnauthorizedPage = React.lazy(() => import('./pages/UnauthorizedPage'));
 
-/**
- * =================================================================
- * ProtectedRoute Component
- * -> Nhiệm vụ 1: Kiểm tra quyền truy cập của người dùng.
- * -> Nhiệm vụ 2: Áp dụng layout chung (Header, Sidebar) cho các trang được bảo vệ.
- * =================================================================
- */
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth();
+// =================================================================
+// React Query Client (Single Instance)
+// =================================================================
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 phút
+      cacheTime: 10 * 60 * 1000, // 10 phút
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: (failureCount, error) => {
+        // Không retry các lỗi xác thực hoặc không tìm thấy
+        if (error?.response?.status && [401, 403, 404].includes(error.response.status)) {
+          return false;
+        }
+        return failureCount < 2;
+      },
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
-  // 1. Trong khi đang kiểm tra xác thực, hiển thị màn hình loading
+// =================================================================
+// Protected Route & Role-Based Components
+// =================================================================
+
+// Component bảo vệ route yêu cầu đăng nhập
+function ProtectedRoute({ children, requiredRole = null, requiredPermission = null }) {
+  const { isAuthenticated, isLoading, user, hasPermission } = useAuth();
+
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="large" message="Đang kiểm tra xác thực..." />
-      </div>
-    );
+    return <PageLoader message="Đang kiểm tra xác thực..." />;
   }
 
-  // 2. Nếu không được xác thực, chuyển hướng về trang đăng nhập
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. Nếu đã xác thực, hiển thị trang yêu cầu bên trong Layout chung.
-  // Layout sẽ chứa Header, Sidebar và quản lý sự tương tác giữa chúng.
+  if (requiredRole && user?.role !== requiredRole) {
+    // Chuyển hướng đến trang không có quyền (cần được kích hoạt)
+    // return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/" replace />; // Tạm thời chuyển về trang chủ
+  }
+
+  if (requiredPermission && !hasPermission(requiredPermission)) {
+    // return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/" replace />; // Tạm thời chuyển về trang chủ
+  }
+
   return <Layout>{children}</Layout>;
 }
 
+// Component bảo vệ route dựa trên vai trò (role)
+function RoleBasedRoute({ children, allowedRoles = [] }) {
+    const { user, isLoading } = useAuth();
 
-/**
- * =================================================================
- * Main App Component
- * =================================================================
- */
+    if (isLoading) {
+        return <PageLoader message="Đang kiểm tra quyền truy cập..." />;
+    }
+
+    if (!user || !allowedRoles.includes(user.role)) {
+        // return <Navigate to="/unauthorized" replace />;
+        return <Navigate to="/" replace />; // Tạm thời chuyển về trang chủ
+    }
+
+    return <Layout>{children}</Layout>;
+}
+
+
+// =================================================================
+// Main App Component
+// =================================================================
+
 function App() {
   return (
     <HelmetProvider>
-      <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <Helmet>
-            <title>1CAR - EDMS</title>
-            <meta name="description" content="Electronic Document Management System for 1CAR" />
-          </Helmet>
-          
-          <div className="min-h-screen bg-gray-50">
+          <ErrorBoundary>
+            {/* --- Helmet cho metadata mặc định --- */}
+            <Helmet>
+              <title>1CAR - EDMS</title>
+              <meta name="description" content="Hệ thống Quản lý Tài liệu Điện tử cho 1CAR" />
+            </Helmet>
+
+            {/* --- Suspense cho lazy loading các trang --- */}
             <Suspense fallback={<PageLoader message="Đang tải trang..." />}>
               <Routes>
-                {/* Route công khai, không cần xác thực */}
+                {/* Public Routes */}
                 <Route path="/login" element={<LoginPage />} />
+                {/* <Route path="/unauthorized" element={<UnauthorizedPage />} /> */}
                 
-                {/* Các routes dưới đây đều được bọc bởi ProtectedRoute.
-                  ProtectedRoute sẽ tự động kiểm tra quyền và áp dụng Layout.
-                  Đây là một cách tổ chức code rất hiệu quả.
-                */}
+                {/* Protected Routes */}
                 <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                 <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
                 <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
-                <Route path="/upload" element={<ProtectedRoute><UploadPage /></ProtectedRoute>} />
-                <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
-                <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
-                <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
-                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                
-                {/* Route cho các đường dẫn không tồn tại */}
+
+                {/* Role-Based Routes */}
+                <Route 
+                  path="/upload" 
+                  element={<RoleBasedRoute allowedRoles={['user', 'manager', 'admin']}><UploadPage /></RoleBasedRoute>} 
+                />
+
+                {/* Admin & Specific Permission Routes */}
+                <Route 
+                  path="/users" 
+                  element={<ProtectedRoute requiredRole="admin"><UsersPage /></ProtectedRoute>} 
+                />
+                <Route 
+                  path="/archive" 
+                  element={<ProtectedRoute requiredPermission="view_audit_logs"><ArchivePage /></ProtectedRoute>} 
+                />
+                <Route 
+                  path="/activity" 
+                  element={<ProtectedRoute requiredPermission="view_audit_logs"><ActivityPage /></ProtectedRoute>} 
+                />
+                <Route 
+                  path="/settings" 
+                  element={<ProtectedRoute requiredPermission="manage_system"><SettingsPage /></ProtectedRoute>} 
+                />
+
+                {/* Catch-all Route cho 404 Not Found */}
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>
-          </div>
-        </AuthProvider>
-      </ErrorBoundary>
-    </HelmetProvider>
-  );
-}
 
-// Helper component for a full-page loader, consistent with ProtectedRoute's loader
-function PageLoader({ message }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="large" message={message} />
-    </div>
+            {/* --- Toaster cho thông báo --- */}
+            <Toaster 
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: { background: '#363636', color: '#fff', fontSize: '14px' },
+                success: { duration: 3000, iconTheme: { primary: '#10B981', secondary: '#fff' } },
+                error: { duration: 5000, iconTheme: { primary: '#EF4444', secondary: '#fff' } },
+              }}
+            />
+          </ErrorBoundary>
+        </AuthProvider>
+        
+        {/* --- React Query DevTools (chỉ trong môi trường development) --- */}
+        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 }
 

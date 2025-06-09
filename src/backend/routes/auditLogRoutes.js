@@ -1,4 +1,11 @@
 // src/backend/routes/auditLogRoutes.js
+/**
+ * =================================================================
+ * EDMS 1CAR - Audit Log Routes
+ * Enhanced with recent activities endpoint for Dashboard
+ * =================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const AuditService = require('../services/auditService');
@@ -8,6 +15,49 @@ const { auditMiddleware, autoAudit } = require('../middleware/auditMiddleware');
 
 router.use(auditMiddleware);
 
+/**
+ * GET /api/audit-logs/recent
+ * Lấy hoạt động gần đây theo vai trò người dùng - Cho Dashboard Widget
+ */
+router.get('/recent',
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const { limit = 10, userId, department } = req.query;
+      
+      const result = await AuditService.getRecentActivities({
+        limit: parseInt(limit),
+        userId: userId ? parseInt(userId) : null,
+        department,
+        requestingUser: req.user
+      });
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          data: result.data,
+          timestamp: new Date().toISOString(),
+          requestId: req.requestId,
+        });
+      } else {
+        res.status(result.statusCode || 500).json({
+          success: false,
+          message: result.error || 'Không thể lấy hoạt động gần đây.',
+          code: result.code || 'RECENT_ACTIVITIES_FETCH_FAILED',
+          timestamp: new Date().toISOString(),
+          requestId: req.requestId,
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/audit-logs
+ * Lấy danh sách audit logs với phân trang
+ */
 router.get(
   '/',
   authenticateToken,

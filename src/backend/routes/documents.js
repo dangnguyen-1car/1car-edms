@@ -1,9 +1,11 @@
 // src/backend/routes/documents.js
 /**
-EDMS 1CAR - Document Routes (Complete Integration Version)
-Tích hợp đầy đủ SearchService và auditCRUD middleware
-Loại bỏ hoàn toàn mock data và fallback logic
-*/
+ * =================================================================
+ * EDMS 1CAR - Document Routes (Complete Integration Version)
+ * Tích hợp đầy đủ SearchService và auditCRUD middleware
+ * Bao gồm API cho Dashboard widgets
+ * =================================================================
+ */
 
 const express = require('express');
 const router = express.Router();
@@ -20,9 +22,76 @@ const SearchService = require('../services/searchService');
 router.use(auditMiddleware);
 
 /**
-GET /api/documents/types
-Lấy danh sách loại tài liệu
-*/
+ * GET /api/documents/stats
+ * Lấy thống kê tài liệu theo trạng thái - Cho Dashboard Widget
+ */
+router.get('/stats',
+  authenticateToken,
+  checkPermission('VIEW_DOCUMENT', 'document'),
+  async (req, res, next) => {
+    try {
+      const { department, dateFrom, dateTo } = req.query;
+      const documentService = serviceFactory.getDocumentService();
+      
+      // Gọi service để lấy thống kê
+      const result = await documentService.getDocumentStatistics(req.user, {
+        department,
+        dateFrom,
+        dateTo
+      });
+
+      setAuditDetails(res, 'DOCUMENT_STATISTICS_VIEWED', 'document', null, {
+        userRole: req.user.role,
+        userDepartment: req.user.department,
+        filtersApplied: { department, dateFrom, dateTo }
+      });
+
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+        requestId: req.requestId
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/documents/pending-approval
+ * Lấy tài liệu cần phê duyệt theo vai trò - Cho Dashboard Widget
+ */
+router.get('/pending-approval',
+  authenticateToken,
+  checkPermission('VIEW_DOCUMENT', 'document'),
+  async (req, res, next) => {
+    try {
+      const { limit = 10 } = req.query;
+      const documentService = serviceFactory.getDocumentService();
+      
+      const result = await documentService.getPendingApprovalsForUser(req.user, parseInt(limit));
+
+      setAuditDetails(res, 'PENDING_APPROVALS_VIEWED', 'document', null, {
+        userRole: req.user.role,
+        userDepartment: req.user.department,
+        documentsCount: result.data?.length || 0
+      });
+
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+        requestId: req.requestId
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/documents/types
+ * Lấy danh sách loại tài liệu
+ */
 router.get('/types',
   authenticateToken,
   auditCRUD.read('system'),
@@ -51,9 +120,9 @@ router.get('/types',
 );
 
 /**
-GET /api/documents/departments
-Lấy danh sách phòng ban
-*/
+ * GET /api/documents/departments
+ * Lấy danh sách phòng ban
+ */
 router.get('/departments',
   authenticateToken,
   auditCRUD.read('system'),
@@ -89,9 +158,9 @@ router.get('/departments',
 );
 
 /**
-GET /api/documents/workflow-states
-Lấy trạng thái workflow
-*/
+ * GET /api/documents/workflow-states
+ * Lấy trạng thái workflow
+ */
 router.get('/workflow-states',
   authenticateToken,
   auditCRUD.read('system'),
@@ -117,37 +186,9 @@ router.get('/workflow-states',
 );
 
 /**
-GET /api/documents/statistics
-Thống kê tài liệu
-*/
-router.get('/statistics',
-  authenticateToken,
-  checkPermission('VIEW_DOCUMENT', 'document'),
-  async (req, res, next) => {
-    try {
-      const documentService = serviceFactory.getDocumentService();
-      const result = await documentService.getDocumentStatistics(req.user);
-
-      setAuditDetails(res, 'DOCUMENT_STATISTICS_VIEWED', 'document', null, {
-        userRole: req.user.role,
-        userDepartment: req.user.department
-      });
-
-      res.json({
-        ...result,
-        timestamp: new Date().toISOString(),
-        requestId: req.requestId
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
-GET /api/documents/due-for-review
-Tài liệu cần review
-*/
+ * GET /api/documents/due-for-review
+ * Tài liệu cần review
+ */
 router.get('/due-for-review',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
@@ -174,9 +215,9 @@ router.get('/due-for-review',
 );
 
 /**
-GET /api/documents/search-filters
-Lấy metadata cho bộ lọc tìm kiếm
-*/
+ * GET /api/documents/search-filters
+ * Lấy metadata cho bộ lọc tìm kiếm
+ */
 router.get('/search-filters',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
@@ -206,9 +247,9 @@ router.get('/search-filters',
 );
 
 /**
-GET /api/documents/search-suggestions
-Gợi ý tìm kiếm
-*/
+ * GET /api/documents/search-suggestions
+ * Gợi ý tìm kiếm
+ */
 router.get('/search-suggestions',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
@@ -250,9 +291,9 @@ router.get('/search-suggestions',
 );
 
 /**
-GET /api/documents
-Tìm kiếm và lọc tài liệu - Tích hợp SearchService
-*/
+ * GET /api/documents
+ * Tìm kiếm và lọc tài liệu - Tích hợp SearchService
+ */
 router.get('/',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
@@ -296,9 +337,9 @@ router.get('/',
 );
 
 /**
-GET /api/documents/:id
-Lấy chi tiết tài liệu
-*/
+ * GET /api/documents/:id
+ * Lấy chi tiết tài liệu
+ */
 router.get('/:id',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
@@ -333,9 +374,9 @@ router.get('/:id',
 );
 
 /**
-POST /api/documents
-Tạo tài liệu mới
-*/
+ * POST /api/documents
+ * Tạo tài liệu mới
+ */
 router.post('/',
   authenticateToken,
   checkPermission('CREATE_DOCUMENT', 'document'),
@@ -382,9 +423,9 @@ router.post('/',
 );
 
 /**
-PUT /api/documents/:id
-Cập nhật tài liệu
-*/
+ * PUT /api/documents/:id
+ * Cập nhật tài liệu
+ */
 router.put('/:id',
   authenticateToken,
   checkPermission('EDIT_DOCUMENT', 'document'),
@@ -418,9 +459,9 @@ router.put('/:id',
 );
 
 /**
-PUT /api/documents/:id/status
-Cập nhật trạng thái tài liệu
-*/
+ * PUT /api/documents/:id/status
+ * Cập nhật trạng thái tài liệu
+ */
 router.put('/:id/status',
   authenticateToken,
   checkPermission('APPROVE_DOCUMENT', 'document'),
@@ -461,9 +502,9 @@ router.put('/:id/status',
 );
 
 /**
-POST /api/documents/:id/versions
-Tạo phiên bản mới
-*/
+ * POST /api/documents/:id/versions
+ * Tạo phiên bản mới
+ */
 router.post('/:id/versions',
   authenticateToken,
   checkPermission('CREATE_VERSION', 'document'),
@@ -505,9 +546,9 @@ router.post('/:id/versions',
 );
 
 /**
-GET /api/documents/:id/versions
-Lấy lịch sử phiên bản
-*/
+ * GET /api/documents/:id/versions
+ * Lấy lịch sử phiên bản
+ */
 router.get('/:id/versions',
   authenticateToken,
   checkPermission('VIEW_VERSION_HISTORY', 'document'),
@@ -540,9 +581,9 @@ router.get('/:id/versions',
 );
 
 /**
-GET /api/documents/:id/workflow
-Lấy lịch sử workflow
-*/
+ * GET /api/documents/:id/workflow
+ * Lấy lịch sử workflow
+ */
 router.get('/:id/workflow',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
@@ -575,9 +616,9 @@ router.get('/:id/workflow',
 );
 
 /**
-POST /api/documents/:id/files
-Đính kèm file
-*/
+ * POST /api/documents/:id/files
+ * Đính kèm file
+ */
 router.post('/:id/files',
   authenticateToken,
   checkPermission('EDIT_DOCUMENT', 'document'),
@@ -616,9 +657,9 @@ router.post('/:id/files',
 );
 
 /**
-DELETE /api/documents/:id
-Xóa tài liệu
-*/
+ * DELETE /api/documents/:id
+ * Xóa tài liệu
+ */
 router.delete('/:id',
   authenticateToken,
   checkPermission('DELETE_DOCUMENT', 'document'),
@@ -647,9 +688,9 @@ router.delete('/:id',
 );
 
 /**
-GET /api/documents/:id/download
-Download tài liệu
-*/
+ * GET /api/documents/:id/download
+ * Download tài liệu
+ */
 router.get('/:id/download',
   authenticateToken,
   checkPermission('VIEW_DOCUMENT', 'document'),
