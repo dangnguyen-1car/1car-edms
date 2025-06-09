@@ -121,6 +121,32 @@ class DocumentService {
     }
   }
 
+  /**
+   * Gọi API backend để lấy gợi ý mã tài liệu
+   * @param {string} type
+   * @param {string} department
+   * @returns {Promise<Object>} { success, data: { suggestedCode, ... } }
+   */
+  async getSuggestedCode(type, department) {
+    try {
+      if (!type || !department) {
+        throw new Error('Loại tài liệu và phòng ban là bắt buộc');
+      }
+      const response = await api.get('/documents/suggest-code', {
+        params: { type, department }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting suggested code:', error);
+      throw new Error(
+        error.response?.data?.message ||
+        error.message ||
+        'Lỗi khi lấy gợi ý mã tài liệu'
+      );
+    }
+  }
+
+
   // =================================================================
   // Thao tác CRUD trên một tài liệu
   // =================================================================

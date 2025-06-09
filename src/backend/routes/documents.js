@@ -22,6 +22,42 @@ const SearchService = require('../services/searchService');
 router.use(auditMiddleware);
 
 /**
+ * GET /api/documents/suggest-code
+ * Gợi ý mã tài liệu dựa trên loại và phòng ban
+ */
+router.get('/suggest-code',
+  authenticateToken,
+  checkPermission('CREATE_DOCUMENT', 'document'),
+  async (req, res, next) => {
+    try {
+      const { type, department } = req.query;
+      if (!type || !department) {
+        throw createError('Thiếu thông tin loại tài liệu hoặc phòng ban', 400, 'MISSING_PARAMETERS');
+      }
+      const documentService = serviceFactory.getDocumentService();
+      const context = {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        sessionId: req.sessionID
+      };
+      const result = await documentService.suggestDocumentCode(type, department, req.user, context);
+      setAuditDetails(res, 'DOCUMENT_CODE_SUGGESTED', 'system', null, {
+        type,
+        department,
+        suggestedCode: result.data?.suggestedCode
+      });
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+        requestId: req.requestId
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/documents/stats
  * Lấy thống kê tài liệu theo trạng thái - Cho Dashboard Widget
  */

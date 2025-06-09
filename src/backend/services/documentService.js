@@ -1,15 +1,14 @@
 // src/backend/services/documentService.js
 /**
-=================================================================
-EDMS 1CAR - Document Service (Refactored & Fixed)
-=================================================================
-*/
-
+ * =================================================================
+ * EDMS 1CAR - Document Service (Refactored)
+ * =================================================================
+ */
 const Document = require('../models/Document');
 const User = require('../models/User');
 const { logDocumentOperation, logError } = require('../utils/logger');
 const { createError } = require('../middleware/errorHandler');
-const { dbManager } = require('../config/database'); // Import dbManager
+const { dbManager } = require('../config/database');
 
 class DocumentService {
   constructor(permissionService, workflowService, auditService) {
@@ -18,7 +17,78 @@ class DocumentService {
     this.auditService = auditService;
   }
 
-  // ... (Các hàm khác như createDocument, getDocument, etc. giữ nguyên)
+  /**
+   * Gợi ý mã tài liệu theo loại và phòng ban (API /suggest-code)
+   * @param {string} type
+   * @param {string} department
+   * @param {Object} user
+   * @param {Object} context
+   * @returns {Promise<Object>}
+   */
+  async suggestDocumentCode(type, department, user, context = {}) {
+    try {
+      if (!type || !department) {
+        throw createError('Loại tài liệu và phòng ban là bắt buộc', 400, 'MISSING_REQUIRED_FIELDS');
+      }
+      // Validate document type
+      const validTypes = ['PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC'];
+      if (!validTypes.includes(type)) {
+        throw createError('Loại tài liệu không hợp lệ', 400, 'INVALID_DOCUMENT_TYPE');
+      }
+      // Sinh mã phòng ban
+      const deptWords = department.split(' ');
+      let deptCode = '';
+      if (deptWords.length > 1 && deptWords[0].length > 1 && deptWords[1].length > 0) {
+        deptCode = (deptWords[0][0] + deptWords[1][0]).toUpperCase();
+      } else {
+        deptCode = deptWords[0].substring(0, Math.min(deptWords[0].length, 3)).toUpperCase();
+      }
+      // Tìm số thứ tự tiếp theo
+      let sequenceNumber = 1;
+      let suggestedCode = '';
+      let isAvailable = false;
+      let attempts = 0;
+      const maxAttempts = 999;
+      while (!isAvailable && attempts < maxAttempts) {
+        const paddedSequence = sequenceNumber.toString().padStart(3, '0');
+        suggestedCode = `C-${type}-${deptCode}-${paddedSequence}`;
+        const existing = await dbManager.get(
+          'SELECT id FROM documents WHERE document_code = ?',
+          [suggestedCode]
+        );
+        if (!existing) isAvailable = true;
+        else {
+          sequenceNumber++;
+          attempts++;
+        }
+      }
+      if (!isAvailable) {
+        throw createError('Không thể tạo mã tài liệu duy nhất', 500, 'CODE_GENERATION_FAILED');
+      }
+      logDocumentOperation('DOCUMENT_CODE_SUGGESTED', null, user.id, {
+        type, department, suggestedCode, attempts: attempts + 1
+      });
+      return {
+        success: true,
+        data: {
+          suggestedCode,
+          type,
+          department,
+          deptCode,
+          sequenceNumber,
+          attempts: attempts + 1
+        }
+      };
+    } catch (error) {
+      logError(error, null, {
+        operation: 'DocumentService.suggestDocumentCode',
+        type,
+        department,
+        userId: user ? user.id : null
+      });
+      throw error;
+    }
+  }
 
   /**
    * Get documents pending approval for a specific user.
@@ -81,10 +151,6 @@ class DocumentService {
     }
   }
 
-
-  // ... (Các hàm còn lại của DocumentService)
-
-
   /**
    * Get document statistics
    * @param {Object} user - Current user
@@ -111,8 +177,6 @@ class DocumentService {
     }
   }
 
-  // ... (Phần còn lại của file giữ nguyên)
-  
   /**
    * Delete document (soft delete by archiving)
    * Ủy thác cho WorkflowService để chuyển sang archived
