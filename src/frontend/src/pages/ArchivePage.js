@@ -1,7 +1,7 @@
 // src/frontend/src/pages/ArchivePage.js
 /**
  * =================================================================
- * EDMS 1CAR - Archive Page (Admin Only - ESLint Hooks Fixed & isError defined)
+ * EDMS 1CAR - Archive Page (Admin Only - Fixed Missing Key Error)
  * Archived documents management interface
  * =================================================================
  */
@@ -9,91 +9,86 @@
 // Imports
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiArchive, FiRotateCcw, FiAlertCircle, FiSearch, FiFilter, FiFileText, FiCalendar, FiUser, FiRefreshCw } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-// Layout sẽ được áp dụng bởi ProtectedRoute trong App.js
-// import Layout from '../components/layout/Layout'; 
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import Pagination from '../components/common/Pagination';
 import { documentService } from '../services/documentService';
 
 // Main ArchivePage Component
 function ArchivePage() {
-  // === ALL HOOKS MUST BE CALLED AT THE TOP LEVEL ===
+  // === HOOKS ===
   const { isAuthenticated, isLoading: isLoadingAuth, user: currentUser, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [filters, setFilters] = useState({
-    search: '',
-    type: '',
-    department: '',
-    date_from: '', // Sẽ filter theo archived_at từ backend nếu có
-    date_to: ''
+    search: '', type: '', department: '', date_from: '', date_to: ''
   });
 
-  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery(
-    'documentTypesForArchiveFilter',
-    documentService.getDocumentTypes,
-    { staleTime: 5 * 60 * 1000 }
-  );
-  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery(
-    'departmentsForArchiveFilter',
-    documentService.getDepartments,
-    { staleTime: 5 * 60 * 1000 }
-  );
+  const { data: docTypesData, isPending: isPendingDocTypes } = useQuery({
+    queryKey: ['documentTypesForArchiveFilter'],
+    queryFn: documentService.getDocumentTypes,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => res?.data?.documentTypes.map(dt => ({ value: dt.code, label: dt.name })) || [],
+  });
+  
+  const { data: departmentOptions, isPending: isPendingDepts } = useQuery({
+    queryKey: ['departmentsForArchiveFilter'],
+    queryFn: documentService.getDepartments,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => res?.data?.departments || [],
+  });
 
-  const documentTypeOptions = docTypesData?.data?.documentTypes || [];
-  const departmentOptions = departmentsData?.data?.departments || [];
+  const documentTypeOptions = docTypesData || [];
 
   const canFetchArchived = isAuthenticated && !isLoadingAuth && (hasPermission('manage_archive') || currentUser?.role === 'admin');
-  // SỬA Ở ĐÂY: Thêm isError vào destructuring
-  const { data: documentsData, isLoading: isLoadingDocuments, isFetching, error, isError, refetch } = useQuery(
-    ['archived-documents', currentPage, pageSize, filters],
-    async () => {
+
+  const { 
+    data: documentsData, 
+    isPending: isLoadingDocuments,
+    isFetching, 
+    error, 
+    isError, 
+    refetch 
+  } = useQuery({
+    queryKey: ['archived-documents', currentPage, pageSize, filters],
+    queryFn: async () => {
       const params = {
-        page: currentPage,
-        limit: pageSize,
-        status: 'archived', 
-        search: filters.search || undefined,
-        type: filters.type || undefined,
+        page: currentPage, limit: pageSize, status: 'archived', 
+        search: filters.search || undefined, type: filters.type || undefined,
         department: filters.department || undefined,
-        // Backend searchDocuments cần hỗ trợ filter theo khoảng ngày lưu trữ (archived_at_from, archived_at_to)
-        // date_from: filters.date_from || undefined, 
-        // date_to: filters.date_to || undefined,
       };
-      // Xóa các params undefined để không gửi lên server
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
       return documentService.searchDocuments(params);
     },
-    {
-      keepPreviousData: true,
-      staleTime: 2 * 60 * 1000,
-      enabled: canFetchArchived, 
-      onError: (err) => {
-        console.error("Error fetching archived documents:", err);
-        toast.error(err.response?.data?.message || err.message || "Lỗi tải tài liệu lưu trữ.");
-      }
-    }
-  );
+    keepPreviousData: true,
+    staleTime: 2 * 60 * 1000,
+    enabled: canFetchArchived,
+  });
 
-  const restoreDocumentMutation = useMutation(
-    ({ documentId, newStatus }) => documentService.updateDocumentStatus(documentId, newStatus, 'Khôi phục từ lưu trữ bởi Admin'),
-    {
-      onSuccess: (data, variables) => {
-        toast.success('Khôi phục tài liệu thành công! Tài liệu đã được chuyển về trạng thái "Bản nháp".');
-        queryClient.invalidateQueries('archived-documents');
-        queryClient.invalidateQueries('documents'); 
-      },
-      onError: (err) => { 
-        toast.error(err.response?.data?.message || err.message || 'Đã xảy ra lỗi khi khôi phục.');
-      }
+  useEffect(() => {
+    if (isError && error) {
+      console.error("Error fetching archived documents:", error);
+      toast.error(error.response?.data?.message || error.message || "Lỗi tải tài liệu lưu trữ.");
     }
-  );
+  }, [isError, error]);
 
-  // === EARLY RETURNS AFTER ALL HOOKS ARE CALLED ===
+  const restoreDocumentMutation = useMutation({
+    mutationFn: ({ documentId, newStatus }) => documentService.updateDocumentStatus(documentId, newStatus, 'Khôi phục từ lưu trữ bởi Admin'),
+    onSuccess: () => {
+      toast.success('Khôi phục tài liệu thành công!');
+      queryClient.invalidateQueries({ queryKey: ['archived-documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] }); 
+    },
+    onError: (err) => { 
+      toast.error(err.response?.data?.message || err.message || 'Đã xảy ra lỗi khi khôi phục.');
+    }
+  });
+
+  // === EARLY RETURNS ===
   if (isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -118,6 +113,7 @@ function ArchivePage() {
     );
   }
   
+  // === EVENT HANDLERS ===
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setCurrentPage(1);
@@ -129,18 +125,17 @@ function ArchivePage() {
   };
 
   const handleRestoreDocument = (document) => {
-    if (window.confirm(`Bạn có chắc chắn muốn khôi phục tài liệu "${document.title}" (Mã: ${document.document_code}) về trạng thái "Bản nháp"?`)) {
+    if (window.confirm(`Bạn có chắc muốn khôi phục tài liệu "${document.title}" (Mã: ${document.document_code})?`)) {
       restoreDocumentMutation.mutate({ documentId: document.id, newStatus: 'draft' });
     }
   };
 
-  const getDocumentTypeDisplay = (typeCode) => documentTypeOptions.find(t => t.code === typeCode)?.name || typeCode;
+  const getDocumentTypeDisplay = (typeCode) => (documentTypeOptions.find(t => t.value === typeCode)?.label || typeCode);
 
   const archivedDocuments = documentsData?.data?.documents || [];
   const pagination = documentsData?.data?.pagination || { total: 0, totalPages: 1, page: currentPage, limit: pageSize };
 
   return (
-    // Layout sẽ được áp dụng bởi ProtectedRoute trong App.js
     <div>
       <div className="max-w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
@@ -170,16 +165,17 @@ function ArchivePage() {
               </div>
               <div>
                 <label className="form-label">Loại tài liệu</label>
-                <select value={filters.type} onChange={(e) => handleFilterChange('type', e.target.value)} className="form-select" disabled={isLoadingDocTypes}>
-                  <option value="">{isLoadingDocTypes ? "Đang tải..." : "Tất cả loại"}</option>
-                  {documentTypeOptions.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
+                <select value={filters.type} onChange={(e) => handleFilterChange('type', e.target.value)} className="form-select" disabled={isPendingDocTypes}>
+                  <option value="">{isPendingDocTypes ? "Đang tải..." : "Tất cả loại"}</option>
+                  {documentTypeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="form-label">Phòng ban</label>
-                <select value={filters.department} onChange={(e) => handleFilterChange('department', e.target.value)} className="form-select" disabled={isLoadingDepts}>
-                  <option value="">{isLoadingDepts ? "Đang tải..." : "Tất cả phòng ban"}</option>
-                  {departmentOptions.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                <select value={filters.department} onChange={(e) => handleFilterChange('department', e.target.value)} className="form-select" disabled={isPendingDepts}>
+                  <option value="">{isPendingDepts ? "Đang tải..." : "Tất cả phòng ban"}</option>
+                  {/* === SỬA LỖI TẠI ĐÂY === */}
+                  {(departmentOptions || []).map(dept => <option key={dept} value={dept}>{dept}</option>)}
                 </select>
               </div>
               <div>
@@ -206,7 +202,7 @@ function ArchivePage() {
           <div className="card-body p-0">
             {isLoadingDocuments && !documentsData ? (
               <div className="flex justify-center py-12"><LoadingSpinner size="large" message="Đang tải tài liệu lưu trữ..." /></div>
-            ) : isError && !documentsData ? ( // SỬ DỤNG isError đã khai báo
+            ) : isError && !documentsData ? (
                  <div className="text-center py-10 text-red-600">
                     <FiAlertCircle className="mx-auto h-10 w-10 mb-2"/>
                     <p>Lỗi tải tài liệu: {error?.message || 'Không rõ lỗi'}</p>
@@ -239,8 +235,8 @@ function ArchivePage() {
                           <button onClick={() => handleRestoreDocument(doc)}
                                   className="btn-icon text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-md"
                                   title="Khôi phục tài liệu"
-                                  disabled={restoreDocumentMutation.isLoading && restoreDocumentMutation.variables?.documentId === doc.id}>
-                            {restoreDocumentMutation.isLoading && restoreDocumentMutation.variables?.documentId === doc.id ? <LoadingSpinner size="sm" noMessage={true}/> : <FiRotateCcw size={16} />}
+                                  disabled={restoreDocumentMutation.isPending && restoreDocumentMutation.variables?.documentId === doc.id}>
+                            {restoreDocumentMutation.isPending && restoreDocumentMutation.variables?.documentId === doc.id ? <LoadingSpinner size="sm" noMessage={true}/> : <FiRotateCcw size={16} />}
                           </button>
                         </td>
                       </tr>

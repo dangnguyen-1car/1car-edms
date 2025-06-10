@@ -1,6 +1,7 @@
 // src/frontend/src/pages/DocumentsPage.js
 import React from 'react';
-import { useQuery } from 'react-query';
+// Sửa đổi 1: Đảm bảo import từ đúng package
+import { useQuery } from '@tanstack/react-query';
 import DocumentList from '../components/documents/DocumentList';
 import Breadcrumb from '../components/common/Breadcrumb';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -12,33 +13,31 @@ function DocumentsPage() {
     { label: 'Quản lý tài liệu', href: '/documents', current: true }
   ];
 
-  // Fetch options for dropdowns - centralized at page level
-  const { data: docTypesData, isLoading: isLoadingDocTypes } = useQuery(
-    'documentTypes',
-    documentService.getDocumentTypes,
-    { 
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000 // 10 minutes
-    }
-  );
+  // --- BẮT ĐẦU SỬA ĐỔI ---
+
+  // Sửa đổi 2: Cập nhật cú pháp useQuery sang dạng object và dùng isPending
+  const { data: docTypesData, isPending: isPendingDocTypes } = useQuery({
+    queryKey: ['documentTypes'],
+    queryFn: documentService.getDocumentTypes,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+  });
   
-  const { data: departmentsData, isLoading: isLoadingDepts } = useQuery(
-    'departmentsList',
-    documentService.getDepartments,
-    { 
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 10 * 60 * 1000
-    }
-  );
+  const { data: departmentsData, isPending: isPendingDepts } = useQuery({
+    queryKey: ['departmentsList'],
+    queryFn: documentService.getDepartments,
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+  });
   
-  const { data: workflowStatesData, isLoading: isLoadingStatuses } = useQuery(
-    'workflowStates',
-    documentService.getWorkflowStates,
-    { 
-      staleTime: 5 * 60 * 1000,
-      cacheTime: 10 * 60 * 1000
-    }
-  );
+  const { data: workflowStatesData, isPending: isPendingStatuses } = useQuery({
+    queryKey: ['workflowStates'],
+    queryFn: documentService.getWorkflowStates,
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+  });
+
+  // --- KẾT THÚC SỬA ĐỔI ---
 
   // Map data to options format
   const mappedDocumentTypeOptions = docTypesData?.data?.documentTypes?.map(dt => ({ 
@@ -56,7 +55,8 @@ function DocumentsPage() {
     label: s.name 
   })) || [];
   
-  const isLoadingOptions = isLoadingDocTypes || isLoadingDepts || isLoadingStatuses;
+  // Sửa đổi 3: Cập nhật biến kiểm tra loading options để sử dụng isPending
+  const isLoadingOptions = isPendingDocTypes || isPendingDepts || isPendingStatuses;
 
   // Show loading state while fetching critical dropdown data
   if (isLoadingOptions) {

@@ -1,6 +1,6 @@
 // src/frontend/src/components/dashboard/RecentActivitiesWidget.js
 import React from 'react';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { FiActivity, FiUser, FiFileText, FiClock, FiExternalLink } from 'react-icons/fi';
 import { dashboardService } from '../../services/dashboardService';

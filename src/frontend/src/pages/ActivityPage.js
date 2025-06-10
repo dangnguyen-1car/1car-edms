@@ -9,7 +9,7 @@
 // Imports
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 // THÊM FiX VÀO IMPORT
 import { FiActivity, FiAlertCircle, FiSearch, FiFilter, FiUser, FiCalendar, FiEye, FiRefreshCw, FiX } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';

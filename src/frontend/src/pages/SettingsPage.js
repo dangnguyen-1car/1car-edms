@@ -9,7 +9,7 @@
 // Imports
 import React, { useState, useEffect } from 'react'; // useEffect có thể cần nếu bạn fetch options cho system settings
 import { Navigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiSettings, FiUser, FiLock, FiSave, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';

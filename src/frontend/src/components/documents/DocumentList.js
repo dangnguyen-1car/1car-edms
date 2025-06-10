@@ -6,7 +6,7 @@
 
 // 1. IMPORTS
 import React, { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from 'react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FiFileText, FiEye, FiEdit, FiDownload, FiUser, FiCalendar, FiTag, FiSearch, FiFilter, FiRefreshCw, FiAlertCircle, FiPlus, FiGrid, FiList, FiDownload as FiExport } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';

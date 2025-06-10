@@ -1,7 +1,7 @@
 // src/frontend/src/pages/UsersPage.js
 /**
  * =================================================================
- * EDMS 1CAR - Users Management Page (Admin Only - ESLint Hooks Fixed)
+ * EDMS 1CAR - Users Management Page (Admin Only - Refactored for TanStack Query)
  * User management interface for administrators
  * =================================================================
  */
@@ -9,17 +9,16 @@
 // Imports
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
-// Thêm FiX và FiRefreshCw (nếu chưa có)
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiUsers, FiPlus, FiEdit, FiLock, FiUnlock, FiKey, FiAlertCircle, FiSearch, FiFilter, FiX, FiRefreshCw } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import Layout from '../components/layout/Layout'; // Layout sẽ được áp dụng bởi ProtectedRoute trong App.js
+import Layout from '../components/layout/Layout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import Pagination from '../components/common/Pagination';
 import { userService } from '../services/userService';
 
-// UserFormModal Component
+// UserFormModal Component - KHÔI PHỤC ĐẦY ĐỦ
 function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
   const initialFormData = {
     name: '', email: '', password: '', department: '', role: 'user',
@@ -31,7 +30,7 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
   
   const [departments, setDepartments] = useState([]);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
-  const [rolesOptions, setRolesOptions] = useState([ // Giữ lại rolesOptions cố định vì ít thay đổi
+  const [rolesOptions, setRolesOptions] = useState([
     { value: 'admin', label: 'Quản trị viên' },
     { value: 'user', label: 'Người dùng' }
   ]);
@@ -51,13 +50,11 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
       setErrors({});
       
       setIsLoadingDepartments(true);
-      userService.getDepartments() // Gọi hàm đã được sửa trong userService
-        .then(apiResponse => { // apiResponse ở đây là { success: true, data: { departments: [...] } }
+      userService.getDepartments()
+        .then(apiResponse => {
           if (apiResponse.success && Array.isArray(apiResponse.data?.departments)) {
-            // Truy cập đúng vào mảng departments: apiResponse.data.departments
             setDepartments(apiResponse.data.departments);
           } else {
-            // Fallback nếu API lỗi hoặc không trả về đúng định dạng
             console.warn("Failed to fetch departments from API or invalid format, using fallback.");
             setDepartments([
               'Ban Giám đốc', 'Phòng Phát triển Nhượng quyền', 'Phòng Đào tạo Tiêu chuẩn',
@@ -69,18 +66,11 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
           }
         }).catch((err) => {
            console.error("Error fetching departments for UserFormModal:", err);
-           setDepartments(['Ban Giám đốc', /* ... fallback list ... */ 'Quản lý Garage']);
+           setDepartments(['Ban Giám đốc', 'Quản lý Garage']);
            toast.error("Không thể tải danh sách phòng ban cho form.");
         }).finally(() => {
             setIsLoadingDepartments(false);
         });
-      
-      // Nếu cần fetch roles động:
-      // userService.getRoles().then(response => {
-      //   if (response.success && Array.isArray(response.data?.roles)) {
-      //     setRolesOptions(response.data.roles.map(r => ({value: r.code, label: r.name}))); // Giả sử API trả về code, name
-      //   }
-      // });
     }
   }, [isOpen, existingUser]);
 
@@ -90,9 +80,9 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
     if (!formData.email.trim()) newErrors.email = 'Email là bắt buộc';
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email không hợp lệ';
     
-    if (!existingUser && !formData.password) { // Mật khẩu bắt buộc khi tạo mới
+    if (!existingUser && !formData.password) {
         newErrors.password = 'Mật khẩu là bắt buộc';
-    } else if (formData.password && formData.password.length < 6) { // Nếu có nhập mật khẩu thì phải đủ dài
+    } else if (formData.password && formData.password.length < 6) {
         newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
     
@@ -109,7 +99,7 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
     setLoading(true);
     try {
       const dataToSubmit = { ...formData };
-      if (existingUser && !dataToSubmit.password) { // Nếu là update và không nhập pass mới thì không gửi trường password
+      if (existingUser && !dataToSubmit.password) {
         delete dataToSubmit.password;
       }
 
@@ -117,12 +107,11 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
         ? await userService.updateUser(existingUser.id, dataToSubmit)
         : await userService.createUser(dataToSubmit);
 
-      if (response.success || response.data?.id || response.id ) { // Kiểm tra các trường hợp response thành công có thể có
+      if (response.success || response.data?.id || response.id ) {
         toast.success(existingUser ? 'Cập nhật người dùng thành công!' : 'Tạo người dùng thành công!');
-        if(onSuccess) onSuccess(); // Gọi callback để refresh list ở UsersPage
-        onClose(); // Đóng modal
+        if(onSuccess) onSuccess();
+        onClose();
       } else {
-        // Nếu backend trả về lỗi có cấu trúc errors: { field: 'message' }
         if (response.errors) {
             setErrors(response.errors);
             const firstError = Object.values(response.errors)[0];
@@ -218,6 +207,7 @@ function UserFormModal({ isOpen, onClose, user: existingUser, onSuccess }) {
   );
 }
 
+// ResetPasswordModal Component - KHÔI PHỤC ĐẦY ĐỦ
 function ResetPasswordModal({ isOpen, onClose, user: targetUser, onSuccess }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -293,81 +283,75 @@ function ResetPasswordModal({ isOpen, onClose, user: targetUser, onSuccess }) {
   );
 }
 
-// Main UsersPage Component
+
+// Main UsersPage Component - ÁP DỤNG LẠI CÁC SỬA ĐỔI
 function UsersPage() {
-  // === ALL HOOKS MUST BE CALLED AT THE TOP LEVEL ===
   const { isAuthenticated, isLoading: isLoadingAuth, user: currentUser, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [filters, setFilters] = useState({
-    search: '', department: '', role: '', is_active: ''
-  });
+  const [filters, setFilters] = useState({ search: '', department: '', role: '', is_active: '' });
   const [showUserModal, setShowUserModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  const { data: departmentsDataFromService, isLoading: isLoadingDepartmentsForFilter } = useQuery( // Đổi tên biến để tránh xung đột
-    'userFilterDepartments', 
-    userService.getDepartments, // Gọi hàm đã được sửa trong userService
-    { 
-        staleTime: 5 * 60 * 1000,
-        enabled: isAuthenticated && !isLoadingAuth, // Chỉ fetch khi đã xác thực
-        select: (apiResponse) => apiResponse.data?.departments || [] // Trích xuất mảng departments từ cấu trúc mới
-    }
-  );
-  // departmentsDataFromService bây giờ sẽ là mảng string ['Ban Giám đốc', ...] hoặc []
+  // SỬA ĐỔI: Cập nhật cú pháp useQuery và dùng isPending
+  const { data: departmentsDataFromService, isPending: isLoadingDepartmentsForFilter } = useQuery({
+    queryKey: ['userFilterDepartments'],
+    queryFn: userService.getDepartments,
+    staleTime: 5 * 60 * 1000,
+    enabled: isAuthenticated && !isLoadingAuth,
+    select: (apiResponse) => apiResponse.data?.departments || [],
+  });
   const departmentOptionsForFilter = departmentsDataFromService || [];
 
-
   const canFetchUsers = isAuthenticated && !isLoadingAuth && (hasPermission('manage_users') || currentUser?.role === 'admin');
+  
+  // SỬA ĐỔI: Cập nhật cú pháp useQuery và dùng isPending
   const { 
     data: usersResponse, 
-    isLoading: isLoadingUsers, 
+    isPending: isLoadingUsers,
     isError,
     error,
     refetch,
     isFetching 
-  } = useQuery(
-    ['users', currentPage, pageSize, filters],
-    () => {
+  } = useQuery({
+    queryKey: ['users', currentPage, pageSize, filters],
+    queryFn: () => {
       const params = { 
-        page: currentPage, 
-        limit: pageSize, 
-        search: filters.search || undefined,
-        department: filters.department || undefined,
-        role: filters.role || undefined,
+        page: currentPage, limit: pageSize, search: filters.search || undefined,
+        department: filters.department || undefined, role: filters.role || undefined,
         is_active: filters.is_active !== '' ? (filters.is_active === 'true') : undefined
       };
       return userService.getUsers(params);
     },
-    { 
-      keepPreviousData: true, 
-      staleTime: 1 * 60 * 1000,
-      enabled: canFetchUsers
-    }
-  );
-
-  const activateUserMutation = useMutation(userService.activateUser, {
-    onSuccess: () => { toast.success('Kích hoạt người dùng thành công!'); queryClient.invalidateQueries(['users']); },
-    onError: (err) => toast.error(err.response?.data?.message || 'Lỗi kích hoạt người dùng.')
+    keepPreviousData: true, 
+    staleTime: 1 * 60 * 1000,
+    enabled: canFetchUsers,
   });
 
-  const deactivateUserMutation = useMutation(userService.deactivateUser, {
-    onSuccess: () => { toast.success('Vô hiệu hóa người dùng thành công!'); queryClient.invalidateQueries(['users']); },
-    onError: (err) => toast.error(err.response?.data?.message || 'Lỗi vô hiệu hóa người dùng.')
+  // SỬA ĐỔI: Cập nhật cú pháp useMutation cho nhất quán
+  const activateUserMutation = useMutation({
+    mutationFn: userService.activateUser,
+    onSuccess: () => { toast.success('Kích hoạt người dùng thành công!'); queryClient.invalidateQueries({ queryKey: ['users'] }); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Lỗi kích hoạt người dùng.'),
   });
 
-  // === EARLY RETURNS AFTER ALL HOOKS ===
+  const deactivateUserMutation = useMutation({
+    mutationFn: userService.deactivateUser,
+    onSuccess: () => { toast.success('Vô hiệu hóa người dùng thành công!'); queryClient.invalidateQueries({ queryKey: ['users'] }); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Lỗi vô hiệu hóa người dùng.'),
+  });
+
+  // ... (Phần logic và render còn lại được giữ nguyên)
   if (isLoadingAuth) {
     return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="large" message="Đang tải..." /></div>;
   }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  if (!canFetchUsers) { // Dùng biến đã tính toán
+  if (!canFetchUsers) {
     return (
-      // Layout được áp dụng bởi ProtectedRoute
       <div className="min-h-screen flex items-center justify-center text-center p-6">
         <div>
           <FiAlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
@@ -378,7 +362,6 @@ function UsersPage() {
     );
   }
   
-  // Event handlers
   const handleFilterChange = (key, value) => { setFilters(prev => ({ ...prev, [key]: value })); setCurrentPage(1); };
   const handleClearFilters = () => { setFilters({ search: '', department: '', role: '', is_active: '' }); setCurrentPage(1);};
   const handleEditUser = (user) => { setSelectedUser(user); setShowUserModal(true); };
@@ -395,9 +378,8 @@ function UsersPage() {
   const pagination = usersResponse?.pagination || { total: 0, totalPages: 1, page: currentPage, limit: pageSize };
 
   return (
-    // Layout sẽ được áp dụng bởi ProtectedRoute
     <div>
-      <div className="max-w-full mx-auto py-6 px-4 sm:px-6 lg:px-8"> {/* Thay max-w-7xl bằng max-w-full để rộng hơn */}
+      <div className="max-w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
@@ -425,7 +407,6 @@ function UsersPage() {
                 <label className="form-label">Phòng ban</label>
                 <select value={filters.department} onChange={(e) => handleFilterChange('department', e.target.value)} className="form-select" disabled={isLoadingDepartmentsForFilter}>
                   <option value="">{isLoadingDepartmentsForFilter ? "Đang tải..." : "Tất cả phòng ban"}</option>
-                  {/* Sử dụng departmentOptionsForFilter đã được select từ useQuery */}
                   {departmentOptionsForFilter.map(dept => (<option key={dept} value={dept}>{dept}</option>))}
                 </select>
               </div>
@@ -462,9 +443,9 @@ function UsersPage() {
 
         <div className="card">
           <div className="card-body p-0">
-            {isLoadingUsers && !usersResponse ? ( // Chỉ hiện spinner chính khi chưa có data lần nào
+            {isLoadingUsers && !usersResponse ? (
               <div className="flex justify-center py-12"><LoadingSpinner message="Đang tải danh sách người dùng..." /></div>
-            ) : isError && !usersResponse ? ( // Chỉ hiện lỗi lớn nếu không có data
+            ) : isError && !usersResponse ? (
                  <div className="text-center py-10 text-red-600">
                     <FiAlertCircle className="mx-auto h-10 w-10 mb-2"/>
                     <p>Lỗi tải danh sách người dùng: {error.message}</p>

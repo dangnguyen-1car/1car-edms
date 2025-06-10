@@ -1,22 +1,34 @@
 // src/frontend/src/components/dashboard/DocumentStatsWidget.js
 import React from 'react';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query'; // Đảm bảo import từ @tanstack/react-query
 import { Link } from 'react-router-dom';
 import { FiFileText, FiEdit, FiCheck, FiArchive, FiTrendingUp } from 'react-icons/fi';
 import { dashboardService } from '../../services/dashboardService';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 function DocumentStatsWidget({ className = '' }) {
-    const { data: stats, isLoading, error } = useQuery(
-        'documentStats',
-        () => dashboardService.getDocumentStats(),
-        {
-            refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
-            staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
-        }
-    );
+    // --- BẮT ĐẦU SỬA ĐỔI ---
+    // Thay đổi cú pháp của useQuery để tương thích hoàn toàn với @tanstack/react-query v4/v5.
+    // 1. Sử dụng cú pháp object: useQuery({ queryKey: [...], queryFn: ... }).
+    // 2. Đổi tên `data` thành `statsResponse` để code rõ ràng hơn.
+    // 3. Sử dụng `isPending` thay cho `isLoading` để chỉ trạng thái tải lần đầu (best practice cho v5).
+    const {
+        data: statsResponse,
+        isPending, // Sửa từ isLoading sang isPending
+        error,
+    } = useQuery({
+        queryKey: ['documentStats'], // key được đặt trong một mảng
+        queryFn: () => dashboardService.getDocumentStats(), // queryFn là hàm thực thi
+        refetchInterval: 5 * 60 * 1000, // 5 phút
+        staleTime: 2 * 60 * 1000, // 2 phút
+    });
+    // --- KẾT THÚC SỬA ĐỔI ---
 
-    if (isLoading) {
+    // Lấy dữ liệu thực tế từ response
+    const stats = statsResponse?.data;
+
+    // Sửa điều kiện kiểm tra loading
+    if (isPending) {
         return (
             <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
                 <div className="flex items-center justify-center h-48">
@@ -31,6 +43,7 @@ function DocumentStatsWidget({ className = '' }) {
             <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
                 <div className="text-center text-red-600">
                     <p>Không thể tải thống kê tài liệu</p>
+                    <p className="text-xs mt-1">{(error).message}</p>
                 </div>
             </div>
         );
@@ -39,7 +52,8 @@ function DocumentStatsWidget({ className = '' }) {
     const statItems = [
         {
             label: 'Nháp',
-            value: stats?.draftCount || 0,
+            // Truy cập vào `stats` thay vì `stats.data`
+            value: stats?.draft_count || 0,
             icon: FiEdit,
             color: 'text-yellow-600',
             bgColor: 'bg-yellow-100',
@@ -47,7 +61,7 @@ function DocumentStatsWidget({ className = '' }) {
         },
         {
             label: 'Đang duyệt',
-            value: stats?.reviewCount || 0,
+            value: stats?.review_count || 0,
             icon: FiFileText,
             color: 'text-blue-600',
             bgColor: 'bg-blue-100',
@@ -55,7 +69,7 @@ function DocumentStatsWidget({ className = '' }) {
         },
         {
             label: 'Đã phê duyệt',
-            value: stats?.publishedCount || 0,
+            value: stats?.published_count || 0,
             icon: FiCheck,
             color: 'text-green-600',
             bgColor: 'bg-green-100',
@@ -63,7 +77,7 @@ function DocumentStatsWidget({ className = '' }) {
         },
         {
             label: 'Lưu trữ',
-            value: stats?.archivedCount || 0,
+            value: stats?.archived_count || 0,
             icon: FiArchive,
             color: 'text-gray-600',
             bgColor: 'bg-gray-100',
@@ -102,16 +116,16 @@ function DocumentStatsWidget({ className = '' }) {
                     })}
                 </div>
 
-                {stats?.totalCount && (
+                {stats?.total_documents && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">Tổng số tài liệu:</span>
-                            <span className="font-semibold text-gray-900">{stats.totalCount}</span>
+                            <span className="font-semibold text-gray-900">{stats.total_documents}</span>
                         </div>
-                        {stats.recentCount && (
+                        {stats.recent_count && (
                             <div className="flex items-center justify-between text-sm mt-1">
                                 <span className="text-gray-600">Tạo trong 30 ngày:</span>
-                                <span className="font-semibold text-green-600">{stats.recentCount}</span>
+                                <span className="font-semibold text-green-600">{stats.recent_count}</span>
                             </div>
                         )}
                     </div>

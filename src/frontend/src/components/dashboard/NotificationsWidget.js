@@ -1,6 +1,7 @@
 // src/frontend/src/components/dashboard/NotificationsWidget.js
 import React from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+// Sửa đổi 1: Đảm bảo các hook được import từ @tanstack/react-query
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { FiBell, FiCheck, FiExternalLink, FiAlertCircle, FiInfo } from 'react-icons/fi';
 import { dashboardService } from '../../services/dashboardService';
@@ -9,76 +10,69 @@ import { toast } from 'react-hot-toast';
 
 function NotificationsWidget({ className = '' }) {
     const queryClient = useQueryClient();
-    
-    // Đổi tên 'data' thành 'response' để code rõ ràng hơn
-    const { data: response, isLoading, error } = useQuery(
-        'notifications',
-        () => dashboardService.getNotifications(8, false),
-        {
-            refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
-            staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
-        }
-    );
 
-    const markAsReadMutation = useMutation(
-        (notificationId) => dashboardService.markNotificationAsRead(notificationId),
-        {
-            onSuccess: () => {
-                queryClient.invalidateQueries('notifications');
-                toast.success('Đã đánh dấu đã đọc');
-            },
-            onError: () => {
-                toast.error('Không thể cập nhật thông báo');
-            }
+    // --- BẮT ĐẦU SỬA ĐỔI ---
+    // 2. Thay đổi cú pháp của useQuery sang dạng object được khuyến nghị.
+    // 3. Sử dụng `isPending` thay cho `isLoading` cho trạng thái tải lần đầu.
+    const {
+        data: response,
+        isPending, // Thay 'isLoading' bằng 'isPending'
+        error
+    } = useQuery({
+        queryKey: ['notifications'], // Chuyển key vào một mảng
+        queryFn: () => dashboardService.getNotifications(8, false),
+        refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+        staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
+    });
+    // --- KẾT THÚC SỬA ĐỔI ---
+
+    // Chú ý: `useMutation` của bạn đã được viết theo cú pháp tương thích với v4/v5 nên không cần sửa.
+    const markAsReadMutation = useMutation({
+        mutationFn: (notificationId) => dashboardService.markNotificationAsRead(notificationId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            toast.success('Đã đánh dấu đã đọc');
+        },
+        onError: () => {
+            toast.error('Không thể cập nhật thông báo');
         }
-    );
+    });
     
-    // SỬA LỖI: Luôn đảm bảo `notifications` là một mảng
-    // 1. Lấy mảng từ `response.data`.
-    // 2. Sử dụng optional chaining (?.) để tránh lỗi nếu `response` là undefined.
-    // 3. Sử dụng `|| []` để cung cấp một mảng rỗng làm giá trị mặc định.
+    // Logic trích xuất dữ liệu này đã đúng, không cần sửa.
     const notifications = response?.data || [];
     
     const getNotificationIcon = (type) => {
+        // ... (hàm này không thay đổi)
         switch (type) {
-            case 'document_approval':
-                return FiCheck;
-            case 'document_review':
-                return FiBell;
-            case 'system_alert':
-                return FiAlertCircle;
-            default:
-                return FiInfo;
+            case 'document_approval': return FiCheck;
+            case 'document_review': return FiBell;
+            case 'system_alert': return FiAlertCircle;
+            default: return FiInfo;
         }
     };
 
     const getNotificationColor = (type, isRead) => {
+        // ... (hàm này không thay đổi)
         const baseColor = isRead ? 'text-gray-400 bg-gray-100' : '';
-        
         switch (type) {
-            case 'document_approval':
-                return isRead ? baseColor : 'text-green-600 bg-green-100';
-            case 'document_review':
-                return isRead ? baseColor : 'text-blue-600 bg-blue-100';
-            case 'system_alert':
-                return isRead ? baseColor : 'text-red-600 bg-red-100';
-            default:
-                return isRead ? baseColor : 'text-gray-600 bg-gray-100';
+            case 'document_approval': return isRead ? baseColor : 'text-green-600 bg-green-100';
+            case 'document_review': return isRead ? baseColor : 'text-blue-600 bg-blue-100';
+            case 'system_alert': return isRead ? baseColor : 'text-red-600 bg-red-100';
+            default: return isRead ? baseColor : 'text-gray-600 bg-gray-100';
         }
     };
 
     const formatTimeAgo = (timestamp) => {
+        // ... (hàm này không thay đổi)
         const now = new Date();
         const notifTime = new Date(timestamp);
         const diffMs = now - notifTime;
         const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
         if (diffMins < 1) return 'Vừa xong';
         if (diffMins < 60) return `${diffMins} phút trước`;
+        const diffHours = Math.floor(diffMs / 3600000);
         if (diffHours < 24) return `${diffHours} giờ trước`;
-        return `${diffDays} ngày trước`;
+        return `${Math.floor(diffHours / 24)} ngày trước`;
     };
 
     const handleMarkAsRead = (notificationId, e) => {
@@ -86,8 +80,9 @@ function NotificationsWidget({ className = '' }) {
         e.stopPropagation();
         markAsReadMutation.mutate(notificationId);
     };
-
-    if (isLoading) {
+    
+    // Thay `isLoading` bằng `isPending` để kiểm tra trạng thái tải lần đầu
+    if (isPending) {
         return (
             <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
                 <div className="flex items-center justify-center h-48">
@@ -107,7 +102,6 @@ function NotificationsWidget({ className = '' }) {
         );
     }
     
-    // Code dưới đây bây giờ sẽ hoạt động an toàn vì `notifications` luôn là một mảng
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
     return (
@@ -164,7 +158,7 @@ function NotificationsWidget({ className = '' }) {
                                                 onClick={(e) => handleMarkAsRead(notification.id, e)}
                                                 className="text-blue-600 hover:text-blue-700 p-1"
                                                 title="Đánh dấu đã đọc"
-                                                disabled={markAsReadMutation.isLoading}
+                                                disabled={markAsReadMutation.isPending}
                                             >
                                                 <FiCheck className="h-4 w-4" />
                                             </button>

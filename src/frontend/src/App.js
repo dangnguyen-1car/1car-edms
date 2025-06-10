@@ -1,3 +1,4 @@
+// src/frontend/src/App.js
 /**
  * =================================================================
  * EDMS 1CAR - Main App Component
@@ -12,8 +13,8 @@
 
 import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import { ReactQueryDevtools } from 'react-query/devtools';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 
@@ -36,7 +37,11 @@ const ArchivePage = React.lazy(() => import('./pages/ArchivePage'));
 const ActivityPage = React.lazy(() => import('./pages/ActivityPage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
+// ================== THÊM MỚI ==================
+const DocumentDetailPage = React.lazy(() => import('./pages/DocumentDetailPage'));
+// ===============================================
 // const UnauthorizedPage = React.lazy(() => import('./pages/UnauthorizedPage'));
+
 
 // =================================================================
 // React Query Client (Single Instance)
@@ -49,7 +54,6 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       retry: (failureCount, error) => {
-        // Không retry các lỗi xác thực hoặc không tìm thấy
         if (error?.response?.status && [401, 403, 404].includes(error.response.status)) {
           return false;
         }
@@ -65,8 +69,6 @@ const queryClient = new QueryClient({
 // =================================================================
 // Protected Route & Role-Based Components
 // =================================================================
-
-// Component bảo vệ route yêu cầu đăng nhập
 function ProtectedRoute({ children, requiredRole = null, requiredPermission = null }) {
   const { isAuthenticated, isLoading, user, hasPermission } = useAuth();
 
@@ -79,20 +81,16 @@ function ProtectedRoute({ children, requiredRole = null, requiredPermission = nu
   }
 
   if (requiredRole && user?.role !== requiredRole) {
-    // Chuyển hướng đến trang không có quyền (cần được kích hoạt)
-    // return <Navigate to="/unauthorized" replace />;
-    return <Navigate to="/" replace />; // Tạm thời chuyển về trang chủ
+    return <Navigate to="/" replace />;
   }
 
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    // return <Navigate to="/unauthorized" replace />;
-    return <Navigate to="/" replace />; // Tạm thời chuyển về trang chủ
+    return <Navigate to="/" replace />;
   }
 
   return <Layout>{children}</Layout>;
 }
 
-// Component bảo vệ route dựa trên vai trò (role)
 function RoleBasedRoute({ children, allowedRoles = [] }) {
     const { user, isLoading } = useAuth();
 
@@ -101,8 +99,7 @@ function RoleBasedRoute({ children, allowedRoles = [] }) {
     }
 
     if (!user || !allowedRoles.includes(user.role)) {
-        // return <Navigate to="/unauthorized" replace />;
-        return <Navigate to="/" replace />; // Tạm thời chuyển về trang chủ
+        return <Navigate to="/" replace />;
     }
 
     return <Layout>{children}</Layout>;
@@ -112,53 +109,58 @@ function RoleBasedRoute({ children, allowedRoles = [] }) {
 // =================================================================
 // Main App Component
 // =================================================================
-
 function App() {
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ErrorBoundary>
-            {/* --- Helmet cho metadata mặc định --- */}
             <Helmet>
               <title>1CAR - EDMS</title>
               <meta name="description" content="Hệ thống Quản lý Tài liệu Điện tử cho 1CAR" />
             </Helmet>
 
-            {/* --- Suspense cho lazy loading các trang --- */}
             <Suspense fallback={<PageLoader message="Đang tải trang..." />}>
               <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<LoginPage />} />
-                {/* <Route path="/unauthorized" element={<UnauthorizedPage />} /> */}
                 
                 {/* Protected Routes */}
                 <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                 <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
+
+                {/* ================== THÊM MỚI ================== */}
+                {/* Route cho trang chi tiết tài liệu */}
+                <Route
+                  path="/documents/:documentId"
+                  element={<ProtectedRoute><DocumentDetailPage /></ProtectedRoute>}
+                />
+                {/* =============================================== */}
+
                 <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
 
                 {/* Role-Based Routes */}
-                <Route 
-                  path="/upload" 
-                  element={<RoleBasedRoute allowedRoles={['user', 'manager', 'admin']}><UploadPage /></RoleBasedRoute>} 
+                <Route
+                  path="/upload"
+                  element={<RoleBasedRoute allowedRoles={['user', 'manager', 'admin']}><UploadPage /></RoleBasedRoute>}
                 />
 
                 {/* Admin & Specific Permission Routes */}
-                <Route 
-                  path="/users" 
-                  element={<ProtectedRoute requiredRole="admin"><UsersPage /></ProtectedRoute>} 
+                <Route
+                  path="/users"
+                  element={<ProtectedRoute requiredRole="admin"><UsersPage /></ProtectedRoute>}
                 />
-                <Route 
-                  path="/archive" 
-                  element={<ProtectedRoute requiredPermission="view_audit_logs"><ArchivePage /></ProtectedRoute>} 
+                <Route
+                  path="/archive"
+                  element={<ProtectedRoute requiredPermission="view_audit_logs"><ArchivePage /></ProtectedRoute>}
                 />
-                <Route 
-                  path="/activity" 
-                  element={<ProtectedRoute requiredPermission="view_audit_logs"><ActivityPage /></ProtectedRoute>} 
+                <Route
+                  path="/activity"
+                  element={<ProtectedRoute requiredPermission="view_audit_logs"><ActivityPage /></ProtectedRoute>}
                 />
-                <Route 
-                  path="/settings" 
-                  element={<ProtectedRoute requiredPermission="manage_system"><SettingsPage /></ProtectedRoute>} 
+                <Route
+                  path="/settings"
+                  element={<ProtectedRoute requiredPermission="manage_system"><SettingsPage /></ProtectedRoute>}
                 />
 
                 {/* Catch-all Route cho 404 Not Found */}
@@ -166,8 +168,7 @@ function App() {
               </Routes>
             </Suspense>
 
-            {/* --- Toaster cho thông báo --- */}
-            <Toaster 
+            <Toaster
               position="top-right"
               toastOptions={{
                 duration: 4000,
@@ -179,7 +180,6 @@ function App() {
           </ErrorBoundary>
         </AuthProvider>
         
-        {/* --- React Query DevTools (chỉ trong môi trường development) --- */}
         {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
       </QueryClientProvider>
     </HelmetProvider>

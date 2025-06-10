@@ -570,15 +570,20 @@ class Document {
      */
     static async findById(id) {
         try {
+            // ***** SỬA LỖI SQL TẠI ĐÂY *****
             const document = await dbManager.get(`
-                SELECT d.*, u.name as author_name, u.department as author_department,
-                       r.name as reviewer_name, a.name as approver_name
+                SELECT
+                    d.*,
+                    author.full_name as author_name,
+                    reviewer.full_name as reviewer_name,
+                    approver.full_name as approver_name
                 FROM documents d
-                LEFT JOIN users u ON d.author_id = u.id
-                LEFT JOIN users r ON d.reviewer_id = r.id
-                LEFT JOIN users a ON d.approver_id = a.id
+                LEFT JOIN users author ON d.author_id = author.id
+                LEFT JOIN users reviewer ON d.reviewer_id = reviewer.id
+                LEFT JOIN users approver ON d.approver_id = approver.id
                 WHERE d.id = ?
             `, [id]);
+            // ***** KẾT THÚC SỬA LỖI *****
 
             return document ? new Document(document) : null;
         } catch (error) {
@@ -608,6 +613,27 @@ class Document {
             throw error;
         }
     }
+
+    /**
+     * Check if a document is favorited by a user
+     * @param {number} documentId - The document ID
+     * @param {number} userId - The user ID
+     * @returns {boolean} - True if favorited, false otherwise
+     */
+    // ***** THÊM HÀM MỚI TẠI ĐÂY *****
+    static async isFavorite(documentId, userId) {
+        try {
+            const result = await dbManager.get(
+                `SELECT COUNT(*) as count FROM user_favorites WHERE document_id = ? AND user_id = ?`,
+                [documentId, userId]
+            );
+            return result && result.count > 0;
+        } catch (error) {
+            console.error('Error checking favorite status:', error);
+            throw error;
+        }
+    }
+    // ***** KẾT THÚC THÊM HÀM MỚI *****
 
     // ĐỔI TÊN: từ getAll thành search để khớp với DocumentService
     /**

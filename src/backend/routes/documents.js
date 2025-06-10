@@ -17,6 +17,7 @@ const serviceFactory = require('../services/serviceFactory');
 const { checkPermission } = require('../middleware/permissionMiddleware');
 const { auditMiddleware, auditCRUD, setAuditDetails } = require('../middleware/auditMiddleware');
 const SearchService = require('../services/searchService');
+const Document = require('../models/Document'); // ***** THÊM IMPORT MỚI *****
 
 // Áp dụng audit middleware cho tất cả routes
 router.use(auditMiddleware);
@@ -650,6 +651,33 @@ router.get('/:id/workflow',
     }
   }
 );
+
+/**
+ * GET /api/documents/:id/favorite
+ * Kiểm tra trạng thái yêu thích của tài liệu
+ */
+// ***** THÊM ROUTE MỚI TẠI ĐÂY *****
+router.get('/:id/favorite',
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const userId = req.user.id;
+      
+      const isFavorited = await Document.isFavorite(documentId, userId);
+      
+      res.json({ 
+        success: true,
+        data: { isFavorite: isFavorited },
+        timestamp: new Date().toISOString(),
+        requestId: req.requestId
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+// ***** KẾT THÚC THÊM ROUTE MỚI *****
 
 /**
  * POST /api/documents/:id/files
