@@ -1,9 +1,8 @@
 // src/components/documents/DocumentViewer.js
 /**
  * =================================================================
- * EDMS 1CAR - Document Viewer Component
- * Support PDF, DOC, DOCX file viewing
- * Integrated with react-pdf and mammoth.js
+ * EDMS 1CAR - Document Viewer Component (Corrected)
+ * Sửa lỗi: Gọi documentAPI.getDocumentFileBuffer thay vì getDocumentFileUrl.
  * =================================================================
  */
 
@@ -46,56 +45,76 @@ function DocumentViewer({ document, onError }) {
     // -----------------------------------------------------------------
     // Load document content whenever the document ID changes
     useEffect(() => {
+        // Khai báo một biến để kiểm tra component còn mounted hay không
+        let isMounted = true;
+
+        const loadDocumentContent = async () => {
+            if (!document?.id) return;
+
+            // Reset state trước khi tải mới
+            setLoading(true);
+            setError(null);
+            setFileContent(null);
+
+            try {
+                // Xác định loại file
+                const mimeType = document.mime_type || '';
+                const fileName = document.file_name || '';
+                const extension = fileName.split('.').pop()?.toLowerCase();
+                let detectedType = 'unknown';
+
+                if (mimeType.includes('pdf') || extension === 'pdf') {
+                    detectedType = 'pdf';
+                } else if (mimeType.includes('wordprocessingml') || extension === 'docx') {
+                    detectedType = 'docx';
+                } else if (mimeType.includes('msword') || extension === 'doc') {
+                    detectedType = 'doc';
+                }
+
+                if (isMounted) {
+                    setFileType(detectedType);
+                }
+
+                // Tải và xử lý nội dung file
+                if (detectedType === 'pdf') {
+                    // SỬA LỖI CHÍNH: Gọi getDocumentFileBuffer thay vì getDocumentFileUrl
+                    const arrayBuffer = await documentAPI.getDocumentFileBuffer(document.id);
+                    if (isMounted) {
+                        setFileContent(arrayBuffer);
+                    }
+                } else if (detectedType === 'docx') {
+                    const arrayBuffer = await documentAPI.getDocumentFileBuffer(document.id);
+                    const result = await mammoth.convertToHtml({ arrayBuffer });
+                    if (isMounted) {
+                        setFileContent(result.value);
+                    }
+                } else if (detectedType === 'doc') {
+                    if (isMounted) setError('Định dạng DOC cần được chuyển đổi. Vui lòng tải xuống để xem.');
+                } else {
+                    if (isMounted) setError('Định dạng file không được hỗ trợ xem trực tuyến.');
+                }
+            } catch (err) {
+                console.error('Error loading document content:', err);
+                const errorMessage = err.response?.data?.message || 'Không thể tải nội dung tài liệu.';
+                if (isMounted) {
+                    setError(errorMessage);
+                    onError?.(new Error(errorMessage));
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
         loadDocumentContent();
-    }, [document?.id]);
 
-    // 6. CORE LOGIC & ASYNC FUNCTIONS
-    // -----------------------------------------------------------------
-    const loadDocumentContent = async () => {
-        if (!document?.id) return;
+        // Cleanup function
+        return () => {
+            isMounted = false;
+        };
+    }, [document?.id, onError]); // Thêm onError vào dependency array
 
-        setLoading(true);
-        setError(null);
-        setFileContent(null); // Reset content on new load
-
-        try {
-            // Determine file type from mime_type or file extension
-            const mimeType = document.mime_type || '';
-            const fileName = document.file_name || '';
-            const extension = fileName.split('.').pop()?.toLowerCase();
-            let detectedType = 'unknown';
-
-            if (mimeType.includes('pdf') || extension === 'pdf') {
-                detectedType = 'pdf';
-            } else if (mimeType.includes('msword') || extension === 'doc') {
-                detectedType = 'doc';
-            } else if (mimeType.includes('wordprocessingml') || extension === 'docx') {
-                detectedType = 'docx';
-            }
-            setFileType(detectedType);
-
-            // Fetch and process content based on file type
-            if (detectedType === 'pdf') {
-                const fileUrl = await documentAPI.getDocumentFileUrl(document.id);
-                setFileContent(fileUrl);
-            } else if (detectedType === 'docx') {
-                const arrayBuffer = await documentAPI.getDocumentFileBuffer(document.id);
-                const result = await mammoth.convertToHtml({ arrayBuffer });
-                setFileContent(result.value);
-            } else if (detectedType === 'doc') {
-                setError('Định dạng DOC cần được chuyển đổi. Vui lòng tải xuống để xem.');
-            } else {
-                setError('Định dạng file không được hỗ trợ xem trực tuyến.');
-            }
-        } catch (err) {
-            console.error('Error loading document content:', err);
-            const errorMessage = 'Không thể tải nội dung tài liệu.';
-            setError(errorMessage);
-            onError?.(new Error(errorMessage));
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // 7. EVENT HANDLERS
     // -----------------------------------------------------------------
@@ -128,6 +147,33 @@ function DocumentViewer({ document, onError }) {
             onError?.(new Error('Tải xuống tài liệu thất bại.'));
         }
     };
+    
+    // Tạo một hàm để gọi lại loadDocumentContent
+    const retryLoad = () => {
+        // useEffect sẽ tự động chạy lại khi document.id thay đổi, nhưng để retry thủ công, ta gọi trực tiếp
+        // Tuy nhiên, logic hiện tại là useEffect, nên ta chỉ cần trigger refetch từ component cha.
+        // Hoặc tạo một state để trigger useEffect.
+        // Cách đơn giản nhất là gọi lại hàm load, nhưng để tránh race condition, ta cần dùng isMounted như trên.
+        // Ta sẽ giữ nguyên logic này, nhưng nếu có onRefresh từ cha thì sẽ tốt hơn.
+        // Trong trường hợp này, ta sẽ gọi lại logic load:
+        const loadFn = async () => {
+            if (!document?.id) return;
+            setLoading(true); setError(null);
+            try {
+                if (fileType === 'pdf' || fileType === 'docx') {
+                    const arrayBuffer = await documentAPI.getDocumentFileBuffer(document.id);
+                    if (fileType === 'pdf') setFileContent(arrayBuffer);
+                    else {
+                        const result = await mammoth.convertToHtml({ arrayBuffer });
+                        setFileContent(result.value);
+                    }
+                }
+            } catch (err) { setError('Không thể tải lại nội dung.'); }
+            finally { setLoading(false); }
+        };
+        loadFn();
+    };
+
 
     // 8. CONDITIONAL RENDERING (LOADING & ERROR STATES)
     // -----------------------------------------------------------------
@@ -150,7 +196,7 @@ function DocumentViewer({ document, onError }) {
                     {error}
                 </p>
                 <div className="flex space-x-3">
-                    <button onClick={loadDocumentContent} className="btn btn-outline btn-sm flex items-center">
+                    <button onClick={retryLoad} className="btn btn-outline btn-sm flex items-center">
                         <FiLoader className="mr-2 h-4 w-4" />
                         Thử lại
                     </button>

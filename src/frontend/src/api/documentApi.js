@@ -1,8 +1,9 @@
 // src/api/documentApi.js
 /**
  * =================================================================
- * EDMS 1CAR - Document API Service (Enhanced)
- * Added version comparison functionality
+ * EDMS 1CAR - Document API Service (Enhanced & Corrected)
+ * Sửa lỗi: getDocumentFileBuffer trỏ đến endpoint /download,
+ * xóa bỏ các hàm không dùng đến như getDocumentFileUrl.
  * =================================================================
  */
 
@@ -85,14 +86,16 @@ export const documentAPI = {
         const response = await api.get(`/documents/${id}/download`, { responseType: 'blob' });
         return handleFileDownload(response, `document_${id}.pdf`);
     },
-    getDocumentFileUrl: async (id) => {
-        const response = await api.get(`/documents/${id}/file-url`);
-        return response.data.url;
-    },
+    
+    // SỬA LỖI: Chỉnh sửa hàm này để gọi đúng endpoint /download và trả về ArrayBuffer
     getDocumentFileBuffer: async (id) => {
-        const response = await api.get(`/documents/${id}/file-buffer`, { responseType: 'arraybuffer' });
+        const response = await api.get(`/documents/${id}/download`, { responseType: 'arraybuffer' });
         return response.data;
     },
+    
+    // XÓA BỎ: Hàm getDocumentFileUrl không tồn tại ở backend
+    // getDocumentFileUrl: async (id) => { ... },
+
     getDocumentMetadata: async (id) => {
         const response = await api.get(`/documents/${id}/metadata`);
         return response.data;
@@ -117,12 +120,6 @@ export const documentAPI = {
         const response = await api.get(`/documents/${documentId}/versions/${versionId}/download`, { responseType: 'blob' });
         return handleFileDownload(response, `document_${documentId}_v${versionId}.pdf`);
     },
-    /**
-     * Compare two document versions.
-     * @param {string} versionId1 - First version ID to compare.
-     * @param {string} versionId2 - Second version ID to compare.
-     * @returns {Promise<Object>} API response with comparison data.
-     */
     compareVersions: async (versionId1, versionId2) => {
         const response = await api.get('/documents/versions/compare', {
             params: { version1: versionId1, version2: versionId2 }
