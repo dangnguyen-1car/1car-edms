@@ -1,29 +1,21 @@
 // src/components/documents/MetadataPanel.js
 /**
  * =================================================================
- * EDMS 1CAR - Metadata Panel Component (Optimized)
- * Receives data via props instead of fetching to avoid duplicate API calls
+ * EDMS 1CAR - Metadata Panel Component (Optimized & Simplified)
+ * This version is refactored to only display metadata details,
+ * removing internal tabs to prevent UI duplication as requested.
  * =================================================================
  */
 import React, { useState, useMemo } from 'react';
 import {
-    FiFileText, FiUser, FiCalendar, FiTag, FiClock, FiEye, FiEdit, FiDownload,
-    FiArchive, FiRefreshCw, FiChevronDown, FiChevronRight, FiInfo, FiUsers, FiMapPin, FiAlertCircle
+    FiUser, FiCalendar, FiClock, FiEye, FiEdit,
+    FiArchive, FiRefreshCw, FiChevronDown, FiChevronRight, FiInfo
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
-// SỬA LỖI: Import `formatFileSize` và `dateTime` để sử dụng
 import { numeric, dateTime } from '../../utils/formatters'; 
-import VersionHistory from './VersionHistory';
-import WorkflowHistory from './WorkflowHistory';
 import SkeletonLoader from '../common/SkeletonLoader';
 
-// --- Constants & Helper Functions (moved outside component) ---
-
-const TABS_CONFIG = [
-    { id: 'metadata', label: 'Metadata', icon: FiInfo },
-    { id: 'versions', label: 'Phiên bản', icon: FiClock },
-    { id: 'workflow', label: 'Workflow', icon: FiRefreshCw }
-];
+// --- Constants & Helper Functions ---
 
 const getDocumentTypeDisplay = (type) => {
     const types = { 'PL': 'Chính sách (Policy)', 'PR': 'Quy trình (Procedure)', 'WI': 'Hướng dẫn (Work Instruction)', 'FM': 'Biểu mẫu (Form)', 'TD': 'Tài liệu kỹ thuật (Technical Document)', 'TR': 'Tài liệu đào tạo (Training Document)', 'RC': 'Hồ sơ (Record)' };
@@ -53,38 +45,18 @@ const PanelHeader = ({ onRefresh }) => (
     </div>
 );
 
-const PanelTabs = ({ activeTab, setActiveTab }) => (
-    <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 px-6">
-            {TABS_CONFIG.map(tab => {
-                const TabIcon = tab.icon;
-                return (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === tab.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                    >
-                        <TabIcon className="mr-2 h-4 w-4" />
-                        {tab.label}
-                    </button>
-                );
-            })}
-        </nav>
-    </div>
-);
-
 const AccordionSection = ({ title, isExpanded, onToggle, children }) => (
     <div>
-        <button onClick={onToggle} className="flex items-center justify-between w-full text-left">
+        <button onClick={onToggle} className="flex items-center justify-between w-full text-left py-2">
             <h4 className="text-base font-medium text-gray-900">{title}</h4>
             {isExpanded ? <FiChevronDown className="h-5 w-5 text-gray-400" /> : <FiChevronRight className="h-5 w-5 text-gray-400" />}
         </button>
-        {isExpanded && <div className="mt-4">{children}</div>}
+        {isExpanded && <div className="mt-4 pl-2 border-l-2 border-gray-200">{children}</div>}
     </div>
 );
 
 const MetadataField = ({ label, children }) => (
-    <div>
+    <div className="mb-3">
         <dt className="text-sm font-medium text-gray-500">{label}</dt>
         <dd className="mt-1 text-sm text-gray-900">{children}</dd>
     </div>
@@ -144,7 +116,6 @@ const MetadataDisplay = ({ document, expandedSections, toggleSection, canAccessD
 
             <AccordionSection title="Tuân thủ" isExpanded={expandedSections.compliance} onToggle={() => toggleSection('compliance')}>
                 <div className="space-y-3">
-                    {/* SỬA LỖI: Thay thế `formatDate` bằng `dateTime` đã được import */}
                     {document.next_review_date && <MetadataField label="Ngày rà soát tiếp theo">{dateTime.formatDate(document.next_review_date)}</MetadataField>}
                     {document.retention_period && <MetadataField label="Thời gian lưu trữ">{document.retention_period} năm</MetadataField>}
                     {document.security_level && <MetadataField label="Mức bảo mật">{document.security_level}</MetadataField>}
@@ -155,55 +126,28 @@ const MetadataDisplay = ({ document, expandedSections, toggleSection, canAccessD
 };
 
 // --- Main Component ---
-
-// SỬA LỖI: Thêm các props `versionsLoading`, `versionsError`, `workflowLoading`, `workflowError`
-function MetadataPanel({ 
-    document, 
-    versions, 
-    versionsLoading, 
-    versionsError,
-    workflowHistory, 
-    workflowLoading,
-    workflowError,
-    onRefresh, 
-    className = '' 
-}) {
+function MetadataPanel({ document, onRefresh, className = '' }) {
     const { canAccessDepartment } = useAuth();
-    const [activeTab, setActiveTab] = useState('metadata');
-    const [expandedSections, setExpandedSections] = useState({ basic: true, technical: true, access: true, compliance: true });
-
-    // SỬA LỖI: Khai báo biến `showTabContent`
-    const showTabContent = versions || workflowHistory;
+    const [expandedSections, setExpandedSections] = useState({ basic: true, technical: true, access: false, compliance: false });
 
     const toggleSection = (section) => {
         setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
     if (!document) {
-        return <SkeletonLoader type="metadata" />;            
+        return <SkeletonLoader type="detail" />;            
     }
 
     return (
         <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
-            <PanelHeader onRefresh={onRefresh} />
-            {/* SỬA LỖI: Sử dụng biến `showTabContent` đã được khai báo */}
-            {showTabContent && <PanelTabs activeTab={activeTab} setActiveTab={setActiveTab} />}
+             <PanelHeader onRefresh={onRefresh} />
             <div className="p-6">
-                {(!showTabContent || activeTab === 'metadata') && (
-                    <MetadataDisplay
-                        document={document}
-                        expandedSections={expandedSections}
-                        toggleSection={toggleSection}
-                        canAccessDepartment={canAccessDepartment}
-                    />
-                )}
-                {/* SỬA LỖI: Sử dụng các biến đã được khai báo và truyền vào qua props */}
-                {showTabContent && activeTab === 'versions' && (
-                    <VersionHistory document={document} versions={versions} isLoading={versionsLoading} error={versionsError} onRefresh={onRefresh} />
-                )}
-                {showTabContent && activeTab === 'workflow' && (
-                    <WorkflowHistory document={document} workflowHistory={workflowHistory} isLoading={workflowLoading} error={workflowError} onRefresh={onRefresh} />
-                )}
+                <MetadataDisplay
+                    document={document}
+                    expandedSections={expandedSections}
+                    toggleSection={toggleSection}
+                    canAccessDepartment={canAccessDepartment}
+                />
             </div>
         </div>
     );

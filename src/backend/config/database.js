@@ -1,6 +1,6 @@
 /**
  * =================================================================
- * EDMS 1CAR - Database Configuration (FINAL REVISED & ALIGNED)
+ * EDMS 1CAR - Database Configuration (FIXED PATH)
  * SQLite database setup aligned with the latest 003-align-schema-definition.sql (SQL_vD)
  * This file creates the FINAL schema structure if the database is new.
  * =================================================================
@@ -13,8 +13,10 @@ const bcrypt = require('bcrypt');
 const { security } = require('./index'); 
 const AuditLogModel = require('../models/AuditLog'); // Import AuditLogModel
 
-// Database configuration
-const DB_PATH = process.env.DB_PATH || './database/edms.db';
+// --- SỬA LỖI ĐƯỜNG DẪN DATABASE ---
+// Sử dụng path.join và __dirname để đảm bảo đường dẫn luôn đúng,
+// trỏ về thư mục `database` ở gốc dự án.
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', '..', '..', 'database', 'edms.db');
 const DB_DIR = path.dirname(DB_PATH);
 
 class DatabaseManager {
@@ -165,7 +167,7 @@ class DatabaseManager {
         }
     }
 
-    async createIndexes() { // Giữ nguyên nội dung hàm này
+    async createIndexes() {
         const indexes = [
             'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
             'CREATE INDEX IF NOT EXISTS idx_users_department ON users(department)',
@@ -218,7 +220,7 @@ class DatabaseManager {
         console.log('Database indexes created/ensured successfully');
     }
 
-    async createFTSTable() { // Giữ nguyên nội dung hàm này
+    async createFTSTable() {
         try {
             await this.run(`CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(document_code, title, description, keywords, content='documents', content_rowid='id', tokenize = "unicode61")`);
             await this.run(`CREATE TRIGGER IF NOT EXISTS documents_fts_insert AFTER INSERT ON documents BEGIN INSERT INTO documents_fts(rowid, document_code, title, description, keywords) VALUES (new.id, new.document_code, new.title, new.description, new.keywords); END`);
@@ -231,7 +233,7 @@ class DatabaseManager {
         }
     }
 
-    async createViews() { // Giữ nguyên nội dung hàm này
+    async createViews() {
         try {
             await this.run(`DROP VIEW IF EXISTS v_document_summary;`);
             await this.run(`DROP VIEW IF EXISTS document_summary;`);
@@ -262,7 +264,7 @@ class DatabaseManager {
         }
     }
 
-    async initializeDefaultData() { // Giữ nguyên nội dung hàm này
+    async initializeDefaultData() {
         try {
             const adminUser = await this.get(`SELECT id FROM users WHERE email = 'admin@1car.vn'`);
             let adminId = adminUser ? adminUser.id : null;
@@ -326,12 +328,10 @@ class DatabaseManager {
 
     async transaction(queriesCallback) { 
         if (!this.db) throw new Error("Database not initialized for transaction");
-        return new Promise(async (resolve, reject) => { // Make outer promise async
+        return new Promise(async (resolve, reject) => {
             this.db.serialize(async () => { 
                 try {
                     await this.run('BEGIN TRANSACTION');
-                    // queriesCallback should be an async function that accepts the dbManager (this)
-                    // and performs operations using this.run, this.get, this.all
                     const result = await queriesCallback(this); 
                     await this.run('COMMIT');
                     resolve(result);
@@ -347,7 +347,7 @@ class DatabaseManager {
         });
     }
 
-    close() { // Giữ nguyên nội dung hàm này
+    close() {
         return new Promise((resolve, reject) => {
             if (this.db) {
                 this.db.close((err) => {
@@ -358,7 +358,7 @@ class DatabaseManager {
         });
     }
 
-    async healthCheck() { // Giữ nguyên nội dung hàm này
+    async healthCheck() {
         try {
             if (!this.db || !this.isInitialized) return { connected: false, integrity: false, status: 'unhealthy', error: 'Database not initialized', timestamp: new Date().toISOString() };
             const result = await this.get('SELECT 1 as test');
@@ -369,7 +369,7 @@ class DatabaseManager {
         }
     }
 
-    async getStatistics() { // Giữ nguyên nội dung hàm này
+    async getStatistics() {
         try {
             if (!this.db || !this.isInitialized) throw new Error("Database not initialized for statistics");
             const stats = await this.get(`

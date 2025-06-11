@@ -1,7 +1,7 @@
 // src/backend/services/documentService.js
 /**
  * =================================================================
- * EDMS 1CAR - Document Service (Refactored)
+ * EDMS 1CAR - Document Service (Refactored & Fixed)
  * =================================================================
  */
 const Document = require('../models/Document');
@@ -16,6 +16,87 @@ class DocumentService {
     this.workflowService = workflowService;
     this.auditService = auditService;
   }
+
+  // =================================================================
+  // ===== BẮT ĐẦU PHẦN MÃ ĐƯỢC THÊM VÀO ĐỂ SỬA LỖI =====
+  // =================================================================
+  
+  /**
+   * Get a single document by its ID, checking for permissions.
+   * Lấy chi tiết một tài liệu theo ID, có kiểm tra quyền truy cập.
+   * @param {number} documentId The ID of the document to retrieve.
+   * @param {Object} user The user object performing the action.
+   * @param {Object} context Additional request context (ip, userAgent).
+   * @returns {Promise<Object>} The document data if found and permitted.
+   */
+  async getDocument(documentId, user, context = {}) {
+    try {
+      // Step 1: Fetch the document from the model.
+      // This now uses the corrected Document.findById method.
+      const document = await Document.findById(documentId);
+
+      if (!document) {
+        throw createError('Không tìm thấy tài liệu', 404, 'DOCUMENT_NOT_FOUND');
+      }
+
+      // Step 2: Check for permission to view the document.
+      // This is a critical security step.
+      const permissionResult = await this.permissionService.checkPermission(
+        user.id,
+        'VIEW_DOCUMENT',
+        'document',
+        document.id,
+        context
+      );
+      
+      if (!permissionResult.allowed) {
+        // Log the denial before throwing the error
+        await this.auditService.log({
+            action: 'PERMISSION_DENIED',
+            userId: user.id,
+            resourceType: 'document',
+            resourceId: documentId,
+            details: { reason: permissionResult.reason, documentCode: document.document_code },
+            ipAddress: context.ip,
+            userAgent: context.userAgent,
+            sessionId: context.sessionId
+        });
+        throw createError('Bạn không có quyền xem tài liệu này.', 403, 'PERMISSION_DENIED');
+      }
+
+      // Step 3: Log the successful view action.
+      // Note: We use this.auditService injected via constructor.
+      await this.auditService.log({
+        action: 'DOCUMENT_VIEWED',
+        userId: user.id,
+        resourceType: 'document',
+        resourceId: documentId,
+        details: { documentCode: document.document_code, title: document.title },
+        ipAddress: context.ip,
+        userAgent: context.userAgent,
+        sessionId: context.sessionId
+      });
+
+      // Step 4: Return a structured success response.
+      return {
+        success: true,
+        data: document.toJSON() // Use .toJSON() to ensure clean data is sent.
+      };
+
+    } catch (error) {
+      // Log the error centrally but re-throw it so the route's error handler can manage the response.
+      logError(error, null, {
+        operation: 'DocumentService.getDocument',
+        documentId: documentId,
+        userId: user ? user.id : null,
+      });
+      throw error;
+    }
+  }
+
+  // =================================================================
+  // ===== KẾT THÚC PHẦN MÃ ĐƯỢC THÊM VÀO =====
+  // =================================================================
 
   /**
    * Gợi ý mã tài liệu theo loại và phòng ban (API /suggest-code)

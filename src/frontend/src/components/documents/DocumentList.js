@@ -146,14 +146,22 @@ function DocumentList({
     queryClient.invalidateQueries('documents');
   };
 
+  // =================================================================
+  // == SỬA LỖI Ở ĐÂY ==
+  // =================================================================
   const handleViewDocument = (documentId) => {
-    toast.info(`Điều hướng đến chi tiết tài liệu ID: ${documentId}`);
-    if (onDocumentSelect) onDocumentSelect(documentId);
+    // Sửa lỗi: Dùng `Maps` để chuyển đến trang chi tiết, không dùng toast.info
+    navigate(`/documents/${documentId}`);
   };
 
   const handleEditDocument = (documentId) => {
-    toast.info(`Điều hướng đến chỉnh sửa tài liệu ID: ${documentId}`);
+    // Chuyển hướng đến trang chỉnh sửa (chức năng này sẽ được xây dựng sau)
+    navigate(`/documents/${documentId}/edit`);
+    toast.info(`Chức năng chỉnh sửa cho tài liệu ID: ${documentId} sẽ được phát triển.`);
   };
+  // =================================================================
+  // == KẾT THÚC SỬA LỖI ==
+  // =================================================================
 
   const handleDeleteDocument = (document) => {
     setConfirmDialog({ isOpen: true, document });
@@ -213,7 +221,7 @@ function DocumentList({
   };
 
   // 3.6. DERIVED DATA
-  const documents = documentsResponse?.data?.documents || [];
+  const documents = documentsResponse?.data?.results || [];
   const pagination = documentsResponse?.data?.pagination || {
     total: 0, totalPages: 1, page: currentPage, limit: pageSize
   };

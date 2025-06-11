@@ -570,20 +570,20 @@ class Document {
      */
     static async findById(id) {
         try {
-            // ***** SỬA LỖI SQL TẠI ĐÂY *****
+            // SỬA LỖI: Đổi 'full_name' thành 'name' cho các JOIN
             const document = await dbManager.get(`
                 SELECT
                     d.*,
-                    author.full_name as author_name,
-                    reviewer.full_name as reviewer_name,
-                    approver.full_name as approver_name
+                    author.name as author_name,
+                    reviewer.name as reviewer_name,
+                    approver.name as approver_name
                 FROM documents d
                 LEFT JOIN users author ON d.author_id = author.id
                 LEFT JOIN users reviewer ON d.reviewer_id = reviewer.id
                 LEFT JOIN users approver ON d.approver_id = approver.id
                 WHERE d.id = ?
             `, [id]);
-            // ***** KẾT THÚC SỬA LỖI *****
+            // KẾT THÚC SỬA LỖI
 
             return document ? new Document(document) : null;
         } catch (error) {
@@ -620,7 +620,6 @@ class Document {
      * @param {number} userId - The user ID
      * @returns {boolean} - True if favorited, false otherwise
      */
-    // ***** THÊM HÀM MỚI TẠI ĐÂY *****
     static async isFavorite(documentId, userId) {
         try {
             const result = await dbManager.get(
@@ -633,7 +632,6 @@ class Document {
             throw error;
         }
     }
-    // ***** KẾT THÚC THÊM HÀM MỚI *****
 
     // ĐỔI TÊN: từ getAll thành search để khớp với DocumentService
     /**

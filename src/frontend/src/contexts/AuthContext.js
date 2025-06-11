@@ -117,6 +117,17 @@ export function AuthProvider({ children }) {
         return rolePermissions.includes(permission);
     }, [state.user]);
 
+    // ========================================================
+    // ===== HÀM BỊ THIẾU CẦN ĐƯỢC THÊM VÀO CONTEXT =====
+    // ========================================================
+    const canAccessDepartment = useCallback((departmentName) => {
+        if (!state.user) return false;
+        if (state.user.role === 'admin') return true;
+        // User/Manager can only access their own department's content by default
+        return state.user.department === departmentName;
+    }, [state.user]);
+    // ========================================================
+
     const hasDocumentPermission = useCallback((action, document) => {
         if (!state.user || !state.user.role) return false;
         
@@ -281,15 +292,20 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         initializeAuth();
     }, [initializeAuth]);
-
+    
+    // =================================================================
+    // ===== SỬA LỖI: Thêm `canAccessDepartment` vào `value` object =====
+    // =================================================================
     const value = useMemo(() => ({
         ...state, 
         login, 
         logout, 
         hasPermission, 
         hasDocumentPermission, 
-        canAccessDashboardWidget
-    }), [state, login, logout, hasPermission, hasDocumentPermission, canAccessDashboardWidget]);
+        canAccessDashboardWidget,
+        canAccessDepartment // <<<< ĐÃ THÊM HÀM VÀO ĐÂY
+    }), [state, login, logout, hasPermission, hasDocumentPermission, canAccessDashboardWidget, canAccessDepartment]);
+    // =================================================================
 
     return (
         <AuthContext.Provider value={value}>
