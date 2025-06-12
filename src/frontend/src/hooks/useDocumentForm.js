@@ -84,13 +84,21 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
 
   const prevStep = useCallback(() => {
     if (currentStep > 1) setCurrentStep(s => s - 1);
-  }, []);
+  }, [currentStep]);
 
+  // <<< SỬA LỖI CHÍNH TẠI ĐÂY >>>
+  // Khôi phục lại hàm handleChange gốc để tương thích với các thẻ <select> và <input> tiêu chuẩn.
+  // Hàm này nhận vào đối tượng event `e` và tự trích xuất `name` và `value`.
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
-    if (name === 'document_code') setIsCodeAvailable(null);
+    if (touched[name]) {
+      const error = validateField(name, value);
+      setErrors(prev => ({ ...prev, [name]: error }));
+    }
+    if (name === 'document_code') {
+      setIsCodeAvailable(null);
+    }
   };
   
   const handleBlur = (e) => {
@@ -98,9 +106,13 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
     setTouched(prev => ({ ...prev, [name]: true }));
     const error = validateField(name, value);
     setErrors(prev => ({...prev, [name]: error}));
+
+    if (name === 'document_code' && value.trim() && !error && !isEditMode) {
+      checkDocumentCode(value);
+    }
   };
   
-  const checkDocumentCodeAvailability = useCallback(async (code) => {
+  const checkDocumentCode = useCallback(async (code) => {
     if (!code || isEditMode) {
       setIsCodeAvailable(true);
       return;
@@ -119,7 +131,7 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
     }
   }, [isEditMode]);
 
-  // SỬA LỖI: Hoàn thiện code tạo mã tài liệu thật
+  // Giữ nguyên logic gọi API để tạo mã, vì đây là chức năng mới đã cập nhật.
   const generateDocumentCode = useCallback(async () => {
     if (!formData.type || !formData.department) {
       toast.error("Vui lòng chọn Loại tài liệu và Phòng ban trước.");
@@ -130,9 +142,10 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
       const response = await documentService.getSuggestedCode(formData.type, formData.department);
       if (response.success && response.data.suggestedCode) {
         const suggestedCode = response.data.suggestedCode;
+        // Cập nhật state trực tiếp, không cần gọi handleChange
         setFormData(prev => ({ ...prev, document_code: suggestedCode }));
         toast.success("Đã tạo mã gợi ý!");
-        await checkDocumentCodeAvailability(suggestedCode);
+        await checkDocumentCode(suggestedCode);
       } else {
         toast.error(response.message || "Không thể tạo mã gợi ý.");
       }
@@ -141,7 +154,7 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
     } finally {
       setIsSuggestingCode(false);
     }
-  }, [formData.type, formData.department, checkDocumentCodeAvailability]);
+  }, [formData.type, formData.department, checkDocumentCode]);
 
   const handleFileUpload = async (file) => {
     setIsUploading(true);

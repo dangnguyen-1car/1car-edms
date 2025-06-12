@@ -31,8 +31,6 @@ function DocumentFormWrapper({
         staleTime: Infinity, // Metadata rarely changes, cache for entire session
         enabled: isOpen, // Only execute when modal is open
         select: (data) => {
-          // *** FIXED HERE ***
-          // Ensure data.data is an array before returning it
           if (data?.success && Array.isArray(data.data)) {
             return data.data;
           }
@@ -58,25 +56,23 @@ function DocumentFormWrapper({
         staleTime: Infinity, // Metadata rarely changes, cache for entire session
         enabled: isOpen, // Only execute when modal is open
         select: (data) => {
-          // *** FIXED HERE ***
-          // Ensure data.data is an array before returning it
           if (data?.success && Array.isArray(data.data)) {
             return data.data;
           }
           // Fallback data if API fails or data is not in the correct format
           return [
             { value: 'MG', label: 'Ban Giám đốc' },
-            { value: 'FR', label: 'Phòng Phát triển & Nhượng quyền' },
-            { value: 'TR', label: 'Phòng Đào tạo & Tiêu chuẩn' },
-            { value: 'MK', label: 'Phòng Marketing & Thương hiệu' },
-            { value: 'QC', label: 'Phòng Kỹ thuật & QC' },
-            { value: 'FN', label: 'Phòng Tài chính & Kế toán' },
-            { value: 'IT', label: 'Phòng Công nghệ & Hệ thống' },
-            { value: 'LG', label: 'Phòng Pháp Lý & Tuân thủ' },
+            { value: 'FR', label: 'Phòng Phát triển Nhượng quyền' },
+            { value: 'TR', label: 'Phòng Đào tạo Tiêu chuẩn' },
+            { value: 'MK', label: 'Phòng Marketing Thương hiệu' },
+            { value: 'QC', label: 'Phòng Kỹ thuật QC' },
+            { value: 'FI', label: 'Phòng Tài chính Kế toán' },
+            { value: 'IT', label: 'Phòng Công nghệ Hệ thống' },
+            { value: 'LG', label: 'Phòng Pháp Lý Tuân thủ' },
             { value: 'CS', label: 'Bộ phận Tiếp nhận CSKH' },
             { value: 'TE', label: 'Bộ phận Kỹ thuật Garage' },
             { value: 'QG', label: 'Bộ phận QC Garage' },
-            { value: 'WH', label: 'Bộ phận Kho, Kế toán Garage' },
+            { value: 'WH', label: 'Bộ phận Kho Kế toán Garage' },
             { value: 'AS', label: 'Bộ phận Marketing Garage' },
             { value: 'GM', label: 'Quản lý Garage' },
           ];
@@ -165,8 +161,8 @@ function DocumentFormWrapper({
     <CreateDocumentModal
       isOpen={isOpen}
       onClose={onClose}
-      onCreated={!isEditMode ? handleSuccess : undefined}
-      onUpdated={isEditMode ? handleSuccess : undefined}
+      // *** FIXED HERE: Changed onCreated/onUpdated to onSave to match the prop in CreateDocumentModal ***
+      onSave={handleSuccess}
       isEditMode={isEditMode}
       initialData={documentData}
       documentTypeOptions={documentTypeOptions}

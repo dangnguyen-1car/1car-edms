@@ -1,91 +1,49 @@
 // src/frontend/src/services/documentService.js
 /**
  * =================================================================
- * EDMS 1CAR - Document Service (Frontend)
- * Lớp dịch vụ này đóng vai trò là một lớp trung gian (API layer)
- * để xử lý tất cả các yêu cầu liên quan đến tài liệu từ phía frontend.
- * Nó giúp trừu tượng hóa các lệnh gọi API và quản lý lỗi một cách tập trung.
+ * EDMS 1CAR - Document Service (Frontend) (FINAL FIX)
+ * Đã sửa lỗi triệt để trong hàm getSuggestedCode.
+ * Hàm này giờ sẽ tự tra cứu mã phòng ban trước khi gửi request.
  * =================================================================
  */
 import api from './api';
+// <<< SỬA LỖI 1: Import departmentOptions để tra cứu >>>
+import { departmentOptions } from '../utils/documentUtils';
 
 class DocumentService {
   // =================================================================
   // Lấy dữ liệu Metadata & Options
   // =================================================================
-  /**
-   * Lấy danh sách các loại tài liệu (ví dụ: Quy trình, Hướng dẫn).
-   * @returns {Promise} Dữ liệu trả về từ API.
-   */
   async getDocumentTypes() {
     try {
       const response = await api.get('/documents/types');
       return response.data;
     } catch (error) {
       console.error('Error fetching document types:', error);
-      // Fallback data for development
-      return {
-        success: true,
-        data: [
-          { value: 'PL', label: 'Chính sách (PL)' },
-          { value: 'PR', label: 'Quy trình (PR)' },
-          { value: 'WI', label: 'Hướng dẫn (WI)' },
-          { value: 'FM', label: 'Biểu mẫu (FM)' },
-          { value: 'TD', label: 'Tài liệu kỹ thuật (TD)' },
-          { value: 'TR', label: 'Tài liệu đào tạo (TR)' },
-          { value: 'RC', label: 'Hồ sơ (RC)' }
-        ]
-      };
+      throw new Error(error.response?.data?.message || 'Không thể tải các loại tài liệu.');
     }
   }
 
-  /**
-   * Lấy danh sách các phòng ban.
-   * @returns {Promise} Dữ liệu trả về từ API.
-   */
   async getDepartments() {
     try {
       const response = await api.get('/documents/departments');
       return response.data;
     } catch (error) {
       console.error('Error fetching departments:', error);
-      // Fallback data for development
-      return {
-        success: true,
-        data: [
-          { value: 'BGD', label: 'Ban Giám đốc' },
-          { value: 'PTNT', label: 'Phòng Phát triển Năng lượng' },
-          { value: 'PDTTC', label: 'Phòng Đào tạo Tiêu chuẩn' },
-          { value: 'PMK', label: 'Phòng Marketing' },
-          { value: 'PKTQC', label: 'Phòng Kỹ thuật QC' },
-          { value: 'PTC', label: 'Phòng Tài chính' },
-          { value: 'PCNHT', label: 'Phòng Công nghệ Hệ thống' },
-          { value: 'PPL', label: 'Phòng Pháp lý' },
-          { value: 'BPTN', label: 'Bộ phận Tiếp nhận CSKH' },
-          { value: 'BPKT', label: 'Bộ phận Kỹ thuật Garage' },
-          { value: 'BPQC', label: 'Bộ phận QC Garage' },
-          { value: 'BPKK', label: 'Bộ phận Kho/Kế toán Garage' },
-          { value: 'BPMKG', label: 'Bộ phận Marketing Garage' },
-          { value: 'QLG', label: 'Quản lý Garage' }
-        ]
-      };
+      throw new Error(error.response?.data?.message || 'Không thể tải danh sách phòng ban.');
     }
   }
 
-  /**
-   * Lấy danh sách các trạng thái của tài liệu (ví dụ: Nháp, Đang xem xét).
-   * @returns {Promise} Dữ liệu trả về từ API.
-   */
   async getWorkflowStates() {
     try {
       const response = await api.get('/documents/workflow-states');
       return response.data;
     } catch (error) {
       console.error('Error fetching workflow states:', error);
-      throw new Error(error.response?.data?.message || 'Không thể tải danh sách trạng thái workflow. Vui lòng thử lại.');
+      throw new Error(error.response?.data?.message || 'Không thể tải danh sách trạng thái.');
     }
   }
-
+  
   /**
    * Lấy metadata cho các bộ lọc tìm kiếm.
    * @returns {Promise} Dữ liệu trả về từ API.
@@ -103,29 +61,22 @@ class DocumentService {
   // =================================================================
   // Tìm kiếm & Lấy danh sách
   // =================================================================
-  /**
-   * Tìm kiếm tài liệu với các tiêu chí nâng cao.
-   * @param {Object} searchParams - Các tham số tìm kiếm (page, limit, type, status, v.v.).
-   * @returns {Promise} Kết quả tìm kiếm từ API.
-   */
   async searchDocuments(searchParams) {
     try {
-      // Tạo query string từ object searchParams, loại bỏ các giá trị rỗng.
       const params = new URLSearchParams();
       Object.entries(searchParams).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
           params.append(key, value);
         }
       });
-      // Endpoint đúng là /documents, không phải /documents/search
       const response = await api.get(`/documents?${params.toString()}`);
       return response.data;
     } catch (error) {
       console.error('Error searching documents:', error);
-      throw new Error(error.response?.data?.message || 'Không thể tìm kiếm tài liệu. Vui lòng kiểm tra lại bộ lọc và thử lại.');
+      throw new Error(error.response?.data?.message || 'Lỗi khi tìm kiếm tài liệu.');
     }
   }
-
+  
   /**
    * Lấy các gợi ý tìm kiếm dựa trên từ khóa.
    * @param {string} query - Từ khóa tìm kiếm.
@@ -145,23 +96,43 @@ class DocumentService {
     }
   }
 
+  // <<< SỬA LỖI 2: VIẾT LẠI HOÀN TOÀN HÀM getSuggestedCode >>>
   /**
-   * Gọi API backend để lấy gợi ý mã tài liệu
-   * @param {string} type
-   * @param {string} department
-   * @returns {Promise} { success, data: { suggestedCode, ... } }
+   * Gọi API backend để lấy gợi ý mã tài liệu.
+   * @param {string} type - Mã loại tài liệu (ví dụ: 'PL').
+   * @param {string} departmentValue - Giá trị phòng ban từ form (có thể là mã 'FI' hoặc tên đầy đủ 'Phòng Tài chính').
+   * @returns {Promise} Dữ liệu trả về từ API.
    */
-  async getSuggestedCode(type, department) {
+  async getSuggestedCode(type, departmentValue) {
     try {
-      if (!type || !department) {
-        throw new Error('Loại tài liệu và phòng ban là bắt buộc');
+      if (!type || !departmentValue) {
+        throw new Error('Loại tài liệu và phòng ban là bắt buộc để tạo mã gợi ý.');
       }
+
+      let deptCode = '';
+
+      // Tìm phòng ban trong departmentOptions
+      const foundDept = departmentOptions.find(opt => opt.value === departmentValue || opt.label === departmentValue);
+
+      if (foundDept) {
+        // Nếu tìm thấy, luôn sử dụng `value` (mã phòng ban) để gửi đi
+        deptCode = foundDept.value;
+      } else {
+        // Nếu không tìm thấy, báo lỗi rõ ràng
+        throw new Error(`Phòng ban không hợp lệ: "${departmentValue}". Vui lòng kiểm tra lại.`);
+      }
+
+      // Gọi API với mã phòng ban đã được chuẩn hóa
       const response = await api.get('/documents/suggest-code', {
-        params: { type, department }
+        params: {
+          type,
+          department: deptCode // Backend mong muốn nhận key là 'department' với value là mã
+        }
       });
       return response.data;
     } catch (error) {
       console.error('Error getting suggested code:', error);
+      // Ném lỗi ra ngoài để `useQuery` hoặc `useMutation` có thể bắt và xử lý
       throw new Error(
         error.response?.data?.message ||
         error.message ||
@@ -170,36 +141,19 @@ class DocumentService {
     }
   }
 
-  /**
-   * Kiểm tra tính khả dụng của mã tài liệu
-   * @param {string} code - Mã tài liệu cần kiểm tra
-   * @returns {Promise} { success, data: { available } }
-   */
   async checkCodeAvailability(code) {
     try {
       const response = await api.post('/documents/check-code', { code });
-      return {
-        success: true,
-        data: response.data.data
-      };
+      return response.data;
     } catch (error) {
       console.error('Check code availability error:', error);
-      return {
-        success: false,
-        data: { available: false },
-        message: error.response?.data?.message || 'Lỗi kiểm tra mã tài liệu'
-      };
+      throw new Error(error.response?.data?.message || 'Lỗi kiểm tra mã tài liệu');
     }
   }
-
+  
   // =================================================================
   // Thao tác CRUD trên một tài liệu
   // =================================================================
-  /**
-   * Lấy thông tin chi tiết của một tài liệu bằng ID.
-   * @param {number|string} id - ID của tài liệu.
-   * @returns {Promise} Chi tiết tài liệu.
-   */
   async getDocument(id) {
     try {
       const response = await api.get(`/documents/${id}`);
@@ -209,53 +163,37 @@ class DocumentService {
       if (error.response?.status === 404) {
         throw new Error('Không tìm thấy tài liệu.');
       }
-      throw new Error(error.response?.data?.message || 'Không thể tải thông tin chi tiết tài liệu. Vui lòng thử lại.');
+      throw new Error(error.response?.data?.message || 'Không thể tải chi tiết tài liệu.');
     }
   }
 
-  /**
-   * Tạo một tài liệu mới.
-   * @param {Object} documentData - Dữ liệu của tài liệu cần tạo.
-   * @returns {Promise} Tài liệu vừa được tạo.
-   */
   async createDocument(documentData) {
     try {
       const response = await api.post('/documents', documentData);
       return response.data;
     } catch (error) {
       console.error('Error creating document:', error);
-      throw new Error(error.response?.data?.message || 'Không thể tạo tài liệu mới. Vui lòng thử lại.');
+      throw new Error(error.response?.data?.message || 'Không thể tạo tài liệu mới.');
     }
   }
 
-  /**
-   * Cập nhật một tài liệu đã có.
-   * @param {number|string} id - ID của tài liệu.
-   * @param {Object} documentData - Dữ liệu cần cập nhật.
-   * @returns {Promise} Tài liệu đã được cập nhật.
-   */
   async updateDocument(id, documentData) {
     try {
       const response = await api.put(`/documents/${id}`, documentData);
       return response.data;
     } catch (error) {
       console.error(`Error updating document ${id}:`, error);
-      throw new Error(error.response?.data?.message || 'Không thể cập nhật tài liệu. Vui lòng thử lại.');
+      throw new Error(error.response?.data?.message || 'Không thể cập nhật tài liệu.');
     }
   }
-
-  /**
-   * Xóa một tài liệu.
-   * @param {number|string} id - ID của tài liệu.
-   * @returns {Promise} Kết quả xóa.
-   */
+  
   async deleteDocument(id) {
     try {
       const response = await api.delete(`/documents/${id}`);
       return response.data;
     } catch (error) {
       console.error(`Error deleting document ${id}:`, error);
-      throw new Error(error.response?.data?.message || 'Không thể xóa tài liệu. Vui lòng thử lại.');
+      throw new Error(error.response?.data?.message || 'Không thể xóa tài liệu.');
     }
   }
 

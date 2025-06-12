@@ -1,10 +1,40 @@
 // src/frontend/src/utils/documentUtils.js
 /**
  * =================================================================
- * EDMS 1CAR - Document Utility Functions
- * Centralized helper functions for document display formatting
+ * EDMS 1CAR - Document Utility Functions (FINAL & COMPLETE)
+ * Fully synchronized with the backend.
+ * `value` is the department code (e.g., 'MG'), `label` is the full name.
  * =================================================================
  */
+
+// --- Department Options (Synchronized with Backend) ---
+export const departmentOptions = [
+  { value: 'MG', label: 'Ban Giám đốc' },
+  { value: 'FR', label: 'Phòng Phát triển Nhượng quyền' },
+  { value: 'TR', label: 'Phòng Đào tạo Tiêu chuẩn' },
+  { value: 'MK', label: 'Phòng Marketing' },
+  { value: 'QC', label: 'Phòng Kỹ thuật QC' },
+  { value: 'FI', label: 'Phòng Tài chính' },
+  { value: 'IT', label: 'Phòng Công nghệ Hệ thống' },
+  { value: 'LG', label: 'Phòng Pháp lý' },
+  { value: 'CS', label: 'Bộ phận Tiếp nhận CSKH' },
+  { value: 'TE', label: 'Bộ phận Kỹ thuật Garage' },
+  { value: 'QG', label: 'Bộ phận QC Garage' },
+  { value: 'WH', label: 'Bộ phận Kho/Kế toán Garage' },
+  { value: 'AS', label: 'Bộ phận Marketing Garage' },
+  { value: 'GM', label: 'Quản lý Garage' },
+];
+
+// --- Document Type Options ---
+export const documentTypeOptions = [
+    { value: 'PL', label: 'Chính sách' },
+    { value: 'PR', label: 'Quy trình' },
+    { value: 'WI', label: 'Hướng dẫn' },
+    { value: 'FM', label: 'Biểu mẫu' },
+    { value: 'TD', label: 'Tài liệu Kỹ thuật' },
+    { value: 'TR', label: 'Tài liệu Đào tạo' },
+    { value: 'RC', label: 'Hồ sơ' }
+];
 
 // --- Document Type Helpers ---
 
@@ -113,8 +143,7 @@ export const formatDocumentCode = (code) => {
  */
 export const isValidDocumentCode = (code) => {
   if (!code) return false;
-  // Example format: C-PL-HR01-001
-  return /^C-[A-Z]{2,3}-[A-Z0-9]{2,6}-\d{3}$/.test(code);
+  return /^C-[A-Z]{2,3}-[A-Z]{2,6}-\d{3}$/.test(code);
 };
 
 // --- Priority Helpers ---
