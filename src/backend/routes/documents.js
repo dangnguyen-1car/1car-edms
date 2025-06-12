@@ -1,11 +1,11 @@
 // src/backend/routes/documents.js
 /**
- * =================================================================
- * EDMS 1CAR - Document Routes (Phiên bản đầy đủ, tích hợp)
- * Tích hợp đầy đủ SearchService, auditCRUD middleware, và các API cho Dashboard.
- * Bao gồm quản lý phiên bản, trạng thái, file đính kèm và mục yêu thích.
- * =================================================================
- */
+ * =================================================================
+ * EDMS 1CAR - Document Routes (REVISED AND FIXED)
+ * Tích hợp đầy đủ SearchService, auditCRUD middleware, và các API cho Dashboard.
+ * ĐÃ BỔ SUNG ROUTE /check-code ĐỂ SỬA LỖI 404.
+ * =================================================================
+ */
 
 const express = require('express');
 const router = express.Router();
@@ -16,8 +16,9 @@ const { checkPermission } = require('../middleware/permissionMiddleware');
 const { auditMiddleware, auditCRUD, setAuditDetails } = require('../middleware/auditMiddleware');
 const serviceFactory = require('../services/serviceFactory');
 const { createError } = require('../middleware/errorHandler');
-const SearchService = require('../services/searchService'); // Tích hợp SearchService
-const Document = require('../models/Document'); // Import model để dùng cho các hàm static
+const SearchService = require('../services/searchService');
+const Document = require('../models/Document');
+const DocumentCodeGenerator = require('../utils/documentCodeGenerator'); // Đảm bảo import
 
 // Áp dụng audit middleware cho tất cả routes
 router.use(auditMiddleware);
@@ -27,9 +28,9 @@ router.use(auditMiddleware);
 // =================================================================
 
 /**
- * GET /api/documents/stats
- * Lấy thống kê tài liệu theo trạng thái cho Dashboard Widget
- */
+ * GET /api/documents/stats
+ * Lấy thống kê tài liệu theo trạng thái cho Dashboard Widget
+ */
 router.get('/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const { department, dateFrom, dateTo } = req.query;
@@ -43,9 +44,9 @@ router.get('/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'docume
 });
 
 /**
- * GET /api/documents/pending-approval
- * Lấy tài liệu cần phê duyệt theo vai trò cho Dashboard Widget
- */
+ * GET /api/documents/pending-approval
+ * Lấy tài liệu cần phê duyệt theo vai trò cho Dashboard Widget
+ */
 router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const { limit = 10 } = req.query;
@@ -59,9 +60,9 @@ router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMEN
 });
 
 /**
- * GET /api/documents/due-for-review
+ * GET /api/documents/due-for-review
  * Lấy tài liệu sắp hết hạn review cho Dashboard Widget
- */
+ */
 router.get('/due-for-review', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const { daysBefore = 30 } = req.query;
@@ -80,9 +81,9 @@ router.get('/due-for-review', authenticateToken, checkPermission('VIEW_DOCUMENT'
 // =================================================================
 
 /**
- * GET /api/documents/suggest-code
- * Gợi ý mã tài liệu dựa trên loại và phòng ban
- */
+ * GET /api/documents/suggest-code
+ * Gợi ý mã tài liệu dựa trên loại và phòng ban
+ */
 router.get('/suggest-code', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const { type, department } = req.query;
@@ -98,10 +99,33 @@ router.get('/suggest-code', authenticateToken, checkPermission('CREATE_DOCUMENT'
     }
 });
 
+// THÊM MỚI: Endpoint kiểm tra mã tài liệu để sửa lỗi 404
 /**
- * GET /api/documents/types, /departments, /workflow-states
- * Cung cấp metadata cho frontend
- */
+ * POST /api/documents/check-code
+ * Kiểm tra xem mã tài liệu đã tồn tại hay chưa
+ */
+router.post('/check-code', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { code } = req.body;
+        if (!code) {
+            throw createError('Mã tài liệu là bắt buộc để kiểm tra.', 400, 'MISSING_CODE');
+        }
+        const codeExists = await DocumentCodeGenerator.codeExists(code);
+        res.status(200).json({
+            success: true,
+            data: { available: !codeExists },
+            timestamp: new Date().toISOString(),
+            requestId: req.requestId
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/types, /departments, /workflow-states
+ * Cung cấp metadata cho frontend
+ */
 router.get('/types', authenticateToken, (req, res) => res.status(200).json({ success: true, data: { documentTypes: [ { code: 'PL', name: 'Chính sách' }, { code: 'PR', name: 'Quy trình' }, { code: 'WI', name: 'Hướng dẫn' }, { code: 'FM', name: 'Biểu mẫu' }, { code: 'TD', name: 'Tài liệu kỹ thuật' }, { code: 'TR', name: 'Tài liệu đào tạo' }, { code: 'RC', name: 'Hồ sơ' } ] } }));
 router.get('/departments', authenticateToken, (req, res) => res.status(200).json({ success: true, data: { departments: [ 'Ban Giám đốc', 'Phòng Phát triển Nhượng quyền', 'Phòng Đào tạo Tiêu chuẩn', 'Phòng Marketing', 'Phòng Kỹ thuật QC', 'Phòng Tài chính', 'Phòng Công nghệ Hệ thống', 'Phòng Pháp lý', 'Bộ phận Tiếp nhận CSKH', 'Bộ phận Kỹ thuật Garage', 'Bộ phận QC Garage', 'Bộ phận Kho/Kế toán Garage', 'Bộ phận Marketing Garage', 'Quản lý Garage' ] } }));
 router.get('/workflow-states', authenticateToken, (req, res) => res.status(200).json({ success: true, data: { workflowStates: [ { code: 'draft', name: 'Bản nháp' }, { code: 'review', name: 'Đang xem xét' }, { code: 'published', name: 'Đã phê duyệt' }, { code: 'archived', name: 'Đã lưu trữ' } ] } }));
@@ -129,9 +153,9 @@ router.get('/search-suggestions', authenticateToken, checkPermission('VIEW_DOCUM
 // =================================================================
 
 /**
- * GET /api/documents
- * Tìm kiếm và lọc tài liệu - Tích hợp SearchService
- */
+ * GET /api/documents
+ * Tìm kiếm và lọc tài liệu - Tích hợp SearchService
+ */
 router.get('/', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const { search = '', page = 1, limit = 20, sort = 'relevance', ...filters } = req.query;
@@ -144,9 +168,9 @@ router.get('/', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'),
 });
 
 /**
- * POST /api/documents
- * Tạo tài liệu mới
- */
+ * POST /api/documents
+ * Tạo tài liệu mới
+ */
 router.post('/', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), auditCRUD.create('document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -158,9 +182,9 @@ router.post('/', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document
 });
 
 /**
- * GET /api/documents/:id
- * Lấy chi tiết tài liệu
- */
+ * GET /api/documents/:id
+ * Lấy chi tiết tài liệu
+ */
 router.get('/:id', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), auditCRUD.read('document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -173,9 +197,9 @@ router.get('/:id', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document
 });
 
 /**
- * PUT /api/documents/:id
- * Cập nhật tài liệu
- */
+ * PUT /api/documents/:id
+ * Cập nhật tài liệu
+ */
 router.put('/:id', authenticateToken, checkPermission('EDIT_DOCUMENT', 'document'), auditCRUD.update('document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -187,9 +211,9 @@ router.put('/:id', authenticateToken, checkPermission('EDIT_DOCUMENT', 'document
 });
 
 /**
- * DELETE /api/documents/:id
- * Xóa tài liệu
- */
+ * DELETE /api/documents/:id
+ * Xóa tài liệu
+ */
 router.delete('/:id', authenticateToken, checkPermission('DELETE_DOCUMENT', 'document'), auditCRUD.delete('document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -206,9 +230,9 @@ router.delete('/:id', authenticateToken, checkPermission('DELETE_DOCUMENT', 'doc
 // =================================================================
 
 /**
- * PUT /api/documents/:id/status
- * Cập nhật trạng thái tài liệu (phê duyệt, từ chối,...)
- */
+ * PUT /api/documents/:id/status
+ * Cập nhật trạng thái tài liệu (phê duyệt, từ chối,...)
+ */
 router.put('/:id/status', authenticateToken, checkPermission('APPROVE_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -222,9 +246,9 @@ router.put('/:id/status', authenticateToken, checkPermission('APPROVE_DOCUMENT',
 });
 
 /**
- * GET /api/documents/:id/versions
- * Lấy lịch sử phiên bản
- */
+ * GET /api/documents/:id/versions
+ * Lấy lịch sử phiên bản
+ */
 router.get('/:id/versions', authenticateToken, checkPermission('VIEW_VERSION_HISTORY', 'document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -236,9 +260,9 @@ router.get('/:id/versions', authenticateToken, checkPermission('VIEW_VERSION_HIS
 });
 
 /**
- * POST /api/documents/:id/versions
+ * POST /api/documents/:id/versions
  * Tạo phiên bản mới cho tài liệu
- */
+ */
 router.post('/:id/versions', authenticateToken, checkPermission('CREATE_VERSION', 'document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -252,9 +276,9 @@ router.post('/:id/versions', authenticateToken, checkPermission('CREATE_VERSION'
 
 
 /**
- * GET /api/documents/:id/workflow
- * Lấy lịch sử workflow
- */
+ * GET /api/documents/:id/workflow
+ * Lấy lịch sử workflow
+ */
 router.get('/:id/workflow', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const documentService = serviceFactory.getDocumentService();
@@ -266,9 +290,9 @@ router.get('/:id/workflow', authenticateToken, checkPermission('VIEW_DOCUMENT', 
 });
 
 /**
- * GET /api/documents/:id/download
- * Download file của tài liệu
- */
+ * GET /api/documents/:id/download
+ * Download file của tài liệu
+ */
 router.get('/:id/download', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
     try {
         const documentId = parseInt(req.params.id);
