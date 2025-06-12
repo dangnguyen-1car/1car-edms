@@ -75,9 +75,9 @@ function DocumentFormWrapper({
             { value: 'LG', label: 'Phòng Pháp Lý & Tuân thủ' },
             { value: 'CS', label: 'Bộ phận Tiếp nhận CSKH' },
             { value: 'TE', label: 'Bộ phận Kỹ thuật Garage' },
-            { value: 'QC', label: 'Bộ phận QC Garage' },
+            { value: 'QG', label: 'Bộ phận QC Garage' },
             { value: 'WH', label: 'Bộ phận Kho, Kế toán Garage' },
-            { value: 'MK', label: 'Bộ phận Marketing Garage' },
+            { value: 'AS', label: 'Bộ phận Marketing Garage' },
             { value: 'GM', label: 'Quản lý Garage' },
           ];
         },

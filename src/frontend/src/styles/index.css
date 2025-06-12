@@ -76,7 +76,7 @@
   }
 
   .form-textarea {
-    @apply resize-vertical; /* Thêm từ .new.css */
+    @apply resize-y; /* Thêm từ .new.css */
   }
 
   .form-error { /* Từ file cũ */

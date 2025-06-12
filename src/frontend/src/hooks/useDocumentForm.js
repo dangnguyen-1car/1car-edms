@@ -5,115 +5,125 @@ import { documentService } from '../services/documentService';
 import { uploadService } from '../services/uploadService';
 import { useAuth } from '../contexts/AuthContext';
 
-export function useDocumentForm(initialData = null, isEditMode = false) {
+export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
   const { user: currentUser } = useAuth();
 
-  const getInitialFormData = useCallback((data = null) => ({
-    title: data?.title || '',
-    document_code: data?.document_code || '',
-    type: data?.type || '',
-    department: data?.department || currentUser?.department || '',
-    description: data?.description || '',
-    scope_of_application: data?.scope_of_application || '',
-    recipients: data?.recipients || [],
-    priority: data?.priority || 'normal',
-    security_level: data?.security_level || 'internal',
-    review_cycle: data?.review_cycle ?? 12,
-    retention_period: data?.retention_period ?? 60,
-    keywords: data?.keywords || '',
-    author_id: currentUser?.id,
-    uploaded_file_id: data?.file_id || null,
-    file_info: data?.file_info || null,
-    status: data?.status || 'draft',
-  }), [currentUser]);
+  const getInitialFormData = useCallback(() => ({
+    title: initialData?.title || '',
+    document_code: initialData?.document_code || '',
+    type: initialData?.type || '',
+    department: initialData?.department || currentUser?.department || '',
+    description: initialData?.description || '',
+    scope_of_application: initialData?.scope_of_application || '',
+    recipients: initialData?.recipients || [],
+    priority: initialData?.priority || 'normal',
+    security_level: initialData?.security_level || 'internal',
+    review_cycle: initialData?.review_cycle ?? 12,
+    retention_period: initialData?.retention_period ?? 60,
+    keywords: initialData?.keywords || '',
+    file_id: initialData?.file_id || null,
+  }), [initialData, currentUser]);
 
-  const [formData, setFormData] = useState(getInitialFormData());
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState(getInitialFormData);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
-  const [recipientInput, setRecipientInput] = useState('');
-  const [isCodeChecking, setIsCodeChecking] = useState(false);
-  const [isSuggestingCode, setIsSuggestingCode] = useState(false);
-  const [codeAvailable, setCodeAvailable] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [previewData, setPreviewData] = useState(null);
-
+  const [uploadedFile, setUploadedFile] = useState(initialData?.file_info || null);
+  const [isCodeAvailable, setIsCodeAvailable] = useState(null);
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
+  const [isSuggestingCode, setIsSuggestingCode] = useState(false);
+  const [recipientInput, setRecipientInput] = useState('');
+  const [currentStep, setCurrentStep] = useState(1);
+  
   const validateField = useCallback((name, value) => {
-    const fieldErrors = {};
     switch (name) {
       case 'title':
-        if (!value.trim() || value.length < 5) fieldErrors.title = 'Tiêu đề là bắt buộc (tối thiểu 5 ký tự).';
-        break;
-      case 'document_code':
-        if (!value.trim()) fieldErrors.document_code = 'Mã tài liệu là bắt buộc.';
-        break;
+        return value.trim() ? null : 'Tiêu đề là bắt buộc.';
       case 'type':
-        if (!value) fieldErrors.type = 'Loại tài liệu là bắt buộc.';
-        break;
+        return value ? null : 'Loại tài liệu là bắt buộc.';
+      case 'document_code':
+        return value.trim() ? null : 'Mã tài liệu là bắt buộc.';
       case 'department':
-        if (!value) fieldErrors.department = 'Phòng ban là bắt buộc.';
-        break;
+        return value ? null : 'Phòng ban là bắt buộc.';
       case 'scope_of_application':
-        if (!value.trim()) fieldErrors.scope_of_application = 'Phạm vi áp dụng là bắt buộc.';
-        break;
+        return value.trim() ? null : 'Phạm vi áp dụng là bắt buộc.';
+      case 'file_id':
+        return (isEditMode || value) ? null : 'File đính kèm là bắt buộc.';
       default:
-        break;
-    }
-    return fieldErrors;
-  }, []);
-
-  const validateForm = useCallback(() => {
-    const allErrors = {};
-    Object.keys(formData).forEach(key => {
-      if (!['recipients', 'author_id', 'uploaded_file_id', 'file_info'].includes(key)) {
-        const fieldErrors = validateField(key, formData[key]);
-        Object.assign(allErrors, fieldErrors);
-      }
-    });
-    setErrors(allErrors);
-    return Object.keys(allErrors).length === 0;
-  }, [formData, validateField]);
-  
-  const validateStep = useCallback((fieldsToValidate) => {
-      let isStepValid = true;
-      const stepErrors = {};
-      fieldsToValidate.forEach(field => {
-          const fieldError = validateField(field, formData[field]);
-          if(Object.keys(fieldError).length > 0) {
-              isStepValid = false;
-              Object.assign(stepErrors, fieldError);
-          }
-      });
-      setErrors(prev => ({ ...prev, ...stepErrors }));
-      return isStepValid;
-  }, [formData, validateField]);
-
-  const checkDocumentCodeAvailability = useCallback(async (code) => {
-    if (!code || isEditMode) {
-      setCodeAvailable(isEditMode ? true : null); return;
-    }
-    setIsCodeChecking(true);
-    try {
-      const response = await documentService.checkCodeAvailability(code);
-      const isAvailable = response.success && response.data.available;
-      setCodeAvailable(isAvailable);
-      if (!isAvailable) {
-        setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu đã tồn tại.' }));
-      } else {
-        setErrors(prev => ({ ...prev, document_code: null }));
-      }
-    } catch (error) {
-      setCodeAvailable(null);
-      setErrors(prev => ({ ...prev, document_code: 'Lỗi kiểm tra mã tài liệu.' }));
-    } finally {
-      setIsCodeChecking(false);
+        return null;
     }
   }, [isEditMode]);
 
+  const validateStep = useCallback((fields) => {
+    const stepErrors = {};
+    let isValid = true;
+    fields.forEach(field => {
+      const error = validateField(field, formData[field]);
+      if (error) {
+        stepErrors[field] = error;
+        isValid = false;
+      }
+    });
+    setErrors(prev => ({ ...prev, ...stepErrors }));
+    return isValid;
+  }, [formData, validateField]);
+
+  const nextStep = useCallback(() => {
+    if (currentStep < 3) {
+      if (currentStep === 1) {
+        const step1Fields = ['title', 'type', 'document_code', 'department', 'scope_of_application'];
+        if (!validateStep(step1Fields) || isCodeAvailable === false) {
+          toast.error("Vui lòng điền đúng và đủ các trường bắt buộc.");
+          return;
+        }
+      }
+      setCurrentStep(s => s + 1);
+    }
+  }, [currentStep, validateStep, isCodeAvailable]);
+
+  const prevStep = useCallback(() => {
+    if (currentStep > 1) setCurrentStep(s => s - 1);
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
+    if (name === 'document_code') setIsCodeAvailable(null);
+  };
+  
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    const error = validateField(name, value);
+    setErrors(prev => ({...prev, [name]: error}));
+  };
+  
+  const checkDocumentCodeAvailability = useCallback(async (code) => {
+    if (!code || isEditMode) {
+      setIsCodeAvailable(true);
+      return;
+    }
+    setIsCheckingCode(true);
+    try {
+      const res = await documentService.checkCodeAvailability(code);
+      setIsCodeAvailable(res.data.available);
+      if (!res.data.available) {
+        setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu này đã tồn tại.' }));
+      }
+    } catch (error) {
+      toast.error('Lỗi khi kiểm tra mã tài liệu.');
+    } finally {
+      setIsCheckingCode(false);
+    }
+  }, [isEditMode]);
+
+  // SỬA LỖI: Hoàn thiện code tạo mã tài liệu thật
   const generateDocumentCode = useCallback(async () => {
     if (!formData.type || !formData.department) {
-      toast.error("Vui lòng chọn Loại và Phòng ban trước khi tạo mã."); return;
+      toast.error("Vui lòng chọn Loại tài liệu và Phòng ban trước.");
+      return;
     }
     setIsSuggestingCode(true);
     try {
@@ -121,130 +131,96 @@ export function useDocumentForm(initialData = null, isEditMode = false) {
       if (response.success && response.data.suggestedCode) {
         const suggestedCode = response.data.suggestedCode;
         setFormData(prev => ({ ...prev, document_code: suggestedCode }));
-        setTouched(prev => ({ ...prev, document_code: true }));
+        toast.success("Đã tạo mã gợi ý!");
         await checkDocumentCodeAvailability(suggestedCode);
-        toast.success(`Đã tạo mã gợi ý: ${suggestedCode}`);
       } else {
-        throw new Error(response.message || 'Không thể lấy mã gợi ý.');
+        toast.error(response.message || "Không thể tạo mã gợi ý.");
       }
     } catch (error) {
-      toast.error(error.message || 'Lỗi khi tạo mã gợi ý.');
+      toast.error(error.message || "Lỗi hệ thống khi tạo mã.");
     } finally {
       setIsSuggestingCode(false);
     }
   }, [formData.type, formData.department, checkDocumentCodeAvailability]);
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (name === 'document_code') {
-      setCodeAvailable(null);
-    }
-  }, []);
-  
-  const handleBlur = useCallback((e) => {
-    const { name, value } = e.target;
-    setTouched(prev => ({ ...prev, [name]: true }));
-    const fieldErrors = validateField(name, value);
-    setErrors(prev => ({ ...prev, ...fieldErrors }));
-    
-    if (name === 'document_code' && Object.keys(fieldErrors).length === 0 && value.trim() && !isEditMode) {
-      checkDocumentCodeAvailability(value);
-    }
-  }, [validateField, checkDocumentCodeAvailability, isEditMode]);
-
-  const resetForm = useCallback(() => {
-    setFormData(getInitialFormData());
-    setErrors({});
-    setTouched({});
-    setLoading(false);
-    setCodeAvailable(null);
-    setUploadedFile(null);
-    setRecipientInput('');
-    setPreviewData(null);
-  }, [getInitialFormData]);
-  
-  useEffect(() => {
-    if (isEditMode && initialData) {
-      setFormData({ ...getInitialFormData(), ...initialData });
-      setUploadedFile(initialData.file_info || null);
-      setCodeAvailable(true);
-    } else {
-      resetForm();
-    }
-  }, [isEditMode, initialData, resetForm, getInitialFormData]);
-
-  const addRecipient = useCallback(() => {
-    if (recipientInput && !formData.recipients.includes(recipientInput)) {
-      setFormData(prev => ({ ...prev, recipients: [...prev.recipients, recipientInput] }));
-      setRecipientInput('');
-    }
-  }, [recipientInput, formData.recipients]);
-
-  const removeRecipient = useCallback((recipientToRemove) => {
-    setFormData(prev => ({ ...prev, recipients: prev.recipients.filter(r => r !== recipientToRemove) }));
-  }, []);
-
   const handleFileUpload = async (file) => {
     setIsUploading(true);
+    setErrors(prev => ({ ...prev, file_id: null }));
     try {
-        const response = await uploadService.uploadFile(file);
-        if (response.success) {
-            setUploadedFile(response.data);
-            toast.success(`Đã tải lên tệp: ${response.data.original_name}`);
-        } else {
-            throw new Error(response.message || 'Tải lên thất bại.');
-        }
+      const res = await uploadService.uploadFile(file);
+      if (res.success) {
+        setUploadedFile(res.data);
+        setFormData(prev => ({ ...prev, file_id: res.data.id }));
+        toast.success('Tải tệp lên thành công.');
+      } else {
+        toast.error(res.message || 'Tải tệp lên thất bại.');
+      }
     } catch (error) {
-        toast.error(error.message);
+      toast.error(error.message || 'Lỗi khi tải tệp.');
     } finally {
-        setIsUploading(false);
+      setIsUploading(false);
     }
   };
 
   const removeUploadedFile = () => {
     setUploadedFile(null);
-    toast.success('Đã xóa tệp đính kèm.');
+    setFormData(prev => ({ ...prev, file_id: null }));
   };
 
-  const handleSubmit = useCallback(async (status) => {
-    if (!validateForm()) {
-        toast.error('Vui lòng kiểm tra lại các trường thông tin bắt buộc.');
-        return { success: false };
+  const addRecipient = () => {
+    if (recipientInput && !formData.recipients.includes(recipientInput)) {
+      setFormData(prev => ({ ...prev, recipients: [...prev.recipients, recipientInput] }));
+      setRecipientInput('');
     }
-    if (!isEditMode && codeAvailable === false) {
-      setErrors(prev => ({ ...prev, document_code: 'Mã tài liệu đã tồn tại. Vui lòng tạo mã khác.' }));
-      return { success: false };
+  };
+
+  const removeRecipient = (recipient) => {
+    setFormData(prev => ({ ...prev, recipients: prev.recipients.filter(r => r !== recipient) }));
+  };
+
+  const handleSubmit = async (status) => {
+    const allFields = ['title', 'type', 'document_code', 'department', 'scope_of_application', 'file_id'];
+    if (!validateStep(allFields) || isCodeAvailable === false) {
+      toast.error("Vui lòng kiểm tra lại các trường thông tin bắt buộc.");
+      setTouched(allFields.reduce((acc, field) => ({ ...acc, [field]: true }), {}));
+      return;
     }
     setLoading(true);
+    const payload = { ...formData, status, author_id: currentUser?.id };
     try {
-      const payload = { ...formData, status, uploaded_file_id: uploadedFile?.id };
-      delete payload.file_info; // Không gửi lại thông tin file thừa
-
-      const response = isEditMode
+      const result = isEditMode
         ? await documentService.updateDocument(initialData.id, payload)
         : await documentService.createDocument(payload);
-      if (response.success) {
-        toast.success(isEditMode ? 'Cập nhật thành công!' : 'Tạo mới thành công!');
-        return { success: true, document: response.document || response.data };
+
+      if (result.success) {
+        toast.success(`Tài liệu đã được ${isEditMode ? 'cập nhật' : 'tạo'} thành công!`);
+        if (onSave) onSave(result.data);
+        onClose();
       } else {
-        throw new Error(response.message);
+        toast.error(result.message || 'Đã xảy ra lỗi.');
+        setErrors(result.errors || {});
       }
     } catch (err) {
-      toast.error(err.message || 'Thao tác thất bại.');
-      return { success: false };
+      toast.error(err.message || 'Lỗi không xác định.');
     } finally {
       setLoading(false);
     }
-  }, [formData, validateForm, isEditMode, codeAvailable, uploadedFile, initialData]);
+  };
+
+  useEffect(() => {
+    const newFormData = getInitialFormData();
+    setFormData(newFormData);
+    setUploadedFile(initialData?.file_info || null);
+    setCurrentStep(1);
+    setErrors({});
+    setTouched({});
+  }, [initialData, getInitialFormData]);
 
   return {
-    formData, setFormData, loading, errors, touched, setTouched,
+    formData, errors, touched, loading, isUploading, uploadedFile,
+    currentStep, isCodeAvailable, isCheckingCode, isSuggestingCode,
     recipientInput, setRecipientInput, addRecipient, removeRecipient,
-    isCodeChecking, isSuggestingCode, codeAvailable, generateDocumentCode,
-    uploadedFile, isUploading, handleFileUpload, removeUploadedFile,
-    previewData, setPreviewData,
-    handleChange, handleBlur, handleSubmit,
-    validateForm, resetForm, validateStep
+    handleChange, handleBlur, handleFileUpload, removeUploadedFile,
+    handleSubmit, nextStep, prevStep, generateDocumentCode
   };
 }
