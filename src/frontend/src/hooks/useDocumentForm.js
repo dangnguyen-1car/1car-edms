@@ -5,31 +5,80 @@ import { documentService } from '../services/documentService';
 import { uploadService } from '../services/uploadService';
 import { useAuth } from '../contexts/AuthContext';
 
-export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
+export function useDocumentForm(
+  initialData, 
+  isEditMode, 
+  onSave, 
+  onClose,
+  documentTypeOptions,
+  departmentOptions
+) {
   const { user: currentUser } = useAuth();
 
-  const getInitialFormData = useCallback(() => ({
-    title: initialData?.title || '',
-    document_code: initialData?.document_code || '',
-    type: initialData?.type || '',
-    department: initialData?.department || currentUser?.department || '',
-    description: initialData?.description || '',
-    scope_of_application: initialData?.scope_of_application || '',
-    recipients: initialData?.recipients || [],
-    priority: initialData?.priority || 'normal',
-    security_level: initialData?.security_level || 'internal',
-    review_cycle: initialData?.review_cycle ?? 12,
-    retention_period: initialData?.retention_period ?? 60,
-    keywords: initialData?.keywords || '',
-    file_id: initialData?.file_id || null,
-  }), [initialData, currentUser]);
+  const getInitialFormData = useCallback(() => {
+    if (isEditMode && initialData) {
+        const findValueByLabel = (options, label) => {
+            if (!options || !label) return '';
+            const option = options.find(opt => opt.label === label);
+            return option ? option.value : '';
+        };
+
+        return {
+            title: initialData.title || '',
+            document_code: initialData.document_code || '',
+            
+            // =================================================================
+            // SỬA LỖI TẠI ĐÂY
+            // Lý do: initialData.type từ API trả về đã là mã (value), ví dụ: 'PL'.
+            // Việc dùng findValueByLabel sẽ tìm kiếm một mục có "nhãn" (label) là 'PL',
+            // dẫn đến thất bại và trả về chuỗi rỗng.
+            // Giải pháp: Sử dụng trực tiếp giá trị initialData.type.
+            // =================================================================
+            type: initialData.type || '',
+            
+            department: findValueByLabel(departmentOptions, initialData.department),
+            description: initialData.description || '',
+            scope_of_application: initialData.scope_of_application || '',
+            recipients: initialData.recipients || [],
+            priority: initialData.priority || 'normal',
+            security_level: initialData.security_level || 'internal',
+            review_cycle: initialData.review_cycle ?? 12,
+            retention_period: initialData.retention_period ?? 60,
+            keywords: initialData.keywords || '',
+            file_id: initialData.file_id || null,
+        };
+    }
+
+    // Giữ nguyên logic cho việc tạo mới
+    return {
+        title: '',
+        document_code: '',
+        type: '',
+        department: currentUser?.department || '',
+        description: '',
+        scope_of_application: '',
+        recipients: [],
+        priority: 'normal',
+        security_level: 'internal',
+        review_cycle: 12,
+        retention_period: 60,
+        keywords: '',
+        file_id: null,
+    };
+  }, [
+    initialData, 
+    isEditMode, 
+    currentUser, 
+    documentTypeOptions,
+    departmentOptions
+  ]);
 
   const [formData, setFormData] = useState(getInitialFormData);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState(initialData?.file_info || null);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [isCodeAvailable, setIsCodeAvailable] = useState(null);
   const [isCheckingCode, setIsCheckingCode] = useState(false);
   const [isSuggestingCode, setIsSuggestingCode] = useState(false);
@@ -38,33 +87,27 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
   
   const validateField = useCallback((name, value) => {
     switch (name) {
-      case 'title':
-        return value.trim() ? null : 'Tiêu đề là bắt buộc.';
-      case 'type':
-        return value ? null : 'Loại tài liệu là bắt buộc.';
-      case 'document_code':
-        return value.trim() ? null : 'Mã tài liệu là bắt buộc.';
-      case 'department':
-        return value ? null : 'Phòng ban là bắt buộc.';
-      case 'scope_of_application':
-        return value.trim() ? null : 'Phạm vi áp dụng là bắt buộc.';
-      case 'file_id':
-        return (isEditMode || value) ? null : 'File đính kèm là bắt buộc.';
-      default:
-        return null;
+      case 'title': return value.trim() ? null : 'Tiêu đề là bắt buộc.';
+      case 'type': return value ? null : 'Loại tài liệu là bắt buộc.';
+      case 'document_code': return value.trim() ? null : 'Mã tài liệu là bắt buộc.';
+      case 'department': return value ? null : 'Phòng ban là bắt buộc.';
+      case 'scope_of_application': return value.trim() ? null : 'Phạm vi áp dụng là bắt buộc.';
+      case 'file_id': return (isEditMode || value) ? null : 'File đính kèm là bắt buộc.';
+      default: return null;
     }
   }, [isEditMode]);
 
-  const validateStep = useCallback((fields) => {
+  const validateStep = useCallback((stepFields) => {
     const stepErrors = {};
     let isValid = true;
-    fields.forEach(field => {
+    for (const field of stepFields) {
       const error = validateField(field, formData[field]);
       if (error) {
         stepErrors[field] = error;
         isValid = false;
       }
-    });
+    }
+    setTouched(prev => ({...prev, ...stepErrors}));
     setErrors(prev => ({ ...prev, ...stepErrors }));
     return isValid;
   }, [formData, validateField]);
@@ -72,10 +115,15 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
   const nextStep = useCallback(() => {
     if (currentStep < 3) {
       if (currentStep === 1) {
-        const step1Fields = ['title', 'type', 'document_code', 'department', 'scope_of_application'];
-        if (!validateStep(step1Fields) || isCodeAvailable === false) {
+        if (!validateStep(['title', 'type', 'document_code', 'department', 'scope_of_application']) || isCodeAvailable === false) {
           toast.error("Vui lòng điền đúng và đủ các trường bắt buộc.");
           return;
+        }
+      }
+      if (currentStep === 2) {
+        if (!validateStep(['file_id'])) {
+           toast.error("Vui lòng đính kèm file cho tài liệu.");
+           return;
         }
       }
       setCurrentStep(s => s + 1);
@@ -86,9 +134,6 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
     if (currentStep > 1) setCurrentStep(s => s - 1);
   }, [currentStep]);
 
-  // <<< SỬA LỖI CHÍNH TẠI ĐÂY >>>
-  // Khôi phục lại hàm handleChange gốc để tương thích với các thẻ <select> và <input> tiêu chuẩn.
-  // Hàm này nhận vào đối tượng event `e` và tự trích xuất `name` và `value`.
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -96,9 +141,7 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
       const error = validateField(name, value);
       setErrors(prev => ({ ...prev, [name]: error }));
     }
-    if (name === 'document_code') {
-      setIsCodeAvailable(null);
-    }
+    if (name === 'document_code') setIsCodeAvailable(null);
   };
   
   const handleBlur = (e) => {
@@ -106,17 +149,13 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
     setTouched(prev => ({ ...prev, [name]: true }));
     const error = validateField(name, value);
     setErrors(prev => ({...prev, [name]: error}));
-
     if (name === 'document_code' && value.trim() && !error && !isEditMode) {
       checkDocumentCode(value);
     }
   };
   
   const checkDocumentCode = useCallback(async (code) => {
-    if (!code || isEditMode) {
-      setIsCodeAvailable(true);
-      return;
-    }
+    if (!code || isEditMode) return setIsCodeAvailable(true);
     setIsCheckingCode(true);
     try {
       const res = await documentService.checkCodeAvailability(code);
@@ -131,18 +170,13 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
     }
   }, [isEditMode]);
 
-  // Giữ nguyên logic gọi API để tạo mã, vì đây là chức năng mới đã cập nhật.
   const generateDocumentCode = useCallback(async () => {
-    if (!formData.type || !formData.department) {
-      toast.error("Vui lòng chọn Loại tài liệu và Phòng ban trước.");
-      return;
-    }
+    if (!formData.type || !formData.department) return toast.error("Vui lòng chọn Loại tài liệu và Phòng ban trước.");
     setIsSuggestingCode(true);
     try {
       const response = await documentService.getSuggestedCode(formData.type, formData.department);
       if (response.success && response.data.suggestedCode) {
         const suggestedCode = response.data.suggestedCode;
-        // Cập nhật state trực tiếp, không cần gọi handleChange
         setFormData(prev => ({ ...prev, document_code: suggestedCode }));
         toast.success("Đã tạo mã gợi ý!");
         await checkDocumentCode(suggestedCode);
@@ -193,9 +227,8 @@ export function useDocumentForm(initialData, isEditMode, onSave, onClose) {
 
   const handleSubmit = async (status) => {
     const allFields = ['title', 'type', 'document_code', 'department', 'scope_of_application', 'file_id'];
-    if (!validateStep(allFields) || isCodeAvailable === false) {
+    if (!validateStep(allFields) || (isCodeAvailable === false && !isEditMode)) {
       toast.error("Vui lòng kiểm tra lại các trường thông tin bắt buộc.");
-      setTouched(allFields.reduce((acc, field) => ({ ...acc, [field]: true }), {}));
       return;
     }
     setLoading(true);

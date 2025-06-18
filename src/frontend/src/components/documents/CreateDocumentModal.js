@@ -24,7 +24,14 @@ const CreateDocumentModal = ({
     recipientInput, setRecipientInput, addRecipient, removeRecipient,
     handleChange, handleBlur, handleFileUpload, removeUploadedFile,
     handleSubmit, nextStep, prevStep, generateDocumentCode,
-  } = useDocumentForm(initialData, isEditMode, onSave, onClose);
+  } = useDocumentForm(
+      initialData, 
+      isEditMode, 
+      onSave, 
+      onClose, 
+      documentTypeOptions,
+      departmentOptions
+  );
 
   const renderCodeStatusIcon = () => {
     if (isCheckingCode || isSuggestingCode) return <FiLoader className="animate-spin text-gray-400" />;
@@ -40,13 +47,13 @@ const CreateDocumentModal = ({
           <div className="space-y-6">
             <div>
               <label htmlFor="title" className="form-label required">Tiêu đề</label>
-              <input 
-                id="title" 
-                name="title" 
-                value={formData.title} 
-                onChange={handleChange} 
-                onBlur={handleBlur} 
-                className={`form-input ${touched.title && errors.title ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`} 
+              <input
+                id="title"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-input ${touched.title && errors.title ? 'border-red-500' : ''}`}
               />
               <FieldErrorMessage error={touched.title && errors.title} />
             </div>
@@ -54,13 +61,13 @@ const CreateDocumentModal = ({
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="type" className="form-label required">Loại tài liệu</label>
-                <select 
-                  id="type" 
-                  name="type" 
-                  value={formData.type} 
-                  onChange={handleChange} 
-                  onBlur={handleBlur} 
-                  className={`form-select ${touched.type && errors.type ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`} 
+                <select
+                  id="type"
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  className={`form-select ${touched.type && errors.type ? 'border-red-500' : ''}`}
                   disabled={isEditMode}
                 >
                   <option value="">--- Chọn loại tài liệu ---</option>
@@ -70,13 +77,13 @@ const CreateDocumentModal = ({
               </div>
               <div>
                 <label htmlFor="department" className="form-label required">Phòng ban</label>
-                <select 
-                  id="department" 
-                  name="department" 
-                  value={formData.department} 
-                  onChange={handleChange} 
-                  onBlur={handleBlur} 
-                  className={`form-select ${touched.department && errors.department ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`} 
+                <select
+                  id="department"
+                  name="department"
+                  value={formData.department}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  className={`form-select ${touched.department && errors.department ? 'border-red-500' : ''}`}
                   disabled={isEditMode}
                 >
                   <option value="">--- Chọn phòng ban ---</option>
@@ -90,13 +97,13 @@ const CreateDocumentModal = ({
               <label htmlFor="document_code" className="form-label required">Mã tài liệu</label>
               <div className="flex gap-2 items-start">
                   <div className="flex-grow relative">
-                    <input 
-                      id="document_code" 
-                      name="document_code" 
-                      value={formData.document_code} 
-                      onChange={handleChange} 
-                      onBlur={handleBlur} 
-                      className={`form-input pr-10 ${touched.document_code && errors.document_code ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : (isCodeAvailable ? 'border-green-500 focus:ring-green-500 focus:border-green-500' : 'focus:ring-blue-500 focus:border-blue-500')}`} 
+                    <input
+                      id="document_code"
+                      name="document_code"
+                      value={formData.document_code}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className={`form-input pr-10 ${touched.document_code && errors.document_code ? 'border-red-500' : (isCodeAvailable ? 'border-green-500' : '')}`}
                       disabled={isEditMode || isSuggestingCode}
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">{renderCodeStatusIcon()}</div>
@@ -110,24 +117,24 @@ const CreateDocumentModal = ({
               </div>
               <FieldErrorMessage error={touched.document_code && errors.document_code} />
             </div>
-            
+
             <div>
               <label htmlFor="scope_of_application" className="form-label required">Phạm vi áp dụng</label>
-              <textarea 
-                id="scope_of_application" 
-                name="scope_of_application" 
-                value={formData.scope_of_application} 
-                onChange={handleChange} 
-                onBlur={handleBlur} 
-                rows="3" 
-                className={`form-textarea ${touched.scope_of_application && errors.scope_of_application ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`}
+              <textarea
+                id="scope_of_application"
+                name="scope_of_application"
+                value={formData.scope_of_application}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                rows="3"
+                className={`form-textarea ${touched.scope_of_application && errors.scope_of_application ? 'border-red-500' : ''}`}
               ></textarea>
               <FieldErrorMessage error={touched.scope_of_application && errors.scope_of_application} />
             </div>
 
             <div>
               <label htmlFor="description" className="form-label">Mô tả chi tiết</label>
-              <textarea id="description" name="description" value={formData.description} onChange={handleChange} rows="3" className="form-textarea focus:ring-blue-500 focus:border-blue-500"></textarea>
+              <textarea id="description" name="description" value={formData.description} onChange={handleChange} rows="3" className="form-textarea"></textarea>
             </div>
           </div>
         );
@@ -137,7 +144,7 @@ const CreateDocumentModal = ({
             <div>
               <label className="form-label">Người/Phòng ban nhận</label>
               <div className="flex gap-2 mb-2">
-                <select value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)} className="form-select flex-grow focus:ring-blue-500 focus:border-blue-500">
+                <select value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)} className="form-select flex-grow">
                   <option value="">--- Chọn phòng ban nhận ---</option>
                   {departmentOptions.filter(d => !formData.recipients.includes(d.value)).map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
@@ -158,13 +165,13 @@ const CreateDocumentModal = ({
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="form-label">Độ ưu tiên</label>
-                <select name="priority" value={formData.priority} onChange={handleChange} className="form-select focus:ring-blue-500 focus:border-blue-500">
+                <select name="priority" value={formData.priority} onChange={handleChange} className="form-select">
                   {priorityOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="form-label">Mức bảo mật</label>
-                <select name="security_level" value={formData.security_level} onChange={handleChange} className="form-select focus:ring-blue-500 focus:border-blue-500">
+                <select name="security_level" value={formData.security_level} onChange={handleChange} className="form-select">
                   {securityLevelOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
@@ -172,11 +179,11 @@ const CreateDocumentModal = ({
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="form-label">Chu kỳ rà soát (tháng)</label>
-                <input type="number" name="review_cycle" value={formData.review_cycle} onChange={handleChange} className="form-input focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="number" name="review_cycle" value={formData.review_cycle} onChange={handleChange} className="form-input"/>
               </div>
               <div>
                 <label className="form-label">Thời gian lưu trữ (tháng)</label>
-                <input type="number" name="retention_period" value={formData.retention_period} onChange={handleChange} className="form-input focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="number" name="retention_period" value={formData.retention_period} onChange={handleChange} className="form-input"/>
               </div>
             </div>
             <div>
@@ -192,7 +199,8 @@ const CreateDocumentModal = ({
           </div>
         );
       case 3:
-        return <DocumentPreview formData={formData} departmentOptions={departmentOptions} uploadedFile={uploadedFile} />;
+        const previewData = { ...formData, file_info: uploadedFile };
+        return <DocumentPreview data={previewData} />;
       default:
         return null;
     }
@@ -202,46 +210,24 @@ const CreateDocumentModal = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="2xl">
-      
-      {/* KHỐI STEPPER ĐÃ ĐƯỢC THIẾT KẾ LẠI */}
       <div className="my-6">
         <div className="flex items-center">
-          {/* Step 1 */}
-          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${
-              currentStep > 1 ? 'bg-green-100 text-green-800' : 
-              currentStep === 1 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-500'
-          }`}>
+          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${currentStep > 1 ? 'bg-green-100 text-green-800' : currentStep === 1 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-500'}`}>
             {currentStep > 1 && <FiCheck className="w-4 h-4 mr-2" />}
             <span>Thông tin cơ bản</span>
           </div>
-
-          {/* Connecting Line */}
           <div className={`flex-auto border-t-2 transition duration-500 ease-in-out ${currentStep > 1 ? 'border-green-400' : 'border-gray-300'}`}></div>
-
-          {/* Step 2 */}
-          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${
-              currentStep > 2 ? 'bg-green-100 text-green-800' : 
-              currentStep === 2 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-500'
-          }`}>
+          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${currentStep > 2 ? 'bg-green-100 text-green-800' : currentStep === 2 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-500'}`}>
             {currentStep > 2 && <FiCheck className="w-4 h-4 mr-2" />}
             <span>Metadata & File</span>
           </div>
-
-          {/* Connecting Line */}
           <div className={`flex-auto border-t-2 transition duration-500 ease-in-out ${currentStep > 2 ? 'border-green-400' : 'border-gray-300'}`}></div>
-          
-          {/* Step 3 */}
-          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${
-              currentStep === 3 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-500'
-          }`}>
+          <div className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${currentStep === 3 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-500'}`}>
             <span>Xem trước</span>
           </div>
         </div>
       </div>
-      {/* KẾT THÚC KHỐI STEPPER MỚI */}
-
       <form onSubmit={(e) => e.preventDefault()}>{renderStepContent()}</form>
-
       <div className="mt-8 pt-4 border-t flex justify-between items-center">
         <div>
           {currentStep > 1 && <button onClick={prevStep} className="btn btn-secondary-outline" disabled={loading}><FiChevronLeft className="mr-2"/> Quay lại</button>}
@@ -253,7 +239,7 @@ const CreateDocumentModal = ({
             <>
               {!isEditMode && <button onClick={() => handleSubmit('draft')} className="btn btn-secondary" disabled={loading || isUploading}>{loading ? <LoadingSpinner size="sm" /> : <FiSave className="mr-2" />} Lưu Nháp</button>}
               <button onClick={() => handleSubmit(isEditMode ? 'update' : 'review')} className="btn btn-primary" disabled={loading || isUploading}>
-                {loading ? <LoadingSpinner size="sm" /> : <FiSend className="mr-2" />} 
+                {loading ? <LoadingSpinner size="sm" /> : <FiSend className="mr-2" />}
                 {isEditMode ? 'Lưu Thay đổi' : 'Gửi duyệt'}
               </button>
             </>

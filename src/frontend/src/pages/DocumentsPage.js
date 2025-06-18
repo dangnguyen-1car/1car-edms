@@ -1,108 +1,119 @@
 // src/frontend/src/pages/DocumentsPage.js
-import React from 'react';
-// Thay thế useQuery bằng useQueries để tối ưu
-import { useQueries } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import DocumentList from '../components/documents/DocumentList';
 import Breadcrumb from '../components/common/Breadcrumb';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorMessage from '../components/common/ErrorMessage';
+import DocumentFormWrapper from '../components/documents/DocumentFormWrapper';
 import { documentService } from '../services/documentService';
+import { FiPlus } from 'react-icons/fi';
 
+/**
+ * =================================================================
+ * EDMS 1CAR - DocumentsPage (FINAL - Corrected Version)
+ * Trang quản lý danh sách tài liệu.
+ * PHIÊN BẢN ĐÃ SỬA LỖI:
+ * - Sửa lỗi trong hàm `select` của `useQuery` để trích xuất chính xác
+ * mảng `results` từ response của API.
+ * - Đảm bảo component `DocumentList` nhận được một mảng và render đúng.
+ * =================================================================
+ */
 function DocumentsPage() {
-  // --- PHẦN GIAO DIỆN: GIỮ NGUYÊN 100% ---
-  const breadcrumbItems = [
-    { label: 'Trang chủ', href: '/', current: false },
-    { label: 'Quản lý tài liệu', href: '/documents', current: true }
-  ];
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingDocumentId, setEditingDocumentId] = useState(null);
 
-  // --- PHẦN LOGIC: ĐƯỢC THAY THẾ BẰNG useQueries ---
-  // Khối logic mới này thay thế cho 3 hook useQuery riêng lẻ ở file cũ.
-  // Nó hiệu quả hơn vì gửi các truy vấn song song và quản lý tập trung.
-  const queries = useQueries({
-    queries: [
-      {
-        queryKey: ['documentTypes'],
-        queryFn: documentService.getDocumentTypes,
-        staleTime: 5 * 60 * 1000,
-        gcTime: 10 * 60 * 1000, // gcTime là tên mới cho cacheTime
-        // Dữ liệu được chuyển đổi ngay trong logic fetch, giúp code gọn gàng hơn
-        select: (data) => data?.data?.documentTypes?.map((dt) => ({
-          value: dt.code,
-          label: dt.name,
-        })) || [], // Luôn trả về một mảng để tránh lỗi
-      },
-      {
-        queryKey: ['departmentsList'],
-        queryFn: documentService.getDepartments,
-        staleTime: 5 * 60 * 1000,
-        gcTime: 10 * 60 * 1000,
-        select: (data) => data?.data?.departments?.map((d) => ({
-          value: d,
-          label: d,
-        })) || [],
-      },
-      {
-        queryKey: ['workflowStates'],
-        queryFn: documentService.getWorkflowStates,
-        staleTime: 5 * 60 * 1000,
-        gcTime: 10 * 60 * 1000,
-        select: (data) => data?.data?.workflowStates?.map((s) => ({
-          value: s.code,
-          label: s.name,
-        })) || [],
-      },
-    ],
+  const { data: documents, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['documents'],
+    queryFn: () => documentService.searchDocuments({}), // Lấy tất cả tài liệu
+    
+    // SỬA LỖI TẠI ĐÂY: Trích xuất đúng mảng `results` từ `data.data`
+    // API trả về { success: true, data: { results: [...] } }
+    // Chúng ta cần lấy `data.data.results`
+    select: (response) => {
+      if (response?.success && Array.isArray(response.data?.results)) {
+        return response.data.results;
+      }
+      return []; // Trả về mảng rỗng nếu có lỗi hoặc không có dữ liệu
+    },
+    staleTime: 5 * 60 * 1000, // Cache danh sách trong 5 phút
   });
 
-  // Thay thế cách tính toán biến loading và các biến data
-  const isLoadingOptions = queries.some((query) => query.isPending);
-  const documentTypeOptions = queries[0].data; // Dữ liệu đã được map sẵn
-  const departmentOptions = queries[1].data;
-  const statusOptions = queries[2].data;
-  // --- KẾT THÚC PHẦN THAY THẾ LOGIC ---
+  const breadcrumbItems = [
+    { label: 'Trang chủ', href: '/', current: false },
+    { label: 'Quản lý tài liệu', href: '/documents', current: true },
+  ];
 
+  const handleOpenCreateModal = () => {
+    setIsEditMode(false);
+    setEditingDocumentId(null);
+    setIsModalOpen(true);
+  };
 
-  // --- PHẦN GIAO DIỆN: GIỮ NGUYÊN 100% TỪ FILE CŨ ---
-  // Cấu trúc JSX cho trạng thái loading được giữ y hệt.
-  if (isLoadingOptions) {
+  const handleEditDocument = (docId) => {
+    setEditingDocumentId(docId);
+    setIsEditMode(true);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingDocumentId(null);
+    setIsEditMode(false);
+  };
+  
+  // Sau khi tạo/sửa thành công, làm mới lại danh sách
+  const handleSuccess = () => {
+    refetch();
+  };
+
+  if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Breadcrumb items={breadcrumbItems} />
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-200">
+      <div className="flex justify-center items-center h-screen">
+        <LoadingSpinner message="Đang tải danh sách tài liệu..." />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <ErrorMessage message={error.message || "Đã xảy ra lỗi khi tải tài liệu."} />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <Breadcrumb items={breadcrumbItems} />
+      <div className="bg-white rounded-lg shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div>
             <h1 className="text-2xl font-semibold text-gray-900">Quản lý tài liệu</h1>
             <p className="mt-1 text-sm text-gray-600">
               Quản lý và tìm kiếm tài liệu trong hệ thống EDMS 1CAR
             </p>
           </div>
-          <div className="p-6 flex justify-center items-center h-64">
-            <LoadingSpinner message="Đang tải dữ liệu hệ thống..." />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Cấu trúc JSX cho trạng thái hiển thị chính được giữ y hệt.
-  return (
-    <div className="space-y-6">
-      <Breadcrumb items={breadcrumbItems} />
-      <div className="bg-white rounded-lg shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h1 className="text-2xl font-semibold text-gray-900">Quản lý tài liệu</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Quản lý và tìm kiếm tài liệu trong hệ thống EDMS 1CAR
-          </p>
+          <button onClick={handleOpenCreateModal} className="btn btn-primary">
+            <FiPlus className="mr-2" />
+            Tạo tài liệu mới
+          </button>
         </div>
         <div className="p-6">
-          {/* Chỉ cập nhật tên biến trong props, không thay đổi bất kỳ thứ gì khác */}
           <DocumentList
-            documentTypeOptions={documentTypeOptions}
-            departmentOptions={departmentOptions}
-            statusOptions={statusOptions}
-            isLoadingOptions={isLoadingOptions}
+            documents={documents}
+            onEdit={handleEditDocument}
+            onDeleteSuccess={refetch}
           />
         </div>
       </div>
+      
+      {isModalOpen && (
+        <DocumentFormWrapper
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          onSuccess={handleSuccess}
+          isEditMode={isEditMode}
+          documentId={editingDocumentId}
+        />
+      )}
     </div>
   );
 }
