@@ -1,10 +1,4 @@
-// src/backend/services/documentService.js/**
- * =================================================================
- * EDMS 1CAR - Backend Document Service (FIXED)
- * Sửa lỗi logic truy vấn cho getPendingApprovalsForUser và getPendingApprovalStats.
- * Đảm bảo các hàm hoạt động chính xác và không gây lỗi 500.
- * =================================================================
- */
+// src/backend/services/documentService.js - Đã sửa lỗi logic và truy vấn
 const Document = require('../models/Document');
 const AuditService = require('./auditService');
 const { createError } = require('../middleware/errorHandler');
@@ -23,37 +17,30 @@ class DocumentService {
     static async getPendingApprovalsForUser(user, filters = {}) {
         try {
             const { page = 1, limit = 20, department, author, priority, sortBy = 'updated_at', sortOrder = 'desc' } = filters;
-            const offset = (parseInt(page) - 1) * parseInt(limit);
 
-            let whereClauses = ["d.status = 'review'"];
+            // Xây dựng câu truy vấn cơ bản
+            let whereClause = "WHERE d.status = 'review'";
             let params = [];
-            let countParams = []; // Separate params for count query to avoid issues with LIMIT/OFFSET
 
             // Áp dụng phân quyền dựa trên vai trò
             if (user.role !== 'admin') {
-                whereClauses.push("(d.reviewer_id = ? OR d.approver_id = ?)");
+                whereClause += " AND (d.reviewer_id = ? OR d.approver_id = ?)";
                 params.push(user.id, user.id);
-                countParams.push(user.id, user.id);
             }
 
             // Áp dụng các bộ lọc bổ sung
             if (department) {
-                whereClauses.push("d.department = ?");
+                whereClause += " AND d.department = ?";
                 params.push(department);
-                countParams.push(department);
             }
             if (author) {
-                whereClauses.push("d.author_id = ?");
+                whereClause += " AND d.author_id = ?";
                 params.push(author);
-                countParams.push(author);
             }
             if (priority) {
-                whereClauses.push("d.priority = ?");
+                whereClause += " AND d.priority = ?";
                 params.push(priority);
-                countParams.push(priority);
             }
-
-            const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
             // Xây dựng câu lệnh ORDER BY
             const validSortColumns = ['updated_at', 'created_at', 'priority', 'title', 'document_code'];
@@ -62,7 +49,7 @@ class DocumentService {
 
             // Câu truy vấn chính
             const query = `
-                SELECT d.*, u_author.name as author_name, u_author.department as author_department,
+                SELECT d.*, u_author.name as author_name, u_author.department as author_department, 
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name,
                        JULIANDAY('now') - JULIANDAY(d.updated_at) as days_pending,
                        (CASE WHEN d.reviewer_id = ? THEN 'reviewer' WHEN d.approver_id = ? THEN 'approver' ELSE 'observer' END) as user_role_in_workflow
@@ -70,18 +57,19 @@ class DocumentService {
                 LEFT JOIN users u_author ON d.author_id = u_author.id
                 LEFT JOIN users u_reviewer ON d.reviewer_id = u_reviewer.id
                 LEFT JOIN users u_approver ON d.approver_id = u_approver.id
-                ${whereString}
+                ${whereClause}
                 ORDER BY d.${sortColumn} ${sortDirection}
                 LIMIT ? OFFSET ?
             `;
             // Thêm user.id vào đầu params cho CASE statement, sau đó là các params khác và cuối cùng là LIMIT, OFFSET
-            const queryParams = [user.id, user.id, ...params, parseInt(limit), offset];
+            const queryParams = [user.id, user.id, ...params, limit, (page - 1) * limit];
 
             // Thực hiện truy vấn
             const documents = await dbManager.all(query, queryParams);
 
             // Đếm tổng số bản ghi
-            const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereString}`;
+            const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereClause}`;
+            const countParams = [user.id, user.id, ...params]; // Loại bỏ LIMIT và OFFSET, giữ lại các tham số điều kiện WHERE
             const totalResult = await dbManager.get(countQuery, countParams);
             const total = totalResult.count;
 
@@ -330,7 +318,6 @@ class DocumentService {
     }
 
     // Các phương thức khác của DocumentService...
-    // Giữ nguyên các phương thức này như trong file gốc nếu không có yêu cầu thay đổi
     static async createDocument(documentData, user) {
         // Implementation giữ nguyên
     }
