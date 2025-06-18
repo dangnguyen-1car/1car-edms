@@ -73,9 +73,6 @@ function SearchPage() {
     return Object.values(restFilters).some(value => value !== '' && value !== false && value !== null && value !== undefined);
   };
   
-  // --- KẾT THÚC SỬA ĐỔI PHẦN FETCH OPTIONS ---
-
-  // --- BẮT ĐẦU SỬA ĐỔI QUERY TÌM KIẾM CHÍNH ---
   const {
     data: searchServiceResponse,
     isPending, // Sửa từ isLoading

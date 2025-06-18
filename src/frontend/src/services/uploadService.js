@@ -12,7 +12,9 @@ class UploadService {
     try {
       const formData = new FormData();
       formData.append('file', file); // 'file' is the expected field name by the backend
-      const response = await api.post('/upload', formData, {
+      
+      // SỬA LỖI: Thay đổi endpoint từ '/upload' thành '/upload/document' để khớp với backend
+      const response = await api.post('/upload/document', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -25,6 +27,7 @@ class UploadService {
           console.log(`Upload Progress: ${percentCompleted}%`);
         },
       });
+
       return {
         success: true,
         data: response.data.data,
