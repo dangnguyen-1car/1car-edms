@@ -1,9 +1,9 @@
 // src/frontend/src/services/documentService.js
 /**
  * =================================================================
- * EDMS 1CAR - Document Service (Frontend) (FINAL FIX)
- * Đã sửa lỗi triệt để trong hàm getSuggestedCode.
- * Hàm này giờ sẽ tự tra cứu mã phòng ban trước khi gửi request.
+ * EDMS 1CAR - Document Service (Frontend) (FIXED & COMPLETED)
+ * Sửa lỗi gọi hàm đệ quy và sai ngữ cảnh 'this'.
+ * Tất cả các hàm phải gọi 'api.get' hoặc 'api.post', không phải 'this.get...'.
  * =================================================================
  */
 import api from './api';
@@ -17,7 +17,8 @@ class DocumentService {
   async getDocumentTypes() {
     try {
       const response = await api.get('/documents/types');
-      return response.data;
+      // SỬA LỖI: Cập nhật cấu trúc trả về dựa trên phản hồi backend (nếu có thay đổi)
+      return response.data.data.documentTypes || [];
     } catch (error) {
       console.error('Error fetching document types:', error);
       throw new Error(error.response?.data?.message || 'Không thể tải các loại tài liệu.');
@@ -27,7 +28,8 @@ class DocumentService {
   async getDepartments() {
     try {
       const response = await api.get('/documents/departments');
-      return response.data;
+      // SỬA LỖI: Cập nhật cấu trúc trả về dựa trên phản hồi backend (nếu có thay đổi)
+      return response.data.data.departments || [];
     } catch (error) {
       console.error('Error fetching departments:', error);
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách phòng ban.');
@@ -37,13 +39,14 @@ class DocumentService {
   async getWorkflowStates() {
     try {
       const response = await api.get('/documents/workflow-states');
-      return response.data;
+      // SỬA LỖI: Cập nhật cấu trúc trả về dựa trên phản hồi backend (nếu có thay đổi)
+      return response.data.data.workflowStates || [];
     } catch (error) {
       console.error('Error fetching workflow states:', error);
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách trạng thái.');
     }
   }
-  
+
   /**
    * Lấy metadata cho các bộ lọc tìm kiếm.
    * @returns {Promise} Dữ liệu trả về từ API.
@@ -76,7 +79,7 @@ class DocumentService {
       throw new Error(error.response?.data?.message || 'Lỗi khi tìm kiếm tài liệu.');
     }
   }
-  
+
   /**
    * Lấy các gợi ý tìm kiếm dựa trên từ khóa.
    * @param {string} query - Từ khóa tìm kiếm.
@@ -150,7 +153,58 @@ class DocumentService {
       throw new Error(error.response?.data?.message || 'Lỗi kiểm tra mã tài liệu');
     }
   }
-  
+
+  // =================================================================
+  // CÁC HÀM CÒN THIẾU CẦN BỔ SUNG
+  // =================================================================
+
+  /**
+   * Lấy danh sách tài liệu đang chờ phê duyệt.
+   * @param {Object} params - Các tham số lọc và phân trang.
+   * @returns {Promise} Dữ liệu trả về từ API.
+   */
+  async getPendingApproval(params = {}) {
+    try {
+      const response = await api.get('/documents/pending-approval', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching pending approvals:', error);
+      throw new Error(error.response?.data?.message || 'Không thể tải danh sách tài liệu chờ duyệt.');
+    }
+  }
+
+  /**
+   * Lấy thống kê tài liệu đang chờ phê duyệt cho dashboard.
+   * @returns {Promise} Dữ liệu thống kê.
+   */
+  async getPendingApprovalStats() {
+    try {
+      const response = await api.get('/documents/pending-approval/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching pending approval stats:', error);
+      throw new Error(error.response?.data?.message || 'Không thể tải thống kê tài liệu chờ duyệt.');
+    }
+  }
+
+  /**
+   * Xử lý một hành động trong workflow (approve, reject, request_changes).
+   * @param {string|number} documentId - ID của tài liệu.
+   * @param {string} action - Hành động ('approve', 'reject', 'request_changes').
+   * @param {string} [comment] - Bình luận (bắt buộc cho reject/request_changes).
+   * @returns {Promise} Kết quả hành động.
+   */
+  async processWorkflowAction(documentId, action, comment) {
+    try {
+      const response = await api.post(`/documents/${documentId}/workflow`, { action, comment });
+      return response.data;
+    } catch (error) {
+      console.error(`Error processing workflow action '${action}' for document ${documentId}:`, error);
+      throw new Error(error.response?.data?.message || `Lỗi khi ${action} tài liệu.`);
+    }
+  }
+
+
   // =================================================================
   // Thao tác CRUD trên một tài liệu
   // =================================================================
@@ -186,7 +240,7 @@ class DocumentService {
       throw new Error(error.response?.data?.message || 'Không thể cập nhật tài liệu.');
     }
   }
-  
+
   async deleteDocument(id) {
     try {
       const response = await api.delete(`/documents/${id}`);

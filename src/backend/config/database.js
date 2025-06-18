@@ -1,3 +1,4 @@
+// src/backend/config/database.js
 /**
  * =================================================================
  * EDMS 1CAR - Database Configuration (FIXED PATH)
@@ -11,7 +12,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const bcrypt = require('bcrypt');
 const { security } = require('./index'); 
-const AuditLogModel = require('../models/AuditLog'); // Import AuditLogModel
+// const AuditLogModel = require('../models/AuditLog'); // Import AuditLogModel
 
 // --- SỬA LỖI ĐƯỜNG DẪN DATABASE ---
 // Sử dụng path.join và __dirname để đảm bảo đường dẫn luôn đúng,
@@ -117,16 +118,23 @@ class DatabaseManager {
                     CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
                 )`);
 
-            const validAuditActions = AuditLogModel.VALID_ACTIONS.map(action => `'${action}'`).join(', ');
-            const validAuditResourceTypes = AuditLogModel.VALID_RESOURCE_TYPES.map(type => `'${type}'`).join(', ');
             await this.run(`
                 CREATE TABLE IF NOT EXISTS audit_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
                     resource_type TEXT NOT NULL, resource_id INTEGER, details TEXT, ip_address TEXT,
                     user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id),
-                    CHECK (action IN (${validAuditActions})),
-                    CHECK (resource_type IN (${validAuditResourceTypes}))
+                    CHECK (action IN ('USER_LOGIN', 'USER_LOGOUT', 'USER_CREATED', 'USER_UPDATED', 'USER_DELETED', 
+                                      'USER_PASSWORD_CHANGED', 'USER_LOCKED', 'USER_UNLOCKED', 'DOCUMENT_CREATED', 
+                                      'DOCUMENT_VIEWED', 'DOCUMENT_UPDATED', 'DOCUMENT_DELETED', 'DOCUMENT_VERSION_CREATED', 
+                                      'DOCUMENT_STATUS_CHANGED', 'DOCUMENT_WORKFLOW_ACTION', 'DOCUMENT_DOWNLOADED', 
+                                      'DOCUMENT_SEARCHED', 'DOCUMENT_FAVORITED', 'DOCUMENT_UNFAVORITED', 
+                                      'DOCUMENT_STATISTICS_VIEWED', 'DOCUMENTS_DUE_REVIEW_VIEWED', 
+                                      'PERMISSION_GRANTED', 'PERMISSION_REVOKED', 'SYSTEM_CONFIGURATION_UPDATED', 
+                                      'SYSTEM_STARTUP', 'SYSTEM_SHUTDOWN', 'SYSTEM_HEALTH_CHECK', 'SYSTEM_ERROR',
+                                      'SEARCH_PERFORMED', 'DOCUMENT_CODE_SUGGESTED', 'VIEW_PENDING_APPROVALS',
+                                      'VIEW_PENDING_APPROVAL_STATS')),
+                    CHECK (resource_type IN ('user', 'document', 'system', 'permission'))
                 )
             `);
 
@@ -354,7 +362,9 @@ class DatabaseManager {
                     if (err) { console.error('Failed to close database connection:', err); reject(err); } 
                     else { console.log('Database connection closed'); this.db = null; this.isInitialized = false; resolve(); }
                 });
-            } else resolve();
+            } else { // Sửa lỗi cú pháp tại đây
+                resolve();
+            }
         });
     }
 

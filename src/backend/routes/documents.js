@@ -376,62 +376,80 @@ router.post('/check-code', authenticateToken, checkPermission('CREATE_DOCUMENT',
  * GET /api/documents/types
  * Lấy danh sách các loại tài liệu.
  */
-router.get('/types', authenticateToken, (req, res) => res.status(200).json({
-    success: true,
-    data: {
-        documentTypes: [
-            { code: 'PL', name: 'Chính sách' },
-            { code: 'PR', name: 'Quy trình' },
-            { code: 'WI', name: 'Hướng dẫn' },
-            { code: 'FM', name: 'Biểu mẫu' },
-            { code: 'TD', name: 'Tài liệu kỹ thuật' },
-            { code: 'TR', name: 'Tài liệu đào tạo' },
-            { code: 'RC', name: 'Hồ sơ' }
-        ]
+router.get('/types', authenticateToken, (req, res, next) => {
+    try {
+        res.status(200).json({
+            success: true,
+            data: {
+                documentTypes: [
+                    { code: 'PL', name: 'Chính sách' },
+                    { code: 'PR', name: 'Quy trình' },
+                    { code: 'WI', name: 'Hướng dẫn' },
+                    { code: 'FM', name: 'Biểu mẫu' },
+                    { code: 'TD', name: 'Tài liệu kỹ thuật' },
+                    { code: 'TR', name: 'Tài liệu đào tạo' },
+                    { code: 'RC', name: 'Hồ sơ' }
+                ]
+            }
+        });
+    } catch (error) {
+        next(error); // Chuyển lỗi cho error handler chung
     }
-}));
+});
 
 /**
  * GET /api/documents/departments
  * Lấy danh sách các phòng ban.
  */
-router.get('/departments', authenticateToken, (req, res) => res.status(200).json({
-    success: true,
-    data: {
-        departments: [
-            'Ban Giám đốc',
-            'Phòng Phát triển Nhượng quyền',
-            'Phòng Đào tạo Tiêu chuẩn',
-            'Phòng Marketing',
-            'Phòng Kỹ thuật QC',
-            'Phòng Tài chính',
-            'Phòng Công nghệ Hệ thống',
-            'Phòng Pháp lý',
-            'Bộ phận Tiếp nhận CSKH',
-            'Bộ phận Kỹ thuật Garage',
-            'Bộ phận QC Garage',
-            'Bộ phận Kho/Kế toán Garage',
-            'Bộ phận Marketing Garage',
-            'Quản lý Garage'
-        ]
+router.get('/departments', authenticateToken, (req, res, next) => {
+    try {
+        res.status(200).json({
+            success: true,
+            data: {
+                departments: [
+                    'Ban Giám đốc',
+                    'Phòng Phát triển Nhượng quyền',
+                    'Phòng Đào tạo Tiêu chuẩn',
+                    'Phòng Marketing',
+                    'Phòng Kỹ thuật QC',
+                    'Phòng Tài chính',
+                    'Phòng Công nghệ Hệ thống',
+                    'Phòng Pháp lý',
+                    'Bộ phận Tiếp nhận CSKH',
+                    'Bộ phận Kỹ thuật Garage',
+                    'Bộ phận QC Garage',
+                    'Bộ phận Kho/Kế toán Garage',
+                    'Bộ phận Marketing Garage',
+                    'Quản lý Garage'
+                ]
+            }
+        });
+    } catch (error) {
+        next(error);
     }
-}));
+});
 
 /**
  * GET /api/documents/workflow-states
  * Lấy danh sách các trạng thái workflow.
  */
-router.get('/workflow-states', authenticateToken, (req, res) => res.status(200).json({
-    success: true,
-    data: {
-        workflowStates: [
-            { code: 'draft', name: 'Bản nháp' },
-            { code: 'review', name: 'Đang xem xét' },
-            { code: 'published', name: 'Đã phê duyệt' },
-            { code: 'archived', name: 'Đã lưu trữ' }
-        ]
+router.get('/workflow-states', authenticateToken, (req, res, next) => {
+    try {
+        res.status(200).json({
+            success: true,
+            data: {
+                workflowStates: [
+                    { code: 'draft', name: 'Bản nháp' },
+                    { code: 'review', name: 'Đang xem xét' },
+                    { code: 'published', name: 'Đã phê duyệt' },
+                    { code: 'archived', name: 'Đã lưu trữ' }
+                ]
+            }
+        });
+    } catch (error) {
+        next(error);
     }
-}));
+});
 
 /**
  * GET /api/documents/search-suggestions

@@ -1,10 +1,14 @@
-// src/backend/services/documentService.js - Cập nhật với logic vai trò đầy đủ
+// src/backend/services/documentService.js/**
+ * =================================================================
+ * EDMS 1CAR - Backend Document Service (FIXED)
+ * Sửa lỗi logic truy vấn cho getPendingApprovalsForUser và getPendingApprovalStats.
+ * Đảm bảo các hàm hoạt động chính xác và không gây lỗi 500.
+ * =================================================================
+ */
 const Document = require('../models/Document');
-const DocumentVersion = require('../models/DocumentVersion');
-const WorkflowHistory = require('../models/WorkflowHistory');
 const AuditService = require('./auditService');
 const { createError } = require('../middleware/errorHandler');
-const db = require('../config/database');
+const { dbManager } = require('../config/database');
 
 class DocumentService {
     // ===============================================================
@@ -19,30 +23,37 @@ class DocumentService {
     static async getPendingApprovalsForUser(user, filters = {}) {
         try {
             const { page = 1, limit = 20, department, author, priority, sortBy = 'updated_at', sortOrder = 'desc' } = filters;
+            const offset = (parseInt(page) - 1) * parseInt(limit);
 
-            // Xây dựng câu truy vấn cơ bản
-            let whereClause = "WHERE d.status = 'review'";
+            let whereClauses = ["d.status = 'review'"];
             let params = [];
+            let countParams = []; // Separate params for count query to avoid issues with LIMIT/OFFSET
 
             // Áp dụng phân quyền dựa trên vai trò
             if (user.role !== 'admin') {
-                whereClause += " AND (d.reviewer_id = ? OR d.approver_id = ?)";
+                whereClauses.push("(d.reviewer_id = ? OR d.approver_id = ?)");
                 params.push(user.id, user.id);
+                countParams.push(user.id, user.id);
             }
 
             // Áp dụng các bộ lọc bổ sung
             if (department) {
-                whereClause += " AND d.department = ?";
+                whereClauses.push("d.department = ?");
                 params.push(department);
+                countParams.push(department);
             }
             if (author) {
-                whereClause += " AND d.author_id = ?";
+                whereClauses.push("d.author_id = ?");
                 params.push(author);
+                countParams.push(author);
             }
             if (priority) {
-                whereClause += " AND d.priority = ?";
+                whereClauses.push("d.priority = ?");
                 params.push(priority);
+                countParams.push(priority);
             }
+
+            const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
             // Xây dựng câu lệnh ORDER BY
             const validSortColumns = ['updated_at', 'created_at', 'priority', 'title', 'document_code'];
@@ -51,48 +62,32 @@ class DocumentService {
 
             // Câu truy vấn chính
             const query = `
-                SELECT d.*, u_author.name as author_name, u_author.department as author_department, 
+                SELECT d.*, u_author.name as author_name, u_author.department as author_department,
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name,
-                       JULIANDAY('now') - JULIANDAY(d.updated_at) as days_pending
+                       JULIANDAY('now') - JULIANDAY(d.updated_at) as days_pending,
+                       (CASE WHEN d.reviewer_id = ? THEN 'reviewer' WHEN d.approver_id = ? THEN 'approver' ELSE 'observer' END) as user_role_in_workflow
                 FROM documents d
                 LEFT JOIN users u_author ON d.author_id = u_author.id
                 LEFT JOIN users u_reviewer ON d.reviewer_id = u_reviewer.id
                 LEFT JOIN users u_approver ON d.approver_id = u_approver.id
-                ${whereClause}
+                ${whereString}
                 ORDER BY d.${sortColumn} ${sortDirection}
                 LIMIT ? OFFSET ?
             `;
-            params.push(limit, (page - 1) * limit);
+            // Thêm user.id vào đầu params cho CASE statement, sau đó là các params khác và cuối cùng là LIMIT, OFFSET
+            const queryParams = [user.id, user.id, ...params, parseInt(limit), offset];
 
             // Thực hiện truy vấn
-            const documents = await db.all(query, params);
-
-            // THÊM LOGIC VAI TRÒ CHO TỪNG TÀI LIỆU
-            const documentsWithRole = documents.map(document => {
-                let userRoleInWorkflow = null;
-                // Xác định vai trò của user hiện tại đối với tài liệu này
-                if (user.role === 'admin') {
-                    userRoleInWorkflow = 'admin';
-                } else if (document.reviewer_id === user.id) {
-                    userRoleInWorkflow = 'reviewer';
-                } else if (document.approver_id === user.id) {
-                    userRoleInWorkflow = 'approver';
-                }
-                return {
-                    ...document,
-                    user_role_in_workflow: userRoleInWorkflow
-                };
-            });
+            const documents = await dbManager.all(query, queryParams);
 
             // Đếm tổng số bản ghi
-            const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereClause}`;
-            const countParams = params.slice(0, -2); // Loại bỏ LIMIT và OFFSET
-            const totalResult = await db.get(countQuery, countParams);
+            const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereString}`;
+            const totalResult = await dbManager.get(countQuery, countParams);
             const total = totalResult.count;
 
             return {
                 success: true,
-                data: documentsWithRole,
+                data: documents,
                 pagination: {
                     page: parseInt(page),
                     limit: parseInt(limit),
@@ -133,8 +128,9 @@ class DocumentService {
                 FROM documents d
                 ${whereClause}
             `;
+            // Đảm bảo user.id được truyền 2 lần đầu tiên cho pending_review và pending_approval, sau đó là các params khác
             const statsParams = [user.id, user.id, ...params];
-            const stats = await db.get(statsQuery, statsParams);
+            const stats = await dbManager.get(statsQuery, statsParams);
 
             return {
                 success: true,
@@ -163,7 +159,7 @@ class DocumentService {
             }
 
             // Lấy thông tin tài liệu hiện tại
-            const document = await db.get('SELECT * FROM documents WHERE id = ?', [documentId]);
+            const document = await dbManager.get('SELECT * FROM documents WHERE id = ?', [documentId]);
             if (!document) {
                 throw createError('Không tìm thấy tài liệu', 404, 'DOCUMENT_NOT_FOUND');
             }
@@ -205,16 +201,16 @@ class DocumentService {
             }
 
             // Bắt đầu transaction
-            await db.run('BEGIN TRANSACTION');
+            await dbManager.run('BEGIN TRANSACTION');
             try {
                 // Cập nhật trạng thái tài liệu
-                await db.run(
+                await dbManager.run(
                     'UPDATE documents SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
                     [newStatus, documentId]
                 );
 
                 // Ghi lại lịch sử workflow
-                await db.run(
+                await dbManager.run(
                     `INSERT INTO workflow_history (
                         document_id, from_status, to_status, comment, decision, transitioned_by, transitioned_at
                     ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
@@ -222,7 +218,7 @@ class DocumentService {
                 );
 
                 // Commit transaction
-                await db.run('COMMIT');
+                await dbManager.run('COMMIT');
 
                 // Ghi audit log
                 await AuditService.log({
@@ -244,7 +240,7 @@ class DocumentService {
                 };
             } catch (error) {
                 // Rollback transaction
-                await db.run('ROLLBACK');
+                await dbManager.run('ROLLBACK');
                 throw error; // Re-throw to be caught by outer catch
             }
         } catch (error) {
@@ -262,7 +258,7 @@ class DocumentService {
 
     static async getDocument(id, user, context = {}) {
         try {
-            const document = await db.get(`
+            const document = await dbManager.get(`
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name
                 FROM documents d
@@ -334,6 +330,7 @@ class DocumentService {
     }
 
     // Các phương thức khác của DocumentService...
+    // Giữ nguyên các phương thức này như trong file gốc nếu không có yêu cầu thay đổi
     static async createDocument(documentData, user) {
         // Implementation giữ nguyên
     }
