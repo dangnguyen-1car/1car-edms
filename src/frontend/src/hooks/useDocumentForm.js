@@ -16,27 +16,21 @@ export function useDocumentForm(
   const { user: currentUser } = useAuth();
 
   const getInitialFormData = useCallback(() => {
-    if (isEditMode && initialData) {
-        const findValueByLabel = (options, label) => {
-            if (!options || !label) return '';
-            const option = options.find(opt => opt.label === label);
-            return option ? option.value : '';
-        };
+    // Hàm tiện ích để chuyển đổi Tên phòng ban (label) sang Mã (value)
+    const getDepartmentValue = (departmentLabel) => {
+        if (!departmentOptions || !departmentLabel) return '';
+        const option = departmentOptions.find(opt => opt.label === departmentLabel);
+        return option ? option.value : '';
+    };
 
+    // --- LOGIC KHI CHỈNH SỬA TÀI LIỆU ---
+    if (isEditMode && initialData) {
         return {
             title: initialData.title || '',
             document_code: initialData.document_code || '',
-            
-            // =================================================================
-            // SỬA LỖI TẠI ĐÂY
-            // Lý do: initialData.type từ API trả về đã là mã (value), ví dụ: 'PL'.
-            // Việc dùng findValueByLabel sẽ tìm kiếm một mục có "nhãn" (label) là 'PL',
-            // dẫn đến thất bại và trả về chuỗi rỗng.
-            // Giải pháp: Sử dụng trực tiếp giá trị initialData.type.
-            // =================================================================
+            // SỬA LỖI: API trả về mã (value), nên ta sử dụng trực tiếp.
             type: initialData.type || '',
-            
-            department: findValueByLabel(departmentOptions, initialData.department),
+            department: initialData.department || '', // API trả về mã phòng ban ('QC'), sử dụng trực tiếp.
             description: initialData.description || '',
             scope_of_application: initialData.scope_of_application || '',
             recipients: initialData.recipients || [],
@@ -49,12 +43,13 @@ export function useDocumentForm(
         };
     }
 
-    // Giữ nguyên logic cho việc tạo mới
+    // --- LOGIC KHI TẠO MỚI TÀI LIỆU ---
     return {
         title: '',
         document_code: '',
         type: '',
-        department: currentUser?.department || '',
+        // SỬA LỖI: Chuyển đổi tên phòng ban của người dùng sang mã phòng ban để form chọn đúng.
+        department: getDepartmentValue(currentUser?.department) || '',
         description: '',
         scope_of_application: '',
         recipients: [],
@@ -69,7 +64,6 @@ export function useDocumentForm(
     initialData, 
     isEditMode, 
     currentUser, 
-    documentTypeOptions,
     departmentOptions
   ]);
 

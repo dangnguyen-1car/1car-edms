@@ -7,7 +7,6 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import DocumentFormWrapper from '../components/documents/DocumentFormWrapper';
 import { documentService } from '../services/documentService';
-import { FiPlus } from 'react-icons/fi';
 
 /**
  * =================================================================
@@ -91,11 +90,7 @@ function DocumentsPage() {
               Quản lý và tìm kiếm tài liệu trong hệ thống EDMS 1CAR
             </p>
           </div>
-          <button onClick={handleOpenCreateModal} className="btn btn-primary">
-            <FiPlus className="mr-2" />
-            Tạo tài liệu mới
-          </button>
-        </div>
+          </div>
         <div className="p-6">
           <DocumentList
             documents={documents}

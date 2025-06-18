@@ -43,7 +43,7 @@ router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMEN
         const { limit = 10 } = req.query;
         const documentService = serviceFactory.getDocumentService();
         const result = await documentService.getPendingApprovalsForUser(req.user, parseInt(limit));
-        setAuditDetails(res, 'PENDING_APPROVALS_VIEWED', 'document', null, { count: result.data?.length || 0 });
+        setAuditDetails(res, 'VIEW_DOCUMENTS_DUE_REVIEW', 'document', null, { count: result.data?.length || 0, context: 'PendingApprovalsWidget' });
         res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
     } catch (error) {
         next(error);

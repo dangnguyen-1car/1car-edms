@@ -114,7 +114,7 @@ class SearchService {
       const totalAccessible = accessibleDocIds.length;
       if (totalAccessible === 0) {
         await AuditService.log({
-            action: 'DOCUMENT_SEARCHED', userId, resourceType: 'document',
+            action: 'SEARCH_DOCUMENTS', userId, resourceType: 'document',
             details: { query, filters, resultsCount: 0, totalResultsAccessible: 0, page: parseInt(page), limit: parseInt(limit) },
             ipAddress: requestContext.ipAddress, userAgent: requestContext.userAgent, sessionId: requestContext.sessionId
         });
@@ -154,7 +154,7 @@ class SearchService {
       const totalPages = Math.ceil(totalAccessible / limitNum);
 
       await AuditService.log({
-        action: 'DOCUMENT_SEARCHED', userId, resourceType: 'document',
+        action: 'SEARCH_DOCUMENTS', userId, resourceType: 'document',
         details: { query, filters, resultsCount: results.length, totalResultsAccessible: totalAccessible, page: pageNum, limit: limitNum },
         ipAddress: requestContext.ipAddress, userAgent: requestContext.userAgent, sessionId: requestContext.sessionId
       });

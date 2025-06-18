@@ -195,7 +195,7 @@ class AuditService {
 
       // Log the access
       await this.log({
-        action: 'RECENT_ACTIVITIES_VIEWED',
+        action: 'VIEW_AUDIT_LOGS',
         userId: requestingUser.id,
         resourceType: 'system',
         details: {
