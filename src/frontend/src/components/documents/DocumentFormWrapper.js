@@ -3,31 +3,28 @@ import React, { useState, useEffect } from 'react';
 import CreateDocumentModal from './CreateDocumentModal';
 import { documentService } from '../../services/documentService';
 import { toast } from 'react-hot-toast';
-
-// =================================================================
-// EDMS 1CAR - DocumentFormWrapper (FINAL - Refactored Version)
-// PHIÊN BẢN TÁI CẤU TRÚC VÀ SỬA LỖI TRIỆT ĐỂ:
-// - Loại bỏ `useQueries` để lấy options.
-// - Import trực tiếp `documentTypeOptions` và `departmentOptions` từ `documentUtils.js`
-//   để đảm bảo tính nhất quán, đồng bộ và là "nguồn sự thật duy nhất" (Single Source of Truth).
-// - Giúp modal tải nhanh hơn và loại bỏ các lỗi do xử lý dữ liệu API không nhất quán.
-// =================================================================
 import { documentTypeOptions, departmentOptions } from '../../utils/documentUtils';
 
+/**
+ * =================================================================
+ * EDMS 1CAR - DocumentFormWrapper (Không đổi)
+ * Component này đã được viết đúng. Lỗi nằm ở cách nó được gọi.
+ * Nó sẽ nhận `documentId` và kích hoạt `useEffect` để fetch dữ liệu.
+ * =================================================================
+ */
 function DocumentFormWrapper({
   isOpen,
   onClose,
   onSuccess,
   isEditMode = false,
-  documentId = null,
+  documentId = null, // Prop này bây giờ sẽ nhận được giá trị ID
 }) {
-  // --- State Management ---
   const [documentData, setDocumentData] = useState(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState(false);
 
-  // --- Effect for loading Document Data in Edit Mode ---
   useEffect(() => {
     const loadDocument = async () => {
+      // Vì documentId đã được truyền vào, điều kiện này sẽ đúng
       if (!documentId) {
         setDocumentData(null);
         return;
@@ -35,6 +32,7 @@ function DocumentFormWrapper({
 
       setIsLoadingDocument(true);
       try {
+        // Lệnh gọi API sẽ được thực hiện, server sẽ ghi nhận log
         const response = await documentService.getDocument(documentId);
         if (response.success) {
           setDocumentData(response.data);
@@ -44,7 +42,7 @@ function DocumentFormWrapper({
       } catch (error) {
         console.error('Lỗi tải tài liệu để chỉnh sửa:', error);
         toast.error(error.message || 'Lỗi tải thông tin tài liệu');
-        onClose(); // Đóng modal nếu không thể tải dữ liệu
+        onClose();
       } finally {
         setIsLoadingDocument(false);
       }
@@ -54,39 +52,45 @@ function DocumentFormWrapper({
       loadDocument();
     }
 
-    // Cleanup: Reset dữ liệu khi modal đóng
     if (!isOpen) {
       setDocumentData(null);
     }
-  }, [isOpen, isEditMode, documentId, onClose]);
+  }, [isOpen, isEditMode, documentId, onClose]); // Dependency array đã đúng
 
-  // --- Event Handlers ---
   const handleSuccess = (document) => {
     if (onSuccess) {
       onSuccess(document, isEditMode);
     }
-    onClose(); // Tự động đóng modal sau khi thành công
+    onClose();
   };
 
-  // --- Render Logic ---
-
-  // Hiển thị trạng thái loading chung nếu đang fetch dữ liệu cho Edit mode
   if (isEditMode && isLoadingDocument) {
-    // Có thể trả về một skeleton loader thay vì null để UX tốt hơn
-    return null; 
+    // Để có UX tốt hơn, có thể hiện một skeleton loader trong modal
+    return (
+        <CreateDocumentModal
+            isOpen={isOpen}
+            onClose={onClose}
+            onSave={() => {}}
+            isEditMode={true}
+            initialData={null} // Truyền null để CreateDocumentModal biết đang loading
+            documentTypeOptions={documentTypeOptions}
+            departmentOptions={departmentOptions}
+            // Thêm prop isLoading
+            isLoadingData={true} 
+        />
+    );
   }
 
-  // Component CreateDocumentModal sẽ nhận props và hoạt động đúng
-  // vì dữ liệu options giờ đây đã được chuẩn hóa và đầy đủ.
   return (
     <CreateDocumentModal
       isOpen={isOpen}
       onClose={onClose}
       onSave={handleSuccess}
       isEditMode={isEditMode}
-      initialData={documentData}
+      initialData={documentData} // Truyền dữ liệu đã được fetch
       documentTypeOptions={documentTypeOptions}
       departmentOptions={departmentOptions}
+      isLoadingData={isLoadingDocument}
     />
   );
 }

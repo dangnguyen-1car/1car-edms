@@ -10,12 +10,9 @@ import { documentService } from '../services/documentService';
 
 /**
  * =================================================================
- * EDMS 1CAR - DocumentsPage (FINAL - Corrected Version)
- * Trang quản lý danh sách tài liệu.
- * PHIÊN BẢN ĐÃ SỬA LỖI:
- * - Sửa lỗi trong hàm `select` của `useQuery` để trích xuất chính xác
- * mảng `results` từ response của API.
- * - Đảm bảo component `DocumentList` nhận được một mảng và render đúng.
+ * EDMS 1CAR - DocumentsPage (Sửa lỗi Tạo mới/Chỉnh sửa)
+ * Tách riêng logic xử lý cho việc "Tạo mới" và "Chỉnh sửa"
+ * để đảm bảo form chính xác được hiển thị.
  * =================================================================
  */
 function DocumentsPage() {
@@ -25,18 +22,14 @@ function DocumentsPage() {
 
   const { data: documents, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['documents'],
-    queryFn: () => documentService.searchDocuments({}), // Lấy tất cả tài liệu
-    
-    // SỬA LỖI TẠI ĐÂY: Trích xuất đúng mảng `results` từ `data.data`
-    // API trả về { success: true, data: { results: [...] } }
-    // Chúng ta cần lấy `data.data.results`
+    queryFn: () => documentService.searchDocuments({}),
     select: (response) => {
       if (response?.success && Array.isArray(response.data?.results)) {
         return response.data.results;
       }
-      return []; // Trả về mảng rỗng nếu có lỗi hoặc không có dữ liệu
+      return [];
     },
-    staleTime: 5 * 60 * 1000, // Cache danh sách trong 5 phút
+    staleTime: 5 * 60 * 1000,
   });
 
   const breadcrumbItems = [
@@ -44,27 +37,32 @@ function DocumentsPage() {
     { label: 'Quản lý tài liệu', href: '/documents', current: true },
   ];
 
+  // =================================================================
+  // SỬA LỖI: BƯỚC 1 - Tạo hàm riêng cho việc mở modal TẠO MỚI
+  // Hàm này sẽ đặt isEditMode = false
+  // =================================================================
   const handleOpenCreateModal = () => {
-    setIsEditMode(false);
     setEditingDocumentId(null);
+    setIsEditMode(false); // Quan trọng: Đặt chế độ sửa thành false
     setIsModalOpen(true);
   };
 
+  // Hàm này giữ nguyên, chỉ dành cho việc CHỈNH SỬA
   const handleEditDocument = (docId) => {
     setEditingDocumentId(docId);
-    setIsEditMode(true);
+    setIsEditMode(true); // Quan trọng: Đặt chế độ sửa thành true
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setEditingDocumentId(null);
-    setIsEditMode(false);
+    setEditingDocumentId(null); // Reset ID khi đóng
+    // isEditMode sẽ tự động được đặt lại ở lần mở tiếp theo
   };
   
-  // Sau khi tạo/sửa thành công, làm mới lại danh sách
   const handleSuccess = () => {
     refetch();
+    handleCloseModal(); // Đóng modal sau khi thành công
   };
 
   if (isLoading) {
@@ -90,10 +88,12 @@ function DocumentsPage() {
               Quản lý và tìm kiếm tài liệu trong hệ thống EDMS 1CAR
             </p>
           </div>
-          </div>
+        </div>
         <div className="p-6">
+          {/* SỬA LỖI: BƯỚC 2 - Truyền cả 2 hàm onCreate và onEdit xuống DocumentList */}
           <DocumentList
-            documents={documents}
+            documents={documents || []}
+            onCreate={handleOpenCreateModal}
             onEdit={handleEditDocument}
             onDeleteSuccess={refetch}
           />

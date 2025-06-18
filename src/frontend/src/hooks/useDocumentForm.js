@@ -30,7 +30,7 @@ export function useDocumentForm(
             document_code: initialData.document_code || '',
             // SỬA LỖI: API trả về mã (value), nên ta sử dụng trực tiếp.
             type: initialData.type || '',
-            department: initialData.department || '', // API trả về mã phòng ban ('QC'), sử dụng trực tiếp.
+            department: getDepartmentValue(initialData.department) || '', 
             description: initialData.description || '',
             scope_of_application: initialData.scope_of_application || '',
             recipients: initialData.recipients || [],

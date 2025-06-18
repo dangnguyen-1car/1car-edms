@@ -127,6 +127,16 @@ class DocumentService {
       // Let's use `actualFilePath` for the file access.
       const filePathToServe = actualFilePath;
       // FIX END
+
+      const getDocument = async (id) => {
+        try {
+          const response = await api.get(`/documents/${id}`);
+          return response.data;
+        } catch (error) {
+          console.error(`Lỗi khi lấy tài liệu với ID ${id}:`, error);
+          throw error;
+        }
+      };
       
       try {
         await fs.access(filePathToServe);
@@ -157,7 +167,6 @@ class DocumentService {
     }
   }
 
-  // ===== BỔ SUNG HÀM BỊ THIẾU GÂY LỖI 500 CHO /versions =====
   async getVersionHistory(documentId, user, context = {}) {
     try {
       const permissionResult = await this.permissionService.checkPermission(
@@ -181,7 +190,6 @@ class DocumentService {
     }
   }
 
-  // ===== BỔ SUNG HÀM BỊ THIẾU GÂY LỖI 500 CHO /workflow =====
   async getWorkflowHistory(documentId, user, context = {}) {
     try {
         const permissionResult = await this.permissionService.checkPermission(
@@ -206,7 +214,6 @@ class DocumentService {
   }
 
   async suggestDocumentCode(type, department, user, context = {}) {
-    // ... Giữ nguyên logic hàm này
     try {
       if (!type || !department) {
         throw createError('Loại tài liệu và phòng ban là bắt buộc', 400, 'MISSING_REQUIRED_FIELDS');
