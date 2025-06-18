@@ -1,9 +1,8 @@
-// src/frontend/src/pages/DashboardPage.js
+// src/frontend/src/pages/DashboardPage.js - Cập nhật với PendingApprovalsWidget
 import React, { useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
-// Sửa đổi 1: Đảm bảo import từ đúng package
 import { useQuery } from '@tanstack/react-query';
-import { FiPlus, FiSearch, FiTrendingUp, FiUsers, FiFileText } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiTrendingUp, FiUsers, FiFileText, FiClock } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { PageLoader } from '../components/common/LoadingSpinner';
 import DocumentStatsWidget from '../components/dashboard/DocumentStatsWidget';
@@ -17,13 +16,28 @@ function DashboardPage() {
   const { isAuthenticated, isLoading, user, canAccessDashboardWidget } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // --- BẮT ĐẦU SỬA ĐỔI ---
-  // Sửa đổi 2: Cập nhật cú pháp useQuery sang dạng object và dùng isPending
+  // =================================================================
+  // Helper Functions
+  // =================================================================
+  const getRoleDisplayName = (role) => {
+    const roleNames = {
+      'admin': 'Quản trị viên',
+      'manager': 'Quản lý',
+      'user': 'Người dùng',
+      'guest': 'Khách'
+    };
+    return roleNames[role] || 'Không xác định';
+  };
+
+  // =================================================================
+  // Data Fetching (TanStack Query)
+  // =================================================================
+  // Queries for metadata
   const { data: docTypesData, isPending: isPendingDocTypes } = useQuery({
     queryKey: ['documentTypes'],
     queryFn: () => documentService.getDocumentTypes(),
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
-    cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    staleTime: 10 * 60 * 1000,
+    cacheTime: 30 * 60 * 1000,
   });
 
   const { data: departmentsData, isPending: isPendingDepts } = useQuery({
@@ -32,53 +46,37 @@ function DashboardPage() {
     staleTime: 10 * 60 * 1000,
     cacheTime: 30 * 60 * 1000,
   });
-  // --- KẾT THÚC SỬA ĐỔI ---
 
+  // =================================================================
+  // Early Exit Conditions (Loading, Authentication)
+  // =================================================================
   if (isLoading) {
-    return <PageLoader message="Đang tải dashboard..." />;
+    return <PageLoader />;
   }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  const getRoleDisplayName = (role) => {
-    // ... (logic không đổi)
-    const roleNames = {
-      'admin': 'Quản trị viên',
-      'manager': 'Quản lý phòng ban',
-      'user': 'Người dùng',
-      'guest': 'Khách'
-    };
-    return roleNames[role] || 'Không xác định';
+  // =================================================================
+  // Event Handlers
+  // =================================================================
+  const handleCreateDocument = () => {
+    setShowCreateModal(true);
   };
 
-  const getWelcomeMessage = () => {
-    // ... (logic không đổi)
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Chào buổi sáng';
-    if (hour < 18) return 'Chào buổi chiều';
-    return 'Chào buổi tối';
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
   };
 
-  const handleCreateDocument = (newDocument) => {
-    // ... (logic không đổi)
-    console.log('Document created:', newDocument);
+  const handleDocumentCreated = (newDocument) => {
+    setShowCreateModal(false);
+    // Có thể thêm logic refresh data hoặc hiển thị thông báo thành công
   };
 
-  const mappedDocumentTypeOptions = docTypesData?.data?.documentTypes?.map(dt => ({
-    value: dt.code,
-    label: dt.name
-  })) || [];
-
-  const mappedDepartmentOptions = departmentsData?.data?.departments?.map(d => ({
-    value: d,
-    label: d
-  })) || [];
-
-  // Sửa đổi 3: Cập nhật biến kiểm tra loading options
-  const isLoadingOptions = isPendingDocTypes || isPendingDepts;
-
+  // =================================================================
+  // Render JSX
+  // =================================================================
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -87,153 +85,203 @@ function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                {getWelcomeMessage()}, {user?.name}!
+                Chào mừng trở lại, {user?.name || 'Người dùng'}
               </h1>
-              <p className="mt-1 text-lg text-gray-600">
+              <p className="mt-2 text-gray-600">
                 {getRoleDisplayName(user?.role)} - {user?.department || 'Chưa xác định phòng ban'}
               </p>
             </div>
-            <div className="flex space-x-3">
+
+            <div className="flex items-center space-x-4">
               <Link
                 to="/search"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
               >
                 <FiSearch className="mr-2 h-4 w-4" />
                 Tìm kiếm nâng cao
               </Link>
-              {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'user') && (
+
+              {user?.role !== 'guest' && (
                 <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  disabled={isLoadingOptions}
+                  onClick={handleCreateDocument}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
                 >
                   <FiPlus className="mr-2 h-4 w-4" />
-                  {isLoadingOptions ? 'Đang tải...' : 'Tạo tài liệu mới'}
+                  Tạo tài liệu mới
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Quick Stats Cards - For all roles */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-           {/* ... (phần này không thay đổi) ... */}
-           <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <FiFileText className="h-6 w-6 text-gray-400" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      Tài liệu
-                    </dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      Quản lý tài liệu điện tử
-                    </dd>
-                  </dl>
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <FiFileText className="w-4 h-4 text-blue-600" />
                 </div>
               </div>
-            </div>
-            <div className="bg-gray-50 px-5 py-3">
-              <div className="text-sm">
-                <Link to="/documents" className="font-medium text-blue-600 hover:text-blue-500">
-                  Xem tất cả tài liệu
-                </Link>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Tài liệu của tôi</p>
+                <p className="text-2xl font-semibold text-gray-900">-</p>
               </div>
             </div>
           </div>
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <FiUsers className="h-6 w-6 text-gray-400" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      Phòng ban
-                    </dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      {user?.department || 'Chưa xác định'}
-                    </dd>
-                  </dl>
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <FiTrendingUp className="w-4 h-4 text-green-600" />
                 </div>
               </div>
-            </div>
-            <div className="bg-gray-50 px-5 py-3">
-              <div className="text-sm">
-                <span className="font-medium text-gray-600">
-                  Vai trò: {getRoleDisplayName(user?.role)}
-                </span>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Đã phê duyệt</p>
+                <p className="text-2xl font-semibold text-gray-900">-</p>
               </div>
             </div>
           </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <FiTrendingUp className="h-6 w-6 text-gray-400" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      Hệ thống
-                    </dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      1CAR - EDMS
-                    </dd>
-                  </dl>
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                  <FiClock className="w-4 h-4 text-orange-600" />
                 </div>
               </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Đang chờ xử lý</p>
+                <p className="text-2xl font-semibold text-gray-900">-</p>
+              </div>
             </div>
-            <div className="bg-gray-50 px-5 py-3">
-              <div className="text-sm">
-                <span className="font-medium text-gray-600">
-                  Phiên bản 1.0.0
-                </span>
+          </div>
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <FiUsers className="w-4 h-4 text-purple-600" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Hoạt động tuần</p>
+                <p className="text-2xl font-semibold text-gray-900">-</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Widgets Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {canAccessDashboardWidget('document_stats') && (
-            <DocumentStatsWidget className="lg:col-span-1" />
-          )}
-          {canAccessDashboardWidget('recent_activities') && (
-            <RecentActivitiesWidget className="lg:col-span-1" />
-          )}
-          {canAccessDashboardWidget('pending_approvals') && (
-            <PendingApprovalsWidget className="lg:col-span-1" />
-          )}
-          {canAccessDashboardWidget('notifications') && (
-            <NotificationsWidget className="lg:col-span-1" />
-          )}
+        {/* Main Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - 2/3 width */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Document Statistics Widget */}
+            {canAccessDashboardWidget('documentStats') && (
+              <DocumentStatsWidget />
+            )}
+            {/* Recent Activities Widget */}
+            {canAccessDashboardWidget('recentActivities') && (
+              <RecentActivitiesWidget />
+            )}
+          </div>
+
+          {/* Right Column - 1/3 width */}
+          <div className="space-y-8">
+            {/* Pending Approvals Widget - CHỨC NĂNG MỚI */}
+            <PendingApprovalsWidget />
+            {/* Notifications Widget */}
+            {canAccessDashboardWidget('notifications') && (
+              <NotificationsWidget />
+            )}
+            {/* Quick Links */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Truy cập nhanh
+                </h3>
+              </div>
+              <div className="p-6">
+                <div className="space-y-3">
+                  <Link
+                    to="/documents"
+                    className="flex items-center p-3 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <FiFileText className="mr-3 h-5 w-5 text-gray-400" />
+                    Danh sách tài liệu
+                  </Link>
+
+                  <Link
+                    to="/documents/pending-approval"
+                    className="flex items-center p-3 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <FiClock className="mr-3 h-5 w-5 text-gray-400" />
+                    Tài liệu chờ phê duyệt
+                  </Link>
+
+                  <Link
+                    to="/search"
+                    className="flex items-center p-3 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <FiSearch className="mr-3 h-5 w-5 text-gray-400" />
+                    Tìm kiếm nâng cao
+                  </Link>
+
+                  {user?.role !== 'guest' && (
+                    <button
+                      onClick={handleCreateDocument}
+                      className="flex items-center w-full p-3 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <FiPlus className="mr-3 h-5 w-5 text-gray-400" />
+                      Tạo tài liệu mới
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* System Information */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Thông tin hệ thống
+                </h3>
+              </div>
+              <div className="p-6">
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Phiên bản:</span>
+                    <span className="text-gray-900">1.0.0</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Người dùng online:</span>
+                    <span className="text-gray-900">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Tài liệu tổng:</span>
+                    <span className="text-gray-900">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Cập nhật cuối:</span>
+                    <span className="text-gray-900">Hôm nay</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Guest User Special Message */}
-        {user?.role === 'guest' && (
-           <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            {/* ... (phần này không thay đổi) ... */}
-            </div>
+        {/* Create Document Modal */}
+        {showCreateModal && (
+          <CreateDocumentModal
+            isOpen={showCreateModal}
+            onClose={handleCloseCreateModal}
+            onDocumentCreated={handleDocumentCreated}
+            documentTypes={docTypesData?.data?.documentTypes || []}
+            departments={departmentsData?.data?.departments || []}
+            isLoadingTypes={isPendingDocTypes}
+            isLoadingDepartments={isPendingDepts}
+          />
         )}
       </div>
-
-      {/* Create Document Modal */}
-      {showCreateModal && (
-        <CreateDocumentModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={handleCreateDocument}
-          documentTypeOptions={mappedDocumentTypeOptions}
-          departmentOptions={mappedDepartmentOptions}
-          isLoadingOptions={isLoadingOptions}
-        />
-      )}
     </div>
   );
 }
