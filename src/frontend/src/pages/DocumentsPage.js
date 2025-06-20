@@ -71,7 +71,7 @@ function DocumentsPage() {
   });
 
   const statusOptions = useMemo(() =>
-    workflowStatesData?.data?.workflowStates.map(s => ({ value: s.code, label: s.name })) || [],
+    (workflowStatesData || []).map(s => ({ value: s.code, label: s.name })),
     [workflowStatesData]
   );
 

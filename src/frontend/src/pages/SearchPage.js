@@ -1,8 +1,7 @@
 // src/frontend/pages/SearchPage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-// Sửa đổi 1: Đảm bảo import từ đúng package
 import { useQuery } from '@tanstack/react-query';
 import { FiSearch, FiFileText, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
@@ -22,7 +21,6 @@ function SearchPage() {
   const [pageSize, setPageSize] = useState(parseInt(searchParams.get('limit')) || 12);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [filters, setFilters] = useState(() => {
-    // ... (logic khởi tạo state này không thay đổi)
     const initialFilters = {
       search: searchParams.get('q') || '', type: searchParams.get('type') || '',
       department: searchParams.get('department') || '', status: searchParams.get('status') || '',
@@ -34,12 +32,12 @@ function SearchPage() {
       sort: searchParams.get('sort') || 'relevance',
     };
     const hasInitialParams = Array.from(searchParams.keys()).some(key => key !== 'page' && key !== 'limit');
-    setShowAdvancedFilters(hasInitialParams || !!initialFilters.search);
+    // Mở bộ lọc nếu có tham số trên URL
+    if (hasInitialParams) {
+        setShowAdvancedFilters(true);
+    }
     return initialFilters;
   });
-
-  // --- BẮT ĐẦU SỬA ĐỔI PHẦN FETCH OPTIONS ---
-  // Sửa đổi 2: Cập nhật cú pháp useQuery cho các options và dùng isPending
 
   const { data: docTypesData, isPending: isPendingDocTypes } = useQuery({
     queryKey: ['documentTypesSearch'],
@@ -59,15 +57,21 @@ function SearchPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const mappedDocumentTypeOptions = docTypesData?.data?.documentTypes.map(dt => ({ value: dt.code, label: dt.name })) || [];
-  const mappedDepartmentOptions = departmentsData?.data?.departments.map(d => ({ value: d, label: d })) || [];
-  const mappedStatusOptions = workflowStatesData?.data?.workflowStates.map(s => ({ value: s.code, label: s.name })) || [];
+  // *** LỖI ĐÃ SỬA (1): Sửa lại cách map dữ liệu cho "Loại tài liệu" ***
+  // Biến `docTypesData` đã là mảng dữ liệu, không cần truy cập `.data.documentTypes`
+  const mappedDocumentTypeOptions = useMemo(() => (docTypesData || []).map(dt => ({ value: dt.code, label: dt.name })), [docTypesData]);
+
+  // *** LỖI ĐÃ SỬA (2): Sửa lại cách map dữ liệu cho "Phòng ban" ***
+  // Biến `departmentsData` đã là mảng các chuỗi, không cần truy cập `.data.departments`
+  const mappedDepartmentOptions = useMemo(() => (departmentsData || []).map(d => ({ value: d, label: d })), [departmentsData]);
   
-  // Sửa đổi 3: Cập nhật biến loading options
+  // *** LỖI ĐÃ SỬA (3): Sửa lại cách map dữ liệu cho "Trạng thái" ***
+  // Biến `workflowStatesData` đã là mảng dữ liệu, không cần truy cập `.data.workflowStates`
+  const mappedStatusOptions = useMemo(() => (workflowStatesData || []).map(s => ({ value: s.code, label: s.name })), [workflowStatesData]);
+  
   const isLoadingOptions = isPendingDocTypes || isPendingDepts || isPendingStatuses;
 
   const hasActiveFiltersLogic = (filterObj) => {
-    // ... (logic không đổi)
     if (!filterObj) return false;
     const { sort, search, ...restFilters } = filterObj;
     return Object.values(restFilters).some(value => value !== '' && value !== false && value !== null && value !== undefined);
@@ -75,17 +79,16 @@ function SearchPage() {
   
   const {
     data: searchServiceResponse,
-    isPending, // Sửa từ isLoading
+    isPending,
     isError,
     error,
     refetch,
     isFetching,
   } = useQuery({
-    // Sửa đổi 4: Chuyển sang cú pháp object và bỏ `onError`
     queryKey: ['documents-search-page', currentPage, pageSize, filters],
     queryFn: async () => {
       if (!filters.search && !hasActiveFiltersLogic(filters)) {
-        return { data: { documents: [], pagination: { total: 0, totalPages: 1, page: 1, limit: pageSize } } };
+        return { data: { results: [], pagination: { total: 0, totalPages: 1, page: 1, limit: pageSize } } };
       }
       const params = {
         page: currentPage, limit: pageSize,
@@ -101,10 +104,8 @@ function SearchPage() {
     keepPreviousData: true,
     staleTime: 1 * 60 * 1000,
     enabled: !!filters.search || hasActiveFiltersLogic(filters),
-    // `onError` đã bị loại bỏ, logic xử lý lỗi sẽ được chuyển ra ngoài.
   });
 
-  // Sửa đổi 5: Xử lý lỗi bằng useEffect
   useEffect(() => {
     if (isError) {
       console.error('Search error:', error);
@@ -112,10 +113,7 @@ function SearchPage() {
     }
   }, [isError, error]);
 
-  // --- KẾT THÚC SỬA ĐỔI QUERY TÌM KIẾM CHÍNH ---
-
   useEffect(() => {
-    // ... (logic đồng bộ URL không thay đổi)
     const params = new URLSearchParams();
     let hasRelevantFilter = false;
     Object.entries(filters).forEach(([key, value]) => {
@@ -145,7 +143,6 @@ function SearchPage() {
   };
   
   const handleClearFilters = () => {
-    // ... (logic không đổi)
     setFilters({ search: '', type: '', department: '', status: '', security_level: '', priority: '', date_from: '', date_to: '', include_archived: false, search_content: false, exact_match: false, sort: 'relevance' });
     setCurrentPage(1);
     setPageSize(12);
@@ -201,7 +198,6 @@ function SearchPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Kết quả tìm kiếm</h2>
-                {/* ***** THAY ĐỔI TẠI ĐÂY ***** */}
                 <div className="text-sm text-gray-600 flex items-center">
                   {isFetching && !isPending ? (
                     <div className="mr-2">
@@ -210,7 +206,6 @@ function SearchPage() {
                   ) : null}
                   <span>{`${paginationInfo.total} tài liệu được tìm thấy.`}</span>
                 </div>
-                {/* ***** KẾT THÚC THAY ĐỔI ***** */}
               </div>
               {documents.length > 0 && paginationInfo.totalPages > 1 && (
                 <div className="text-sm text-gray-500">Trang {paginationInfo.page || currentPage} / {paginationInfo.totalPages}</div>
@@ -218,7 +213,6 @@ function SearchPage() {
             </div>
           )}
 
-          {/* Sửa đổi 6: Dùng `isPending` cho trạng thái loading chính */}
           {isPending && searchWasPerformed ? (
             <div className="flex items-center justify-center py-16"><LoadingSpinner size="lg" message="Đang tìm kiếm tài liệu..." /></div>
           ) : isError && searchWasPerformed ? (
@@ -236,7 +230,9 @@ function SearchPage() {
             </div>
           ) : documents.length === 0 && searchWasPerformed && !isFetching ? (
             <div className="text-center py-16 text-gray-500">
-                {/* ... (phần này không đổi) ... */}
+                <FiFileText className="w-16 h-16 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-800 mb-2">Không tìm thấy tài liệu</h3>
+                <p>Không có tài liệu nào phù hợp với bộ lọc của bạn.</p>
             </div>
           ) : documents.length > 0 && (
              <>

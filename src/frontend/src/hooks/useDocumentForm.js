@@ -16,24 +16,37 @@ export function useDocumentForm(
   const { user: currentUser } = useAuth();
 
   const getInitialFormData = useCallback(() => {
-    // Hàm tiện ích để chuyển đổi Tên phòng ban (label) sang Mã (value)
     const getDepartmentValue = (departmentLabel) => {
         if (!departmentOptions || !departmentLabel) return '';
         const option = departmentOptions.find(opt => opt.label === departmentLabel);
         return option ? option.value : '';
     };
 
-    // --- LOGIC KHI CHỈNH SỬA TÀI LIỆU ---
     if (isEditMode && initialData) {
+        // *** LỖI ĐÃ SỬA: Xử lý `recipients` để đảm bảo nó luôn là một mảng. ***
+        let recipientsArray = [];
+        // Kiểm tra xem recipients có phải là một chuỗi JSON hay không và phân tích nó.
+        if (typeof initialData.recipients === 'string' && initialData.recipients.trim().startsWith('[')) {
+            try {
+                recipientsArray = JSON.parse(initialData.recipients);
+            } catch (e) {
+                console.error("Lỗi phân tích cú pháp chuỗi recipients:", initialData.recipients, e);
+                recipientsArray = []; // Mặc định thành mảng rỗng nếu phân tích lỗi
+            }
+        } else if (Array.isArray(initialData.recipients)) {
+            // Nếu nó đã là một mảng, sử dụng trực tiếp.
+            recipientsArray = initialData.recipients;
+        }
+
         return {
             title: initialData.title || '',
             document_code: initialData.document_code || '',
-            // SỬA LỖI: API trả về mã (value), nên ta sử dụng trực tiếp.
             type: initialData.type || '',
             department: getDepartmentValue(initialData.department) || '', 
             description: initialData.description || '',
             scope_of_application: initialData.scope_of_application || '',
-            recipients: initialData.recipients || [],
+            // Sử dụng mảng đã được xử lý
+            recipients: recipientsArray,
             priority: initialData.priority || 'normal',
             security_level: initialData.security_level || 'internal',
             review_cycle: initialData.review_cycle ?? 12,
@@ -43,12 +56,10 @@ export function useDocumentForm(
         };
     }
 
-    // --- LOGIC KHI TẠO MỚI TÀI LIỆU ---
     return {
         title: '',
         document_code: '',
         type: '',
-        // SỬA LỖI: Chuyển đổi tên phòng ban của người dùng sang mã phòng ban để form chọn đúng.
         department: getDepartmentValue(currentUser?.department) || '',
         description: '',
         scope_of_application: '',

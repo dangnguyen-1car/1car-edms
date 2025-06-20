@@ -1,4 +1,4 @@
-// src/backend/routes/documents.js - Đã xóa route legacy và tối ưu hóa
+// src/backend/routes/documents.js - Đã sửa lỗi và sắp xếp lại routes
 const express = require('express');
 const router = express.Router();
 
@@ -16,7 +16,7 @@ const DocumentCodeGenerator = require('../utils/documentCodeGenerator');
 router.use(auditMiddleware);
 
 // =================================================================
-// CÁC ROUTE CHÍNH CRUD VÀ TÌM KIẾM TÀI LIỆU
+// CÁC ROUTE LẤY DANH SÁCH VÀ TẠO MỚI
 // =================================================================
 
 /**
@@ -47,6 +47,241 @@ router.post('/', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document
         next(error);
     }
 });
+
+
+// =================================================================
+// ROUTES CHO PENDING APPROVAL & STATS (Được đưa lên trước route /:id)
+// =================================================================
+
+/**
+ * GET /api/documents/pending-approval
+ * Lấy danh sách tài liệu chờ phê duyệt cho người dùng hiện tại.
+ */
+router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { page = 1, limit = 20, department, author, priority, sortBy = 'updated_at', sortOrder = 'desc' } = req.query;
+        const documentService = serviceFactory.getDocumentService();
+        const filters = {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            department,
+            author,
+            priority,
+            sortBy,
+            sortOrder
+        };
+        const result = await documentService.getPendingApprovalsForUser(req.user, filters);
+
+        // *** LỖI ĐÃ SỬA: Thay đổi action không hợp lệ. Giả sử 'WORKFLOW_HISTORY_VIEWED' là phù hợp hơn.
+        setAuditDetails(res, 'WORKFLOW_HISTORY_VIEWED', 'document', null, {
+            count: result.data?.length || 0,
+            context: 'PendingApprovalPage',
+            filters: filters
+        });
+        res.json({
+            ...result,
+            timestamp: new Date().toISOString(),
+            requestId: req.requestId
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/pending-approval/stats
+ * Lấy thống kê tài liệu chờ phê duyệt cho Dashboard Widget.
+ */
+router.get('/pending-approval/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const documentService = serviceFactory.getDocumentService();
+        const result = await documentService.getPendingApprovalStats(req.user);
+        // *** LỖI ĐÃ SỬA: Thay 'VIEW_PENDING_APPROVAL_STATS' bằng 'VIEW_WORKFLOW_STATS' hợp lệ
+        setAuditDetails(res, 'VIEW_WORKFLOW_STATS', 'document', null, {
+            totalPending: result.data?.total_pending || 0,
+            context: 'PendingApprovalsWidget'
+        });
+        res.json({
+            ...result,
+            timestamp: new Date().toISOString(),
+            requestId: req.requestId
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/stats
+ * Lấy thống kê tài liệu.
+ */
+router.get('/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { department, dateFrom, dateTo } = req.query;
+        const documentService = serviceFactory.getDocumentService();
+        const result = await documentService.getDocumentStatistics(req.user, { department, dateFrom, dateTo });
+        setAuditDetails(res, 'DOCUMENT_STATISTICS_VIEWED', 'document', null, { filtersApplied: { department, dateFrom, dateTo } });
+        res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/due-for-review
+ * Lấy danh sách tài liệu sắp đến hạn xem xét.
+ */
+router.get('/due-for-review', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { daysBefore = 30 } = req.query;
+        const documentService = serviceFactory.getDocumentService();
+        const result = await documentService.getDocumentsDueForReview(req.user, parseInt(daysBefore));
+        setAuditDetails(res, 'DOCUMENTS_DUE_REVIEW_VIEWED', 'document', null, { daysBefore: parseInt(daysBefore), count: result.count });
+        res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// =================================================================
+// CÁC ROUTE TIỆN ÍCH VÀ METADATA (Được đưa lên trước route /:id)
+// =================================================================
+
+/**
+ * GET /api/documents/suggest-code
+ * Gợi ý mã tài liệu.
+ */
+router.get('/suggest-code', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { type, department: deptCode } = req.query;
+        if (!type || !deptCode) {
+            throw createError('Thiếu thông tin Loại tài liệu (type) hoặc Mã phòng ban (department)', 400, 'MISSING_PARAMETERS');
+        }
+        const suggestedCode = await DocumentCodeGenerator.generateCode(type, deptCode);
+        setAuditDetails(res, 'DOCUMENT_CODE_SUGGESTED', 'system', null, { type, deptCode, suggestedCode });
+        res.json({ success: true, data: { suggestedCode }, timestamp: new Date().toISOString(), requestId: req.requestId });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/documents/check-code
+ * Kiểm tra mã tài liệu có tồn tại hay không.
+ */
+router.post('/check-code', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { code } = req.body;
+        if (!code) {
+            throw createError('Mã tài liệu là bắt buộc để kiểm tra.', 400, 'MISSING_CODE');
+        }
+        const codeExists = await DocumentCodeGenerator.codeExists(code);
+        res.status(200).json({ success: true, data: { available: !codeExists }, timestamp: new Date().toISOString(), requestId: req.requestId });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/types
+ * Lấy danh sách các loại tài liệu.
+ */
+router.get('/types', authenticateToken, (req, res, next) => {
+    try {
+        res.status(200).json({
+            success: true,
+            data: {
+                documentTypes: [
+                    { code: 'PL', name: 'Chính sách' },
+                    { code: 'PR', name: 'Quy trình' },
+                    { code: 'WI', name: 'Hướng dẫn' },
+                    { code: 'FM', name: 'Biểu mẫu' },
+                    { code: 'TD', name: 'Tài liệu kỹ thuật' },
+                    { code: 'TR', name: 'Tài liệu đào tạo' },
+                    { code: 'RC', name: 'Hồ sơ' }
+                ]
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/departments
+ * Lấy danh sách các phòng ban.
+ */
+router.get('/departments', authenticateToken, (req, res, next) => {
+    try {
+        res.status(200).json({
+            success: true,
+            data: {
+                departments: [
+                    'Ban Giám đốc',
+                    'Phòng Phát triển Nhượng quyền',
+                    'Phòng Đào tạo Tiêu chuẩn',
+                    'Phòng Marketing',
+                    'Phòng Kỹ thuật QC',
+                    'Phòng Tài chính',
+                    'Phòng Công nghệ Hệ thống',
+                    'Phòng Pháp lý',
+                    'Bộ phận Tiếp nhận CSKH',
+                    'Bộ phận Kỹ thuật Garage',
+                    'Bộ phận QC Garage',
+                    'Bộ phận Kho/Kế toán Garage',
+                    'Bộ phận Marketing Garage',
+                    'Quản lý Garage'
+                ]
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/workflow-states
+ * Lấy danh sách các trạng thái workflow.
+ */
+router.get('/workflow-states', authenticateToken, (req, res, next) => {
+    try {
+        res.status(200).json({
+            success: true,
+            data: {
+                workflowStates: [
+                    { code: 'draft', name: 'Bản nháp' },
+                    { code: 'review', name: 'Đang xem xét' },
+                    { code: 'published', name: 'Đã phê duyệt' },
+                    { code: 'archived', name: 'Đã lưu trữ' }
+                ]
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/documents/search-suggestions
+ * Lấy các gợi ý tìm kiếm.
+ */
+router.get('/search-suggestions', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+    try {
+        const { query, limit = 10 } = req.query;
+        if (!query || query.trim().length < 2) {
+            return res.json({ success: true, data: { suggestions: [] } });
+        }
+        const result = await SearchService.getSearchSuggestions(query, req.user.id, parseInt(limit), { ipAddress: req.ip, userAgent: req.get('user-agent') });
+        res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+// =================================================================
+// *** LỖI ĐÃ SỬA: CÁC ROUTE ĐỘNG VỚI /:id ĐƯỢC CHUYỂN XUỐNG CUỐI CÙNG ***
+// =================================================================
 
 /**
  * GET /api/documents/:id
@@ -90,70 +325,6 @@ router.delete('/:id', authenticateToken, checkPermission('DELETE_DOCUMENT', 'doc
         next(error);
     }
 });
-
-// =================================================================
-// ROUTES CHO PENDING APPROVAL - CHỨC NĂNG CHÍNH
-// =================================================================
-
-/**
- * GET /api/documents/pending-approval
- * Lấy danh sách tài liệu chờ phê duyệt cho người dùng hiện tại.
- */
-router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const { page = 1, limit = 20, department, author, priority, sortBy = 'updated_at', sortOrder = 'desc' } = req.query;
-        const documentService = serviceFactory.getDocumentService();
-        const filters = {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            department,
-            author,
-            priority,
-            sortBy,
-            sortOrder
-        };
-        const result = await documentService.getPendingApprovalsForUser(req.user, filters);
-
-        setAuditDetails(res, 'VIEW_PENDING_APPROVALS', 'document', null, {
-            count: result.data?.length || 0,
-            context: 'PendingApprovalPage',
-            filters: filters
-        });
-        res.json({
-            ...result,
-            timestamp: new Date().toISOString(),
-            requestId: req.requestId
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * GET /api/documents/pending-approval/stats
- * Lấy thống kê tài liệu chờ phê duyệt cho Dashboard Widget.
- */
-router.get('/pending-approval/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const documentService = serviceFactory.getDocumentService();
-        const result = await documentService.getPendingApprovalStats(req.user);
-        setAuditDetails(res, 'VIEW_PENDING_APPROVAL_STATS', 'document', null, {
-            totalPending: result.data?.total_pending || 0,
-            context: 'PendingApprovalsWidget'
-        });
-        res.json({
-            ...result,
-            timestamp: new Date().toISOString(),
-            requestId: req.requestId
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// =================================================================
-// CÁC ROUTE QUẢN LÝ WORKFLOW, VERSION, FILE, YÊU THÍCH
-// =================================================================
 
 /**
  * POST /api/documents/:id/workflow
@@ -292,177 +463,6 @@ router.delete('/:id/favorite', authenticateToken, checkPermission('VIEW_DOCUMENT
         const result = await Document.removeFromFavorites(documentId, userId);
         setAuditDetails(res, 'DOCUMENT_UNFAVORITED', 'document', documentId, { favorited: false });
         res.status(200).json({ success: true, data: result });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// =================================================================
-// ROUTES CHO DASHBOARD WIDGETS & CÁC ROUTE KHÁC CÓ LIÊN QUAN ĐẾN THỐNG KÊ
-// =================================================================
-
-/**
- * GET /api/documents/stats
- * Lấy thống kê tài liệu.
- */
-router.get('/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const { department, dateFrom, dateTo } = req.query;
-        const documentService = serviceFactory.getDocumentService();
-        const result = await documentService.getDocumentStatistics(req.user, { department, dateFrom, dateTo });
-        setAuditDetails(res, 'DOCUMENT_STATISTICS_VIEWED', 'document', null, { filtersApplied: { department, dateFrom, dateTo } });
-        res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * GET /api/documents/due-for-review
- * Lấy danh sách tài liệu sắp đến hạn xem xét.
- */
-router.get('/due-for-review', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const { daysBefore = 30 } = req.query;
-        const documentService = serviceFactory.getDocumentService();
-        const result = await documentService.getDocumentsDueForReview(req.user, parseInt(daysBefore));
-        setAuditDetails(res, 'DOCUMENTS_DUE_REVIEW_VIEWED', 'document', null, { daysBefore: parseInt(daysBefore), count: result.count });
-        res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// =================================================================
-// CÁC ROUTE TIỆN ÍCH VÀ METADATA
-// =================================================================
-
-/**
- * GET /api/documents/suggest-code
- * Gợi ý mã tài liệu.
- */
-router.get('/suggest-code', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const { type, department: deptCode } = req.query;
-        if (!type || !deptCode) {
-            throw createError('Thiếu thông tin Loại tài liệu (type) hoặc Mã phòng ban (department)', 400, 'MISSING_PARAMETERS');
-        }
-        const suggestedCode = await DocumentCodeGenerator.generateCode(type, deptCode);
-        setAuditDetails(res, 'DOCUMENT_CODE_SUGGESTED', 'system', null, { type, deptCode, suggestedCode });
-        res.json({ success: true, data: { suggestedCode }, timestamp: new Date().toISOString(), requestId: req.requestId });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * POST /api/documents/check-code
- * Kiểm tra mã tài liệu có tồn tại hay không.
- */
-router.post('/check-code', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const { code } = req.body;
-        if (!code) {
-            throw createError('Mã tài liệu là bắt buộc để kiểm tra.', 400, 'MISSING_CODE');
-        }
-        const codeExists = await DocumentCodeGenerator.codeExists(code);
-        res.status(200).json({ success: true, data: { available: !codeExists }, timestamp: new Date().toISOString(), requestId: req.requestId });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * GET /api/documents/types
- * Lấy danh sách các loại tài liệu.
- */
-router.get('/types', authenticateToken, (req, res, next) => {
-    try {
-        res.status(200).json({
-            success: true,
-            data: {
-                documentTypes: [
-                    { code: 'PL', name: 'Chính sách' },
-                    { code: 'PR', name: 'Quy trình' },
-                    { code: 'WI', name: 'Hướng dẫn' },
-                    { code: 'FM', name: 'Biểu mẫu' },
-                    { code: 'TD', name: 'Tài liệu kỹ thuật' },
-                    { code: 'TR', name: 'Tài liệu đào tạo' },
-                    { code: 'RC', name: 'Hồ sơ' }
-                ]
-            }
-        });
-    } catch (error) {
-        next(error); // Chuyển lỗi cho error handler chung
-    }
-});
-
-/**
- * GET /api/documents/departments
- * Lấy danh sách các phòng ban.
- */
-router.get('/departments', authenticateToken, (req, res, next) => {
-    try {
-        res.status(200).json({
-            success: true,
-            data: {
-                departments: [
-                    'Ban Giám đốc',
-                    'Phòng Phát triển Nhượng quyền',
-                    'Phòng Đào tạo Tiêu chuẩn',
-                    'Phòng Marketing',
-                    'Phòng Kỹ thuật QC',
-                    'Phòng Tài chính',
-                    'Phòng Công nghệ Hệ thống',
-                    'Phòng Pháp lý',
-                    'Bộ phận Tiếp nhận CSKH',
-                    'Bộ phận Kỹ thuật Garage',
-                    'Bộ phận QC Garage',
-                    'Bộ phận Kho/Kế toán Garage',
-                    'Bộ phận Marketing Garage',
-                    'Quản lý Garage'
-                ]
-            }
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * GET /api/documents/workflow-states
- * Lấy danh sách các trạng thái workflow.
- */
-router.get('/workflow-states', authenticateToken, (req, res, next) => {
-    try {
-        res.status(200).json({
-            success: true,
-            data: {
-                workflowStates: [
-                    { code: 'draft', name: 'Bản nháp' },
-                    { code: 'review', name: 'Đang xem xét' },
-                    { code: 'published', name: 'Đã phê duyệt' },
-                    { code: 'archived', name: 'Đã lưu trữ' }
-                ]
-            }
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * GET /api/documents/search-suggestions
- * Lấy các gợi ý tìm kiếm.
- */
-router.get('/search-suggestions', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
-    try {
-        const { query, limit = 10 } = req.query;
-        if (!query || query.trim().length < 2) {
-            return res.json({ success: true, data: { suggestions: [] } });
-        }
-        const result = await SearchService.getSearchSuggestions(query, req.user.id, parseInt(limit), { ipAddress: req.ip, userAgent: req.get('user-agent') });
-        res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId });
     } catch (error) {
         next(error);
     }

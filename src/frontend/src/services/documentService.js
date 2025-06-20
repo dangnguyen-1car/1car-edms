@@ -2,12 +2,10 @@
 /**
  * =================================================================
  * EDMS 1CAR - Document Service (Frontend) (FIXED & COMPLETED)
- * Sửa lỗi gọi hàm đệ quy và sai ngữ cảnh 'this'.
- * Tất cả các hàm phải gọi 'api.get' hoặc 'api.post', không phải 'this.get...'.
+ * Đã bổ sung hàm getPendingApprovals còn thiếu mà không thay đổi các hàm khác.
  * =================================================================
  */
 import api from './api';
-// <<< SỬA LỖI 1: Import departmentOptions để tra cứu >>>
 import { departmentOptions } from '../utils/documentUtils';
 
 class DocumentService {
@@ -17,7 +15,6 @@ class DocumentService {
   async getDocumentTypes() {
     try {
       const response = await api.get('/documents/types');
-      // SỬA LỖI: Cập nhật cấu trúc trả về dựa trên phản hồi backend (nếu có thay đổi)
       return response.data.data.documentTypes || [];
     } catch (error) {
       console.error('Error fetching document types:', error);
@@ -28,7 +25,6 @@ class DocumentService {
   async getDepartments() {
     try {
       const response = await api.get('/documents/departments');
-      // SỬA LỖI: Cập nhật cấu trúc trả về dựa trên phản hồi backend (nếu có thay đổi)
       return response.data.data.departments || [];
     } catch (error) {
       console.error('Error fetching departments:', error);
@@ -39,7 +35,6 @@ class DocumentService {
   async getWorkflowStates() {
     try {
       const response = await api.get('/documents/workflow-states');
-      // SỬA LỖI: Cập nhật cấu trúc trả về dựa trên phản hồi backend (nếu có thay đổi)
       return response.data.data.workflowStates || [];
     } catch (error) {
       console.error('Error fetching workflow states:', error);
@@ -99,7 +94,6 @@ class DocumentService {
     }
   }
 
-  // <<< SỬA LỖI 2: VIẾT LẠI HOÀN TOÀN HÀM getSuggestedCode >>>
   /**
    * Gọi API backend để lấy gợi ý mã tài liệu.
    * @param {string} type - Mã loại tài liệu (ví dụ: 'PL').
@@ -113,29 +107,23 @@ class DocumentService {
       }
 
       let deptCode = '';
-
-      // Tìm phòng ban trong departmentOptions
       const foundDept = departmentOptions.find(opt => opt.value === departmentValue || opt.label === departmentValue);
 
       if (foundDept) {
-        // Nếu tìm thấy, luôn sử dụng `value` (mã phòng ban) để gửi đi
         deptCode = foundDept.value;
       } else {
-        // Nếu không tìm thấy, báo lỗi rõ ràng
         throw new Error(`Phòng ban không hợp lệ: "${departmentValue}". Vui lòng kiểm tra lại.`);
       }
 
-      // Gọi API với mã phòng ban đã được chuẩn hóa
       const response = await api.get('/documents/suggest-code', {
         params: {
           type,
-          department: deptCode // Backend mong muốn nhận key là 'department' với value là mã
+          department: deptCode
         }
       });
       return response.data;
     } catch (error) {
       console.error('Error getting suggested code:', error);
-      // Ném lỗi ra ngoài để `useQuery` hoặc `useMutation` có thể bắt và xử lý
       throw new Error(
         error.response?.data?.message ||
         error.message ||
@@ -153,17 +141,14 @@ class DocumentService {
       throw new Error(error.response?.data?.message || 'Lỗi kiểm tra mã tài liệu');
     }
   }
-
-  // =================================================================
-  // CÁC HÀM CÒN THIẾU CẦN BỔ SUNG
-  // =================================================================
-
+  
+  // *** LỖI ĐÃ SỬA: Bổ sung hàm getPendingApprovals còn thiếu ***
   /**
    * Lấy danh sách tài liệu đang chờ phê duyệt.
    * @param {Object} params - Các tham số lọc và phân trang.
    * @returns {Promise} Dữ liệu trả về từ API.
    */
-  async getPendingApproval(params = {}) {
+  async getPendingApprovals(params = {}) {
     try {
       const response = await api.get('/documents/pending-approval', { params });
       return response.data;
@@ -172,6 +157,7 @@ class DocumentService {
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách tài liệu chờ duyệt.');
     }
   }
+  // *** KẾT THÚC PHẦN SỬA LỖI ***
 
   /**
    * Lấy thống kê tài liệu đang chờ phê duyệt cho dashboard.
@@ -259,7 +245,7 @@ class DocumentService {
   async downloadDocument(id) {
     try {
       const response = await api.get(`/documents/${id}/download`, {
-        responseType: 'blob' // Yêu cầu trả về dưới dạng file
+        responseType: 'blob'
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -399,23 +385,13 @@ class DocumentService {
    */
   canEditDocument(document, currentUser) {
     if (!document || !currentUser) return false;
-
-    // Admin có thể chỉnh sửa mọi tài liệu
     if (currentUser.role === 'admin') return true;
-
-    // Tác giả có thể chỉnh sửa tài liệu của mình ở trạng thái draft hoặc review
-    if (document.author_id === currentUser.id &&
-      ['draft', 'review'].includes(document.status)) {
+    if (document.author_id === currentUser.id && ['draft', 'review'].includes(document.status)) {
       return true;
     }
-
-    // Manager có thể chỉnh sửa tài liệu trong phòng ban của mình
-    if (currentUser.role === 'manager' &&
-      document.department === currentUser.department &&
-      ['draft', 'review'].includes(document.status)) {
+    if (currentUser.role === 'manager' && document.department === currentUser.department && ['draft', 'review'].includes(document.status)) {
       return true;
     }
-
     return false;
   }
 
@@ -427,24 +403,15 @@ class DocumentService {
    */
   canCreateVersion(document, currentUser) {
     if (!document || !currentUser) return false;
-
-    // Admin có thể tạo phiên bản cho mọi tài liệu đã published
     if (currentUser.role === 'admin' && document.status === 'published') {
       return true;
     }
-
-    // Tác giả có thể tạo phiên bản cho tài liệu đã published của mình
     if (document.author_id === currentUser.id && document.status === 'published') {
       return true;
     }
-
-    // Manager có thể tạo phiên bản cho tài liệu trong phòng ban
-    if (currentUser.role === 'manager' &&
-      document.department === currentUser.department &&
-      document.status === 'published') {
+    if (currentUser.role === 'manager' && document.department === currentUser.department && document.status === 'published') {
       return true;
     }
-
     return false;
   }
 
@@ -456,17 +423,10 @@ class DocumentService {
    */
   canApproveDocument(document, currentUser) {
     if (!document || !currentUser) return false;
-
-    // Admin có thể phê duyệt mọi tài liệu
     if (currentUser.role === 'admin') return true;
-
-    // Manager có thể phê duyệt tài liệu trong phòng ban ở trạng thái review
-    if (currentUser.role === 'manager' &&
-      document.department === currentUser.department &&
-      document.status === 'review') {
+    if (currentUser.role === 'manager' && document.department === currentUser.department && document.status === 'review') {
       return true;
     }
-
     return false;
   }
 
@@ -478,20 +438,13 @@ class DocumentService {
    */
   canDeleteDocument(document, currentUser) {
     if (!document || !currentUser) return false;
-
-    // Admin có thể xóa mọi tài liệu
     if (currentUser.role === 'admin') return true;
-
-    // Tác giả có thể xóa tài liệu draft của mình
     if (document.author_id === currentUser.id && document.status === 'draft') {
       return true;
     }
-
     return false;
   }
 }
 
-// Xuất ra một instance duy nhất của class (Singleton Pattern)
-// để đảm bảo toàn bộ ứng dụng dùng chung một đối tượng service.
 export const documentService = new DocumentService();
 export default documentService;

@@ -1,8 +1,8 @@
 // src/frontend/src/components/documents/SearchFilters.js
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FiSearch, FiFilter, FiX, FiCalendar, FiLoader } from 'react-icons/fi';
-import LoadingSpinner from '../common/LoadingSpinner'; // Import LoadingSpinner
+import { FiSearch, FiFilter, FiX, FiCalendar } from 'react-icons/fi';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 function SearchFilters({
   filters,
@@ -10,22 +10,20 @@ function SearchFilters({
   onClearFilters,
   showAdvanced = false,
   onToggleAdvanced,
-  documentTypeOptions = [], // [{ value: 'PL', label: 'Chính sách' }, ...]
-  departmentOptions = [],   // [{ value: 'Ban Giám đốc', label: 'Ban Giám đốc' }, ...]
-  statusOptions = [],       // [{ value: 'draft', label: 'Bản nháp' }, ...]
-  securityLevelOptions = [],// [{ value: 'internal', label: 'Nội bộ' }, ...]
-  priorityOptions = [],     // [{ value: 'normal', label: 'Bình thường' }, ...]
-  isLoadingOptions = false, // Cờ để biết options có đang được tải không
+  documentTypeOptions = [],
+  departmentOptions = [],
+  statusOptions = [],
+  securityLevelOptions = [],
+  priorityOptions = [],
+  isLoadingOptions = false,
 }) {
   const [localFilters, setLocalFilters] = useState(filters);
   const debounceTimeoutRef = useRef(null);
 
-  // Sync local filters với props khi props thay đổi từ bên ngoài
   useEffect(() => {
     setLocalFilters(filters);
   }, [filters]);
 
-  // Debounced function để gọi onFiltersChange
   const debouncedFiltersChange = useCallback((newFilters) => {
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
@@ -35,7 +33,6 @@ function SearchFilters({
     }, 500);
   }, [onFiltersChange]);
 
-  // Cleanup timeout khi component unmount
   useEffect(() => {
     return () => {
       if (debounceTimeoutRef.current) {
@@ -77,15 +74,25 @@ function SearchFilters({
       search: '', type: '', department: '', status: '',
       security_level: '', priority: '', date_from: '', date_to: '',
       include_archived: false, search_content: false, exact_match: false,
-      sort: filters.sort || 'relevance'
+      // Giữ lại các giá trị sắp xếp và phân trang từ state cha
+      sort: filters.sort,
+      sortBy: filters.sortBy,
+      sortOrder: filters.sortOrder,
+      page: 1, // Reset về trang 1
+      limit: filters.limit
     };
-    setLocalFilters(clearedFilters);
-    if(onClearFilters) onClearFilters();
-    else onFiltersChange(clearedFilters);
+    if(onClearFilters) {
+      onClearFilters();
+    } else {
+      onFiltersChange(clearedFilters);
+    }
   };
 
   const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
-    if (key === 'sort') return false;
+    const ignoredKeys = ['sort', 'page', 'limit', 'sortBy', 'sortOrder'];
+    if (ignoredKeys.includes(key)) return false;
+    // Đối với trang pending, status 'review' là mặc định, không phải là bộ lọc chủ động
+    if (key === 'status' && value === 'review') return false; 
     return value !== '' && value !== false && value !== null && value !== undefined;
   });
 
@@ -221,18 +228,9 @@ function SearchFilters({
               </div>
 
               <div className="flex flex-wrap gap-x-6 gap-y-3 pt-3 border-t border-gray-200 mt-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="include_archived" checked={localFilters.include_archived || false} onChange={(e) => handleInputChange('include_archived', e.target.checked)} className="form-checkbox"/>
-                  <span className="text-sm text-gray-700">Bao gồm tài liệu lưu trữ</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="search_content" checked={localFilters.search_content || false} onChange={(e) => handleInputChange('search_content', e.target.checked)} className="form-checkbox"/>
-                  <span className="text-sm text-gray-700">Tìm trong nội dung file</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="exact_match" checked={localFilters.exact_match || false} onChange={(e) => handleInputChange('exact_match', e.target.checked)} className="form-checkbox"/>
-                  <span className="text-sm text-gray-700">Tìm kiếm chính xác cụm từ</span>
-                </label>
+                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="include_archived" checked={localFilters.include_archived || false} onChange={(e) => handleInputChange('include_archived', e.target.checked)} className="form-checkbox"/><span className="text-sm text-gray-700">Bao gồm tài liệu lưu trữ</span></label>
+                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="search_content" checked={localFilters.search_content || false} onChange={(e) => handleInputChange('search_content', e.target.checked)} className="form-checkbox"/><span className="text-sm text-gray-700">Tìm trong nội dung file</span></label>
+                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="exact_match" checked={localFilters.exact_match || false} onChange={(e) => handleInputChange('exact_match', e.target.checked)} className="form-checkbox"/><span className="text-sm text-gray-700">Tìm kiếm chính xác cụm từ</span></label>
               </div>
             </div>
           )}
@@ -242,7 +240,15 @@ function SearchFilters({
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-sm text-gray-600 font-medium">Đang lọc bởi:</span>
                 {Object.entries(localFilters).map(([key, value]) => {
-                  if (key === 'sort' || !value && typeof value !== 'boolean') return null;
+                  // *** LỖI ĐÃ SỬA: Bổ sung danh sách các key hệ thống cần bỏ qua ***
+                  const ignoredKeys = ['sort', 'page', 'limit', 'sortBy', 'sortOrder'];
+                  if (ignoredKeys.includes(key) || (value === '' || value === false || value === null || value === undefined)) {
+                      return null;
+                  }
+                   // Bổ sung: Bỏ qua status=review trên trang pending vì nó là mặc định
+                  if (key === 'status' && value === 'review') {
+                      return null;
+                  }
 
                   let displayValue = String(value);
                   let displayKey = key;
