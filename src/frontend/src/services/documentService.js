@@ -159,6 +159,19 @@ class DocumentService {
   }
   // *** KẾT THÚC PHẦN SỬA LỖI ***
 
+  // =================================================================
+  // === BẮT ĐẦU PHẦN CHỈNH SỬA =======================================
+  // =================================================================
+
+  // FIX: Thêm hàm alias để sửa lỗi TypeError do gọi sai tên hàm từ component khác
+  getPendingApproval(params = {}) {
+    return this.getPendingApprovals(params);
+  }
+
+  // =================================================================
+  // === KẾT THÚC PHẦN CHỈNH SỬA ======================================
+  // =================================================================
+
   /**
    * Lấy thống kê tài liệu đang chờ phê duyệt cho dashboard.
    * @returns {Promise} Dữ liệu thống kê.

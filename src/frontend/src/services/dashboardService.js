@@ -157,6 +157,27 @@ class DashboardService {
       throw new Error(error.response?.data?.message || 'Không thể cập nhật thông báo. Vui lòng thử lại.');
     }
   }
-}
+
+  // =================================================================
+  // === BẮT ĐẦU PHẦN CHỈNH SỬA =======================================
+  // =================================================================
+
+  // FIX: Thêm hàm getWidgetStats còn thiếu để khắc phục TypeError
+  async getWidgetStats() {
+    try {
+      // Endpoint này nên trả về các thống kê chung cho các thẻ ở đầu dashboard
+      const response = await api.get('/documents/stats');  
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching widget stats:', error);
+      throw new Error(error.response?.data?.message || 'Không thể tải thống kê widget.');
+    }
+  }
+
+  // =================================================================
+  // === KẾT THÚC PHẦN CHỈNH SỬA ======================================
+  // =================================================================
+
+} // <-- Dấu ngoặc đóng của class DashboardService
 
 export const dashboardService = new DashboardService();
