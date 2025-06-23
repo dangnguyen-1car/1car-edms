@@ -13,7 +13,7 @@
  * =================================================================
  */
 import React, { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+// Bỏ import useNavigate vì không cần nữa
 import { toast } from 'react-hot-toast';
 
 import DocumentCard from './DocumentCard';
@@ -27,16 +27,13 @@ function DocumentList({
   isLoading,
   viewMode = 'card',
   onEdit,
+  onViewClick, // <<< THÊM: Nhận onViewClick từ props
   onDeleteSuccess,
   onSortChange,
   currentSort
 }) {
-  const navigate = useNavigate();
+  // Bỏ navigate và handleViewDocument khỏi đây
   const [confirmDialog, setConfirmDialog] = React.useState({ isOpen: false, document: null });
-
-  const handleViewDocument = useCallback((documentId) => {
-    navigate(`/documents/${documentId}`);
-  }, [navigate]);
 
   const handleDeleteDocument = useCallback((document) => {
     setConfirmDialog({ isOpen: true, document });
@@ -73,7 +70,7 @@ function DocumentList({
             <DocumentCard
               key={doc.id}
               document={doc}
-              onViewClick={handleViewDocument}
+              onViewClick={onViewClick} // <<< SỬA: Truyền thẳng prop nhận được
               onEditClick={() => onEdit(doc.id)}
               onDeleteClick={handleDeleteDocument}
             />
@@ -82,7 +79,7 @@ function DocumentList({
       ) : (
         <DocumentTable
           documents={documents}
-          onViewClick={handleViewDocument}
+          onViewClick={onViewClick} // <<< SỬA: Truyền thẳng prop nhận được
           onEditClick={(doc) => onEdit(doc.id)}
           onDeleteClick={handleDeleteDocument}
           onSort={onSortChange}

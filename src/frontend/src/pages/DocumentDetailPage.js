@@ -43,7 +43,7 @@ function DocumentDetailPage() {
 
     // 3. HOOKS & STATE MANAGEMENT
     // -----------------------------------------------------------------
-    const { documentId } = useParams();
+    const { id: documentId } = useParams();
     const navigate = useNavigate(); // SỬA: Khởi tạo hook useNavigate
     const { user, hasPermission } = useAuth();
     const queryClient = useQueryClient();

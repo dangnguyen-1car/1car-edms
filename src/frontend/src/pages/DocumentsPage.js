@@ -1,6 +1,7 @@
 // src/frontend/src/pages/DocumentsPage.js
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom'; // <<< THÊM DÒNG NÀY
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FiPlus, FiFilter, FiRefreshCw, FiGrid, FiList, FiFileText } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
@@ -42,6 +43,7 @@ function DocumentsPage() {
   // === HOOKS & STATE MANAGEMENT ===
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate(); // <<< 2. KHỞI TẠO HOOK
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -124,6 +126,11 @@ function DocumentsPage() {
     setIsEditMode(true);
     setIsModalOpen(true);
   };
+  
+  // <<< 3. TẠO HÀM XỬ LÝ ĐIỀU HƯỚNG MỚI >>>
+  const handleViewDocument = useCallback((documentId) => {
+    navigate(`/documents/${documentId}`);
+  }, [navigate]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -241,11 +248,13 @@ function DocumentsPage() {
             
             {/* Document List */}
             {documents.length > 0 ? (
+                // <<< 4. CẬP NHẬT TRUYỀN PROP CHO DocumentList >>>
                 <DocumentList
                     documents={documents}
                     isLoading={isFetching}
                     viewMode={viewMode}
                     onEdit={handleEditDocument}
+                    onViewClick={handleViewDocument} // <<< THÊM PROP NÀY VÀO
                     onDeleteSuccess={handleSuccess}
                     onSortChange={(sortKey) => handleFilterChange({ sort: sortKey })}
                     currentSort={filters.sort}

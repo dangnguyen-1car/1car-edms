@@ -5,8 +5,6 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { documentService } from '../../services/documentService';
 import { getStatusBadgeColor, getTypeBadgeColor, getStatusDisplay } from '../../utils/documentUtils';
-import { useNavigate } from 'react-router-dom';
-// *** THAY ĐỔI: Import lại WorkflowActionButtons để sử dụng ***
 import WorkflowActionButtons from './WorkflowActionButtons';
 
 function DocumentTable({
@@ -17,18 +15,14 @@ function DocumentTable({
   onSort,
   currentSort,
   context = 'default',
-  // onAction không còn cần thiết cho context 'pending-approval' nữa
-  onAction, 
 }) {
   const { user, hasPermission, canAccessDepartment } = useAuth();
-  const navigate = useNavigate();
 
   const canView = (document) => {
     if (!user) return document.security_level === 'public';
     if (hasPermission('view_all_documents') || document.author_id === user.id) return true;
     if (canAccessDepartment(document.department)) return true;
     if (document.recipients && Array.isArray(document.recipients) && document.recipients.includes(user.department)) return true;
-    if (document.security_level === 'public') return true;
     return false;
   };
 
@@ -46,22 +40,13 @@ function DocumentTable({
     return false;
   };
 
-  const handleActionClick = (e, action, doc) => {
-    e.stopPropagation();
-    if (onAction) {
-      onAction(action, doc);
-    } else {
-      if (action === 'view' && onViewClick) onViewClick(doc.id);
-      if (action === 'edit' && onEditClick) onEditClick(doc.id);
-      if (action === 'delete' && onDeleteClick) onDeleteClick(doc);
-    }
-  };
-
   const handleRowClick = (doc) => {
     if (canView(doc)) {
-        navigate(`/documents/${doc.id}`);
+      if (onViewClick) {
+        onViewClick(doc.id);
+      }
     } else {
-        toast.error("Bạn không có quyền xem chi tiết tài liệu này.");
+      toast.error("Bạn không có quyền xem chi tiết tài liệu này.");
     }
   };
 
@@ -84,7 +69,7 @@ function DocumentTable({
   const getSortIcon = (column) => {
     const sortKey = currentSort || '';
     if (sortKey.startsWith(column)) {
-        return sortKey.endsWith('asc') ? <FiChevronUp className="w-4 h-4 text-blue-600" /> : <FiChevronDown className="w-4 h-4 text-blue-600" />;
+      return sortKey.endsWith('asc') ? <FiChevronUp className="w-4 h-4 text-blue-600" /> : <FiChevronDown className="w-4 h-4 text-blue-600" />;
     }
     return <FiChevronUp className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100" />;
   };
@@ -138,7 +123,30 @@ function DocumentTable({
       <td className="px-4 py-3 whitespace-nowrap"><code className="text-sm font-mono text-gray-600">{document.version}</code></td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{document.created_at ? new Date(document.created_at).toLocaleDateString('vi-VN') : 'N/A'}</td>
       <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm text-gray-900 truncate max-w-32" title={document.author_name}>{document.author_name || 'N/A'}</div></td>
-      <td className="px-4 py-3 whitespace-nowrap"><div className="flex items-center space-x-1">{canView(document) && <button onClick={(e) => handleActionClick(e, 'view', document)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Xem chi tiết"><FiEye size={16} /></button>}{canEdit(document) && <button onClick={(e) => handleActionClick(e, 'edit', document)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Chỉnh sửa"><FiEdit size={16} /></button>}{canView(document) && <button onClick={(e) => handleDownload(e, document)} className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Tải xuống"><FiDownload size={16} /></button>}{canDelete(document) && <button onClick={(e) => handleActionClick(e, 'delete', document)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Xóa tài liệu"><FiTrash2 size={16} /></button>}</div></td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        <div className="flex items-center space-x-1">
+          {canView(document) && 
+            <button onClick={(e) => { e.stopPropagation(); if (onViewClick) onViewClick(document.id); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Xem chi tiết">
+              <FiEye size={16} />
+            </button>
+          }
+          {canEdit(document) && 
+            <button onClick={(e) => { e.stopPropagation(); if (onEditClick) onEditClick(document.id); }} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Chỉnh sửa">
+              <FiEdit size={16} />
+            </button>
+          }
+          {canView(document) && 
+            <button onClick={(e) => handleDownload(e, document)} className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Tải xuống">
+              <FiDownload size={16} />
+            </button>
+          }
+          {canDelete(document) && 
+            <button onClick={(e) => { e.stopPropagation(); if (onDeleteClick) onDeleteClick(document); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Xóa tài liệu">
+              <FiTrash2 size={16} />
+            </button>
+          }
+        </div>
+      </td>
     </>
   );
 
@@ -152,8 +160,6 @@ function DocumentTable({
       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-center">{Math.round(document.days_pending || 0)}</td>
       <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${document.user_role_in_workflow === 'approver' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{document.user_role_in_workflow === 'approver' ? 'Phê duyệt' : 'Xem xét'}</span></td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        {/* *** LỖI ĐÃ SỬA: Render lại component WorkflowActionButtons *** */}
-        {/* Component này sẽ tự chứa các nút và logic xử lý modal */}
         <WorkflowActionButtons document={document} currentUser={user} />
       </td>
     </>
