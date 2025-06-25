@@ -189,28 +189,28 @@ SELECT
 FROM documents d WHERE d.document_code = 'C-PL-MG-001';
 
 -- Workflow cho 'Chính sách Chất lượng Toàn diện 1CAR'
-INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, transitioned_at)
+INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, created_at)
 SELECT
     d.id, NULL, 'draft', 'Tạo mới tài liệu chính sách chất lượng.', NULL, (SELECT id FROM users WHERE email = 'giamdoc.dh@1car.vn'), datetime('now', '-60 days')
 FROM documents d WHERE d.document_code = 'C-PL-MG-001';
 
-INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, transitioned_at)
+INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, created_at)
 SELECT
     d.id, 'draft', 'review', 'Gửi cho Phó Giám đốc review.', NULL, (SELECT id FROM users WHERE email = 'giamdoc.dh@1car.vn'), datetime('now', '-30 days')
 FROM documents d WHERE d.document_code = 'C-PL-MG-001';
 
-INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, transitioned_at)
+INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, created_at)
 SELECT
     d.id, 'review', 'published', 'Đã duyệt, ban hành.', 'approved', (SELECT id FROM users WHERE email = 'giamdoc.dh@1car.vn'), datetime('now', '-5 days')
 FROM documents d WHERE d.document_code = 'C-PL-MG-001';
 
 -- Workflow cho 'Hướng dẫn Tiếp nhận Cuộc gọi Khách hàng' (đang ở review)
-INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, transitioned_at)
+INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, created_at)
 SELECT
     d.id, NULL, 'draft', 'Soạn thảo hướng dẫn.', NULL, (SELECT id FROM users WHERE email = 'cskh.manager@1car.vn'), datetime('now', '-20 days')
 FROM documents d WHERE d.document_code = 'C-WI-CSKH-001';
 
-INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, transitioned_at)
+INSERT OR IGNORE INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by, created_at)
 SELECT
     d.id, 'draft', 'review', 'Gửi Admin xem xét.', NULL, (SELECT id FROM users WHERE email = 'cskh.manager@1car.vn'), datetime('now', '-2 days')
 FROM documents d WHERE d.document_code = 'C-WI-CSKH-001';

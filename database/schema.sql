@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS document_versions (
 CREATE TABLE IF NOT EXISTS workflow_transitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, from_status TEXT,
     to_status TEXT NOT NULL, comment TEXT, decision TEXT, transitioned_by INTEGER NOT NULL,
-    transitioned_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (transitioned_by) REFERENCES users(id),
     CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
@@ -140,7 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_versions_change_type ON document_versions(change_
 CREATE INDEX IF NOT EXISTS idx_versions_status ON document_versions(status);
 CREATE INDEX IF NOT EXISTS idx_workflow_document ON workflow_transitions(document_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_user ON workflow_transitions(transitioned_by);
-CREATE INDEX IF NOT EXISTS idx_workflow_timestamp ON workflow_transitions(transitioned_at);
+CREATE INDEX IF NOT EXISTS idx_workflow_timestamp ON workflow_transitions(created_at);
 CREATE INDEX IF NOT EXISTS idx_workflow_decision ON workflow_transitions(decision);
 CREATE INDEX IF NOT EXISTS idx_workflow_ip_address ON workflow_transitions(ip_address);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);

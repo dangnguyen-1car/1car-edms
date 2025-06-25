@@ -17,8 +17,7 @@ export const userService = {
     try {
       const response = await api.get('/users', { params });
       return response.data;
-    } catch (error) {
-      console.error('Error fetching users:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách người dùng. Vui lòng thử lại.');
     }
   },
@@ -28,8 +27,7 @@ export const userService = {
     try {
       const response = await api.get(`/users/${id}`);
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching user ${id}:`, error);
+    } catch (error) {      
       if (error.response?.status === 404) {
         throw new Error('Không tìm thấy người dùng.');
       }
@@ -42,8 +40,7 @@ export const userService = {
     try {
       const response = await api.post('/users', userData);
       return response.data;
-    } catch (error) {
-      console.error('Error creating user:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tạo người dùng mới. Vui lòng thử lại.');
     }
   },
@@ -53,8 +50,7 @@ export const userService = {
     try {
       const response = await api.put(`/users/${id}`, userData);
       return response.data;
-    } catch (error) {
-      console.error(`Error updating user ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể cập nhật thông tin người dùng. Vui lòng thử lại.');
     }
   },
@@ -68,8 +64,7 @@ export const userService = {
     try {
       const response = await api.post(`/users/${id}/activate`);
       return response.data;
-    } catch (error) {
-      console.error(`Error activating user ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể kích hoạt người dùng. Vui lòng thử lại.');
     }
   },
@@ -79,8 +74,7 @@ export const userService = {
     try {
       const response = await api.post(`/users/${id}/deactivate`);
       return response.data;
-    } catch (error) {
-      console.error(`Error deactivating user ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể vô hiệu hóa người dùng. Vui lòng thử lại.');
     }
   },
@@ -92,8 +86,7 @@ export const userService = {
         new_password: newPassword
       });
       return response.data;
-    } catch (error) {
-      console.error(`Error resetting password for user ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể đặt lại mật khẩu. Vui lòng thử lại.');
     }
   },
@@ -109,8 +102,7 @@ export const userService = {
         params: { active_only: activeOnly }
       });
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching users by department ${department}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách người dùng theo phòng ban. Vui lòng thử lại.');
     }
   },
@@ -122,8 +114,7 @@ export const userService = {
         params: { active_only: activeOnly }
       });
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching users by role ${role}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách người dùng theo vai trò. Vui lòng thử lại.');
     }
   },
@@ -133,8 +124,7 @@ export const userService = {
     try {
       const response = await api.get('/users/statistics');
       return response.data;
-    } catch (error) {
-      console.error('Error fetching user statistics:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải thống kê người dùng. Vui lòng thử lại.');
     }
   },
@@ -146,8 +136,7 @@ export const userService = {
         params: { limit }
       });
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching user activity for ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải hoạt động của người dùng. Vui lòng thử lại.');
     }
   },
@@ -161,8 +150,7 @@ export const userService = {
     try {
       const response = await api.get('/documents/departments'); // Thay đổi từ '/users/departments/list'
       return response.data; // API /documents/departments trả về { success: true, data: { departments: [...] } }
-    } catch (error) {
-      console.error('Error fetching departments:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách phòng ban. Vui lòng thử lại.');
     }
   },
@@ -172,8 +160,7 @@ export const userService = {
     try {
       const response = await api.get('/users/roles/list');
       return response.data;
-    } catch (error) {
-      console.error('Error fetching roles:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách vai trò. Vui lòng thử lại.');
     }
   }

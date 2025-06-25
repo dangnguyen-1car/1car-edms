@@ -12,8 +12,7 @@ class DashboardService {
 
       const response = await api.get(`/documents/stats?${params}`);
       return response.data;
-    } catch (error) {
-      console.error('Error fetching document stats:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải thống kê tài liệu. Vui lòng thử lại.');
     }
   }
@@ -28,8 +27,7 @@ class DashboardService {
 
       const response = await api.get(`/audit-logs/recent?${params}`);
       return response.data;
-    } catch (error) {
-      console.error('Error fetching recent activities:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải hoạt động gần đây. Vui lòng thử lại.');
     }
   }
@@ -39,8 +37,7 @@ class DashboardService {
     try {
       const response = await api.get(`/documents/pending-approval?limit=${limit}`);
       return response.data;
-    } catch (error) {
-      console.error('Error fetching pending approvals:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải tài liệu cần phê duyệt. Vui lòng thử lại.');
     }
   }
@@ -84,8 +81,7 @@ class DashboardService {
         success: true,
         data: limitedNotifications
       };
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải thông báo. Vui lòng thử lại.');
     }
   }
@@ -137,8 +133,7 @@ class DashboardService {
         success: true,
         data: mockStats
       };
-    } catch (error) {
-      console.error('Error fetching system stats:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải thống kê hệ thống. Vui lòng thử lại.');
     }
   }
@@ -152,8 +147,8 @@ class DashboardService {
         success: true,
         message: 'Đã đánh dấu thông báo đã đọc'
       };
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
+    // eslint-disable-next-line no-unreachable
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể cập nhật thông báo. Vui lòng thử lại.');
     }
   }
@@ -168,8 +163,7 @@ class DashboardService {
       // Endpoint này nên trả về các thống kê chung cho các thẻ ở đầu dashboard
       const response = await api.get('/documents/stats');  
       return response.data;
-    } catch (error) {
-      console.error('Error fetching widget stats:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải thống kê widget.');
     }
   }

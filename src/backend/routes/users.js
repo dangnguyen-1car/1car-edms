@@ -4,15 +4,15 @@ EDMS 1CAR - User Routes (Refactored and Optimized with auditMiddleware)
 Sử dụng auditMiddleware và các wrapper autoAudit/auditCRUD để tối đa hóa tính nhất quán.
 */
 
-const express = require('express');
-const router = express.Router();
-const UserService = require('../services/userService');
-const { authenticateToken, requirePermission } = require('../middleware/auth');
+const express = require('express')
+const router = express.Router()
+const UserService = require('../services/userService')
+const { authenticateToken, requirePermission } = require('../middleware/auth')
 // Import thêm autoAudit để sử dụng
-const { auditMiddleware, auditCRUD, setAuditDetails, autoAudit } = require('../middleware/auditMiddleware');
+const { auditMiddleware, auditCRUD, setAuditDetails, autoAudit } = require('../middleware/auditMiddleware')
 
 // Áp dụng audit middleware cho tất cả routes
-router.use(auditMiddleware);
+router.use(auditMiddleware)
 
 /**
 GET /api/users - List all users with advanced filtering
@@ -41,9 +41,9 @@ router.get('/',
         search: req.query.search,
         page: parseInt(req.query.page) || 1,
         limit: parseInt(req.query.limit) || 20
-      };
+      }
 
-      const result = await UserService.getAllUsers(filters);
+      const result = await UserService.getAllUsers(filters)
 
       // Không cần gọi setAuditDetails ở đây nữa
 
@@ -53,12 +53,12 @@ router.get('/',
         pagination: result.pagination,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 GET /api/users/:id - Get user by ID
@@ -69,7 +69,7 @@ router.get('/:id',
   auditCRUD.read('user'),
   async (req, res, next) => {
     try {
-      const user = await UserService.findById(req.params.id);
+      const user = await UserService.findById(req.params.id)
 
       if (!user) {
         return res.status(404).json({
@@ -77,7 +77,7 @@ router.get('/:id',
           message: 'User not found',
           timestamp: new Date().toISOString(),
           requestId: req.requestId
-        });
+        })
       }
 
       res.json({
@@ -85,12 +85,12 @@ router.get('/:id',
         data: user.toJSON(),
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 POST /api/users - Create new user
@@ -101,8 +101,8 @@ router.post('/',
   auditCRUD.create('user'),
   async (req, res, next) => {
     try {
-      const userData = req.body;
-      const user = await UserService.createUser(userData, req.user.id);
+      const userData = req.body
+      const user = await UserService.createUser(userData, req.user.id)
 
       res.status(201).json({
         success: true,
@@ -110,12 +110,12 @@ router.post('/',
         data: user.toJSON(),
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 PUT /api/users/:id - Update user
@@ -126,8 +126,8 @@ router.put('/:id',
   auditCRUD.update('user'),
   async (req, res, next) => {
     try {
-      const updateData = req.body;
-      const user = await UserService.updateUser(req.params.id, updateData, req.user.id);
+      const updateData = req.body
+      const user = await UserService.updateUser(req.params.id, updateData, req.user.id)
 
       if (!user) {
         return res.status(404).json({
@@ -135,7 +135,7 @@ router.put('/:id',
           message: 'User not found',
           timestamp: new Date().toISOString(),
           requestId: req.requestId
-        });
+        })
       }
 
       res.json({
@@ -144,12 +144,12 @@ router.put('/:id',
         data: user.toJSON(),
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 POST /api/users/:id/reset-password - Reset user password
@@ -159,24 +159,24 @@ router.post('/:id/reset-password',
   requirePermission('manageusers'),
   async (req, res, next) => {
     try {
-      const { newPassword } = req.body;
-      const result = await UserService.resetPassword(req.params.id, newPassword, req.user.id);
+      const { newPassword } = req.body
+      const result = await UserService.resetPassword(req.params.id, newPassword, req.user.id)
 
       setAuditDetails(res, 'USER_PASSWORD_RESET', 'user', req.params.id, {
         resetBy: req.user.id,
         targetUserId: req.params.id
-      });
+      })
 
       res.json({
         ...result,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 POST /api/users/:id/deactivate - Deactivate user
@@ -186,23 +186,23 @@ router.post('/:id/deactivate',
   requirePermission('manageusers'),
   async (req, res, next) => {
     try {
-      const result = await UserService.deactivateUser(req.params.id, req.user.id);
+      const result = await UserService.deactivateUser(req.params.id, req.user.id)
 
       setAuditDetails(res, 'USER_DEACTIVATED', 'user', req.params.id, {
         deactivatedBy: req.user.id,
         reason: req.body.reason || 'Manual deactivation'
-      });
+      })
 
       res.json({
         ...result,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 POST /api/users/:id/activate - Activate user
@@ -212,23 +212,23 @@ router.post('/:id/activate',
   requirePermission('manageusers'),
   async (req, res, next) => {
     try {
-      const result = await UserService.activateUser(req.params.id, req.user.id);
+      const result = await UserService.activateUser(req.params.id, req.user.id)
 
       setAuditDetails(res, 'USER_ACTIVATED', 'user', req.params.id, {
         activatedBy: req.user.id,
         reason: req.body.reason || 'Manual activation'
-      });
+      })
 
       res.json({
         ...result,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 POST /api/users/:id/unlock - Unlock user account
@@ -238,23 +238,23 @@ router.post('/:id/unlock',
   requirePermission('manageusers'),
   async (req, res, next) => {
     try {
-      const result = await UserService.unlockAccount(req.params.id, req.user.id);
+      const result = await UserService.unlockAccount(req.params.id, req.user.id)
 
       setAuditDetails(res, 'USER_ACCOUNT_UNLOCKED', 'user', req.params.id, {
         unlockedBy: req.user.id,
         reason: req.body.reason || 'Manual unlock'
-      });
+      })
 
       res.json({
         ...result,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 GET /api/users/:id/stats - Get user statistics
@@ -264,24 +264,24 @@ router.get('/:id/stats',
   requirePermission('viewusers'),
   async (req, res, next) => {
     try {
-      const stats = await UserService.getUserStats(req.params.id);
+      const stats = await UserService.getUserStats(req.params.id)
 
       setAuditDetails(res, 'USER_STATS_VIEWED', 'user', req.params.id, {
         viewedBy: req.user.id,
         statsType: 'individual'
-      });
+      })
 
       res.json({
         success: true,
         data: stats,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 GET /api/users/stats/departments - Get department statistics
@@ -291,24 +291,24 @@ router.get('/stats/departments',
   requirePermission('viewusers'),
   async (req, res, next) => {
     try {
-      const stats = await UserService.getDepartmentStats();
+      const stats = await UserService.getDepartmentStats()
 
       setAuditDetails(res, 'DEPARTMENT_STATS_VIEWED', 'system', null, {
         viewedBy: req.user.id,
         statsType: 'departments'
-      });
+      })
 
       res.json({
         success: true,
         data: stats,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 GET /api/users/stats/system - Get system statistics
@@ -318,24 +318,24 @@ router.get('/stats/system',
   requirePermission('viewusers'),
   async (req, res, next) => {
     try {
-      const stats = await UserService.getSystemStats();
+      const stats = await UserService.getSystemStats()
 
       setAuditDetails(res, 'SYSTEM_STATS_VIEWED', 'system', null, {
         viewedBy: req.user.id,
         statsType: 'system'
-      });
+      })
 
       res.json({
         success: true,
         data: stats,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
 GET /api/users/locked - Get locked users
@@ -345,23 +345,23 @@ router.get('/locked',
   requirePermission('manageusers'),
   async (req, res, next) => {
     try {
-      const lockedUsers = await UserService.getLockedUsers();
+      const lockedUsers = await UserService.getLockedUsers()
 
       setAuditDetails(res, 'LOCKED_USERS_VIEWED', 'user', null, {
         lockedUsersCount: lockedUsers.length,
         viewedBy: req.user.id
-      });
+      })
 
       res.json({
         success: true,
         data: lockedUsers,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
-module.exports = router;
+module.exports = router

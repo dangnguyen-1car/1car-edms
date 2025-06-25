@@ -1,11 +1,10 @@
 // src/backend/routes/notifications.js
-const express = require('express');
-const router = express.Router();
-const { authenticateToken } = require('../middleware/auth');
-const { auditMiddleware, setAuditDetails } = require('../middleware/auditMiddleware');
-const { dbManager } = require('../config/database');
+const express = require('express')
+const router = express.Router()
+const { authenticateToken } = require('../middleware/auth')
+const { auditMiddleware, setAuditDetails } = require('../middleware/auditMiddleware')
 
-router.use(auditMiddleware);
+router.use(auditMiddleware)
 
 /**
  * GET /api/notifications
@@ -15,8 +14,8 @@ router.get('/',
   authenticateToken,
   async (req, res, next) => {
     try {
-      const { limit = 10, unreadOnly = false } = req.query;
-      
+      const { limit = 10, unreadOnly = false } = req.query
+
       // Mock data for now - có thể implement database table sau
       const mockNotifications = [
         {
@@ -46,41 +45,41 @@ router.get('/',
           created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
           link: null
         }
-      ];
+      ]
 
       // Filter based on user role and department
-      let filteredNotifications = mockNotifications;
-      
+      let filteredNotifications = mockNotifications
+
       if (req.user.role === 'user') {
         // User chỉ nhận thông báo liên quan đến mình
-        filteredNotifications = mockNotifications.filter(n => 
+        filteredNotifications = mockNotifications.filter(n =>
           n.type !== 'system_alert' || req.user.role === 'admin'
-        );
+        )
       }
 
       if (unreadOnly === 'true') {
-        filteredNotifications = filteredNotifications.filter(n => !n.is_read);
+        filteredNotifications = filteredNotifications.filter(n => !n.is_read)
       }
 
-      const limitedNotifications = filteredNotifications.slice(0, parseInt(limit));
+      const limitedNotifications = filteredNotifications.slice(0, parseInt(limit))
 
       setAuditDetails(res, 'NOTIFICATIONS_VIEWED', 'system', null, {
         userRole: req.user.role,
         notificationsCount: limitedNotifications.length,
         unreadOnly: unreadOnly === 'true'
-      });
+      })
 
       res.json({
         success: true,
         data: limitedNotifications,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
 /**
  * PATCH /api/notifications/:id/read
@@ -90,23 +89,23 @@ router.patch('/:id/read',
   authenticateToken,
   async (req, res, next) => {
     try {
-      const { id } = req.params;
-      
+      const { id } = req.params
+
       // Mock implementation - trong thực tế sẽ update database
       setAuditDetails(res, 'NOTIFICATION_MARKED_READ', 'notification', parseInt(id), {
         userId: req.user.id
-      });
+      })
 
       res.json({
         success: true,
         message: 'Đã đánh dấu thông báo đã đọc',
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
-module.exports = router;
+module.exports = router

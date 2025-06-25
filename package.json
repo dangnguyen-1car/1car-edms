@@ -15,14 +15,24 @@
     "setup": "node scripts/setup.js",
     "backup": "node scripts/backup.js",
     "migrate": "node scripts/migrate.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "lint": "eslint \"src/**/*.{js,jsx}\"",
+    "lint:fix": "eslint \"src/**/*.{js,jsx}\" --fix"
   },
   "workspaces": [
     "src/backend",
     "src/frontend"
   ],
   "devDependencies": {
+    "@eslint/js": "^9.29.0",
     "concurrently": "^7.6.0",
+    "eslint": "^8.57.1",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.6.0",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.2.0",
     "nodemon": "^2.0.20"
   },
   "engines": {

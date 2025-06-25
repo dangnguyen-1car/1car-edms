@@ -1,14 +1,14 @@
 // src/backend/services/userService.js
-const bcrypt = require('bcrypt');
-const { dbManager } = require('../config/database');
-const User = require('../models/User');
+const bcrypt = require('bcrypt')
+const { dbManager } = require('../config/database')
+const User = require('../models/User')
 // Đảm bảo createAuditLog được import từ logger (nếu chưa có) hoặc logAudit từ loggerUtils (nếu dùng loggerUtils)
-const { logAudit, logError, createAuditLog } = require('../utils/logger'); // Thêm createAuditLog nếu logAudit không đủ
-const { ValidationError, NotFoundError, ConflictError } = require('../utils/errors');
+const { logAudit, logError, createAuditLog } = require('../utils/logger') // Thêm createAuditLog nếu logAudit không đủ
+const { ValidationError, NotFoundError, ConflictError } = require('../utils/errors')
 
 class UserService {
   // ... (VALID_DEPARTMENTS, VALID_ROLES, createUser, findById, findByEmail) ...
-  static get VALID_DEPARTMENTS() { //
+  static get VALID_DEPARTMENTS () { //
     return [ //
       'Ban Giám đốc', //
       'Phòng Phát triển Nhượng quyền', //
@@ -24,53 +24,53 @@ class UserService {
       'Bộ phận Kho/Kế toán Garage', //
       'Bộ phận Marketing Garage', //
       'Quản lý Garage' //
-    ]; //
+    ] //
   } //
 
-  static get VALID_ROLES() { //
-    return ['admin', 'user']; //
+  static get VALID_ROLES () { //
+    return ['admin', 'user'] //
   } //
 
-  static async createUser(userData, createdBy = null) { //
+  static async createUser (userData, createdBy = null) { //
     try { //
-      const { email, password, name, department, role = 'user', position, phone } = userData; //
-      
+      const { email, password, name, department, role = 'user', position, phone } = userData //
+
       if (!email || !password || !name || !department) { //
-        throw new ValidationError('Missing required fields: email, password, name, department'); //
+        throw new ValidationError('Missing required fields: email, password, name, department') //
       } //
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; //
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/ //
       if (!emailRegex.test(email)) { //
-        throw new ValidationError('Invalid email format'); //
+        throw new ValidationError('Invalid email format') //
       } //
 
       if (password.length < 8) { //
-        throw new ValidationError('Password must be at least 8 characters long'); //
+        throw new ValidationError('Password must be at least 8 characters long') //
       } //
 
       if (!this.VALID_ROLES.includes(role)) { //
-        throw new ValidationError(`Invalid role. Must be one of: ${this.VALID_ROLES.join(', ')}`); //
+        throw new ValidationError(`Invalid role. Must be one of: ${this.VALID_ROLES.join(', ')}`) //
       } //
 
       if (!this.VALID_DEPARTMENTS.includes(department)) { //
-        throw new ValidationError('Invalid department'); //
+        throw new ValidationError('Invalid department') //
       } //
 
-      const existingUser = await this.findByEmail(email); //
+      const existingUser = await this.findByEmail(email) //
       if (existingUser) { //
-        throw new ConflictError('Email already exists'); //
+        throw new ConflictError('Email already exists') //
       } //
 
-      const password_hash = await bcrypt.hash(password, 12); //
+      const password_hash = await bcrypt.hash(password, 12) //
 
       const result = await dbManager.run(`
         INSERT INTO users (
           email, password_hash, name, department, role, position, phone, 
           is_active, failed_login_attempts, created_by, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURRENT_TIMESTAMP)
-      `, [email, password_hash, name, department, role, position, phone, createdBy]); //
+      `, [email, password_hash, name, department, role, position, phone, createdBy]) //
 
-      const newUser = await this.findById(result.lastID); //
+      const newUser = await this.findById(result.lastID) //
 
       // Sử dụng createAuditLog thay vì logAudit nếu logAudit không tồn tại hoặc không phù hợp
       await createAuditLog({ //
@@ -78,35 +78,35 @@ class UserService {
         action: 'USER_CREATED', //
         resource_type: 'user', //
         details: { //
-           email: email, //
-           department: department, //
-           role: role, //
-           createdBy: createdBy //
+          email, //
+          department, //
+          role, //
+          createdBy //
         } //
-      }); //
+      }) //
 
-      return newUser; //
+      return newUser //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.createUser', userData }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.createUser', userData }) //
+      throw error //
     } //
   } //
 
-  static async findById(id) { //
+  static async findById (id) { //
     try { //
       const userData = await dbManager.get( //
         'SELECT * FROM users WHERE id = ?', //
         [id] //
-      ); //
-      
-      return userData ? new User(userData) : null; //
+      ) //
+
+      return userData ? new User(userData) : null //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.findById', id }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.findById', id }) //
+      throw error //
     } //
   } //
 
-  static async findByEmail(email) { //
+  static async findByEmail (email) { //
     try { //
       // Trong UserService, findByEmail không nên tự động chỉ lấy active user
       // trừ khi đó là yêu cầu cụ thể của hàm này.
@@ -114,57 +114,56 @@ class UserService {
       const userData = await dbManager.get( //
         'SELECT * FROM users WHERE email = ?', // Bỏ AND is_active = 1 để lấy cả user inactive nếu cần cho mục đích khác
         [email] //
-      ); //
-      
-      return userData ? new User(userData) : null; //
+      ) //
+
+      return userData ? new User(userData) : null //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.findByEmail', email }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.findByEmail', email }) //
+      throw error //
     } //
   } //
-
 
   /**
    * Update user information
    */
-  static async updateUser(id, updateData, updatedBy = null) {
+  static async updateUser (id, updateData, updatedBy = null) {
     try {
-      const userToUpdate = await this.findById(id);
+      const userToUpdate = await this.findById(id)
       if (!userToUpdate) {
-        throw new NotFoundError('User not found for update.');
+        throw new NotFoundError('User not found for update.')
       }
 
-      const { name, department, role, position, phone, is_active } = updateData;
-      
-      const fieldsToUpdate = {};
-      if (name !== undefined) fieldsToUpdate.name = name;
+      const { name, department, role, position, phone, is_active } = updateData
+
+      const fieldsToUpdate = {}
+      if (name !== undefined) fieldsToUpdate.name = name
       if (department !== undefined) {
         if (!this.VALID_DEPARTMENTS.includes(department)) {
-          throw new ValidationError('Invalid department for update.');
+          throw new ValidationError('Invalid department for update.')
         }
-        fieldsToUpdate.department = department;
+        fieldsToUpdate.department = department
       }
       if (role !== undefined) {
         if (!this.VALID_ROLES.includes(role)) {
-          throw new ValidationError('Invalid role for update.');
+          throw new ValidationError('Invalid role for update.')
         }
-        fieldsToUpdate.role = role;
+        fieldsToUpdate.role = role
       }
-      if (position !== undefined) fieldsToUpdate.position = position;
-      if (phone !== undefined) fieldsToUpdate.phone = phone;
-      if (is_active !== undefined) fieldsToUpdate.is_active = is_active ? 1 : 0;
+      if (position !== undefined) fieldsToUpdate.position = position
+      if (phone !== undefined) fieldsToUpdate.phone = phone
+      if (is_active !== undefined) fieldsToUpdate.is_active = is_active ? 1 : 0
 
       if (Object.keys(fieldsToUpdate).length === 0) {
-        return userToUpdate; // Không có gì để cập nhật, trả về user hiện tại
+        return userToUpdate // Không có gì để cập nhật, trả về user hiện tại
       }
 
-      const setClauses = Object.keys(fieldsToUpdate).map(key => `${key} = ?`).join(', ');
-      const params = [...Object.values(fieldsToUpdate), id];
+      const setClauses = Object.keys(fieldsToUpdate).map(key => `${key} = ?`).join(', ')
+      const params = [...Object.values(fieldsToUpdate), id]
 
       await dbManager.run(
         `UPDATE users SET ${setClauses}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         params
-      );
+      )
 
       // Log audit event (sử dụng createAuditLog nếu logAudit là alias cũ)
       await createAuditLog({
@@ -178,12 +177,12 @@ class UserService {
           // oldValues: ... (có thể query lại user cũ trước khi update để lấy oldValues)
           newValues: fieldsToUpdate
         }
-      });
+      })
 
-      return this.findById(id); // Trả về user đã cập nhật
+      return this.findById(id) // Trả về user đã cập nhật
     } catch (error) {
-      logError(error, null, { operation: 'UserService.updateUser', userId: id, updateData });
-      throw error;
+      logError(error, null, { operation: 'UserService.updateUser', userId: id, updateData })
+      throw error
     }
   }
 
@@ -191,14 +190,14 @@ class UserService {
   // ... (authenticate, updateLastLogin, incrementFailedLoginAttempts, resetFailedLoginAttempts)
   // ... (getUserStats, getDepartmentStats, getSystemStats, unlockAccount, getLockedUsers)
 
-  static async resetPassword(id, newPassword, updatedBy = null) { //
+  static async resetPassword (id, newPassword, updatedBy = null) { //
     try { //
       if (!newPassword || newPassword.length < 8) { //
-        throw new ValidationError('Password must be at least 8 characters long'); //
+        throw new ValidationError('Password must be at least 8 characters long') //
       } //
 
-      const password_hash = await bcrypt.hash(newPassword, 12); //
-      
+      const password_hash = await bcrypt.hash(newPassword, 12) //
+
       await dbManager.run(`
         UPDATE users 
         SET password_hash = ?, 
@@ -207,7 +206,7 @@ class UserService {
             locked_until = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [password_hash, id]); //
+      `, [password_hash, id]) //
 
       await createAuditLog({ //
         user_id: updatedBy, //
@@ -215,24 +214,24 @@ class UserService {
         resource_type: 'user', //
         resource_id: id, //
         details: { //
-            targetUserId: id //
+          targetUserId: id //
         } //
-      }); //
+      }) //
 
-      return { success: true, message: 'Password reset successfully' }; //
+      return { success: true, message: 'Password reset successfully' } //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.resetPassword', userId: id }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.resetPassword', userId: id }) //
+      throw error //
     } //
   } //
 
-  static async deactivateUser(id, deactivatedBy = null) { //
+  static async deactivateUser (id, deactivatedBy = null) { //
     try { //
       await dbManager.run(`
         UPDATE users 
         SET is_active = 0, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [id]); //
+      `, [id]) //
 
       await createAuditLog({ //
         user_id: deactivatedBy, //
@@ -240,18 +239,18 @@ class UserService {
         resource_type: 'user', //
         resource_id: id, //
         details: { //
-            targetUserId: id //
+          targetUserId: id //
         } //
-      }); //
+      }) //
 
-      return { success: true, message: 'User deactivated successfully' }; //
+      return { success: true, message: 'User deactivated successfully' } //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.deactivateUser', userId: id }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.deactivateUser', userId: id }) //
+      throw error //
     } //
   } //
 
-  static async activateUser(id, activatedBy = null) { //
+  static async activateUser (id, activatedBy = null) { //
     try { //
       await dbManager.run(`
         UPDATE users 
@@ -260,7 +259,7 @@ class UserService {
             locked_until = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [id]); //
+      `, [id]) //
 
       await createAuditLog({ //
         user_id: activatedBy, //
@@ -268,65 +267,65 @@ class UserService {
         resource_type: 'user', //
         resource_id: id, //
         details: { //
-            targetUserId: id //
+          targetUserId: id //
         } //
-      }); //
+      }) //
 
-      return { success: true, message: 'User activated successfully' }; //
+      return { success: true, message: 'User activated successfully' } //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.activateUser', userId: id }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.activateUser', userId: id }) //
+      throw error //
     } //
   } //
 
-  static async getAllUsers(filters = {}) { //
+  static async getAllUsers (filters = {}) { //
     try { //
-      const {  //
-        department, role, is_active, search,  //
-        page = 1, limit = 20  //
-      } = filters; //
+      const { //
+        department, role, is_active, search, //
+        page = 1, limit = 20 //
+      } = filters //
 
-      let whereConditions = []; //
-      let params = []; //
+      const whereConditions = [] //
+      const params = [] //
 
       if (department) { //
-        whereConditions.push('department = ?'); //
-        params.push(department); //
+        whereConditions.push('department = ?') //
+        params.push(department) //
       } //
 
       if (role) { //
-        whereConditions.push('role = ?'); //
-        params.push(role); //
+        whereConditions.push('role = ?') //
+        params.push(role) //
       } //
 
       if (is_active !== undefined) { //
-        whereConditions.push('is_active = ?'); //
-        params.push(is_active ? 1 : 0); //
+        whereConditions.push('is_active = ?') //
+        params.push(is_active ? 1 : 0) //
       } //
 
       if (search) { //
-        whereConditions.push('(name LIKE ? OR email LIKE ?)'); //
-        const searchTerm = `%${search}%`; //
-        params.push(searchTerm, searchTerm); //
+        whereConditions.push('(name LIKE ? OR email LIKE ?)') //
+        const searchTerm = `%${search}%` //
+        params.push(searchTerm, searchTerm) //
       } //
 
-      const whereClause = whereConditions.length > 0  //
-        ? 'WHERE ' + whereConditions.join(' AND ')  //
-        : ''; //
+      const whereClause = whereConditions.length > 0 //
+        ? 'WHERE ' + whereConditions.join(' AND ') //
+        : '' //
 
       const countResult = await dbManager.get( //
         `SELECT COUNT(*) as total FROM users ${whereClause}`, //
         params //
-      ); //
+      ) //
 
-      const offset = (page - 1) * limit; //
+      const offset = (page - 1) * limit //
       const users = await dbManager.all( //
         `SELECT * FROM users ${whereClause} ORDER BY name LIMIT ? OFFSET ?`, //
         [...params, limit, offset] //
-      ); //
+      ) //
 
-      const total = countResult.total; //
-      const totalPages = Math.ceil(total / limit); //
+      const total = countResult.total //
+      const totalPages = Math.ceil(total / limit) //
 
       return { //
         data: users.map(userData => new User(userData)), //
@@ -338,53 +337,53 @@ class UserService {
           hasNextPage: page < totalPages, //
           hasPrevPage: page > 1 //
         } //
-      }; //
+      } //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.getAllUsers', filters }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.getAllUsers', filters }) //
+      throw error //
     } //
   } //
 
-  static async authenticate(email, password) { //
+  static async authenticate (email, password) { //
     try { //
       // Gọi findByEmail đã sửa, không lọc is_active ở đây.
-      const user = await User.findByEmail(email); // Sửa lại: không dùng this.findByEmail vì đang trong static method của User
+      const user = await User.findByEmail(email) // Sửa lại: không dùng this.findByEmail vì đang trong static method của User
       if (!user) { //
-        return null; //
+        return null //
       } //
 
       // Việc kiểm tra user.is_active sẽ do AuthService.login đảm nhiệm.
       // Việc kiểm tra locked_until cũng do AuthService.login đảm nhiệm.
 
-      const isValidPassword = await bcrypt.compare(password, user.password_hash); //
+      const isValidPassword = await bcrypt.compare(password, user.password_hash) //
       if (!isValidPassword) { //
-        await this.incrementFailedLoginAttempts(user.id); //
-        return null; //
+        await this.incrementFailedLoginAttempts(user.id) //
+        return null //
       } //
 
-      await this.updateLastLogin(user.id); //
-      await this.resetFailedLoginAttempts(user.id); //
+      await this.updateLastLogin(user.id) //
+      await this.resetFailedLoginAttempts(user.id) //
 
-      return user; //
+      return user //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.authenticate', email }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.authenticate', email }) //
+      throw error //
     } //
   } //
 
-  static async updateLastLogin(userId) { //
+  static async updateLastLogin (userId) { //
     try { //
       await dbManager.run( //
         'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', //
         [userId] //
-      ); //
+      ) //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.updateLastLogin', userId }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.updateLastLogin', userId }) //
+      throw error //
     } //
   } //
 
-  static async incrementFailedLoginAttempts(userId) { //
+  static async incrementFailedLoginAttempts (userId) { //
     try { //
       await dbManager.run(`
         UPDATE users 
@@ -394,27 +393,27 @@ class UserService {
               ELSE locked_until 
             END
         WHERE id = ?
-      `, [userId]); //
+      `, [userId]) //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.incrementFailedLoginAttempts', userId }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.incrementFailedLoginAttempts', userId }) //
+      throw error //
     } //
   } //
 
-  static async resetFailedLoginAttempts(userId) { //
+  static async resetFailedLoginAttempts (userId) { //
     try { //
       await dbManager.run(`
         UPDATE users 
         SET failed_login_attempts = 0, locked_until = NULL
         WHERE id = ?
-      `, [userId]); //
+      `, [userId]) //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.resetFailedLoginAttempts', userId }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.resetFailedLoginAttempts', userId }) //
+      throw error //
     } //
   } //
 
-  static async getUserStats(userId) { //
+  static async getUserStats (userId) { //
     try { //
       const stats = await dbManager.get(`
         SELECT
@@ -428,16 +427,16 @@ class UserService {
         LEFT JOIN document_versions dv ON u.id = dv.created_by
         LEFT JOIN workflow_transitions wt ON u.id = wt.transitioned_by
         WHERE u.id = ?
-      `, [userId]); //
+      `, [userId]) //
 
-      return stats; //
+      return stats //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.getUserStats', userId }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.getUserStats', userId }) //
+      throw error //
     } //
   } //
 
-  static async getDepartmentStats() { //
+  static async getDepartmentStats () { //
     try { //
       const stats = await dbManager.all(`
         SELECT
@@ -451,16 +450,16 @@ class UserService {
         FROM users
         GROUP BY department
         ORDER BY total_users DESC
-      `); //
+      `) //
 
-      return stats; //
+      return stats //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.getDepartmentStats' }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.getDepartmentStats' }) //
+      throw error //
     } //
   } //
 
-  static async getSystemStats() { //
+  static async getSystemStats () { //
     try { //
       const stats = await dbManager.get(`
         SELECT
@@ -473,16 +472,16 @@ class UserService {
           COUNT(CASE WHEN failed_login_attempts >= 3 THEN 1 END) as locked_accounts,
           COUNT(CASE WHEN locked_until > datetime('now') THEN 1 END) as currently_locked
         FROM users
-      `); //
+      `) //
 
-      return stats; //
+      return stats //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.getSystemStats' }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.getSystemStats' }) //
+      throw error //
     } //
   } //
 
-  static async unlockAccount(userId, unlockedBy = null) { //
+  static async unlockAccount (userId, unlockedBy = null) { //
     try { //
       await dbManager.run(`
         UPDATE users 
@@ -490,7 +489,7 @@ class UserService {
             locked_until = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [userId]); //
+      `, [userId]) //
 
       await createAuditLog({ //
         user_id: unlockedBy, //
@@ -498,18 +497,18 @@ class UserService {
         resource_type: 'user', //
         resource_id: userId, //
         details: { //
-            targetUserId: userId //
+          targetUserId: userId //
         } //
-      }); //
+      }) //
 
-      return { success: true, message: 'Account unlocked successfully' }; //
+      return { success: true, message: 'Account unlocked successfully' } //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.unlockAccount', userId }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.unlockAccount', userId }) //
+      throw error //
     } //
   } //
 
-  static async getLockedUsers() { //
+  static async getLockedUsers () { //
     try { //
       const lockedUsers = await dbManager.all(`
         SELECT 
@@ -517,14 +516,14 @@ class UserService {
         FROM users 
         WHERE locked_until > datetime('now') OR failed_login_attempts >= 5
         ORDER BY locked_until DESC
-      `); //
+      `) //
 
-      return lockedUsers; //
+      return lockedUsers //
     } catch (error) { //
-      logError(error, null, { operation: 'UserService.getLockedUsers' }); //
-      throw error; //
+      logError(error, null, { operation: 'UserService.getLockedUsers' }) //
+      throw error //
     } //
   } //
 }
 
-module.exports = UserService;
+module.exports = UserService

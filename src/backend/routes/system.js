@@ -1,12 +1,12 @@
 // src/backend/routes/system.js
-const express = require('express');
-const router = express.Router();
-const { authenticateToken } = require('../middleware/auth');
-const { checkPermission } = require('../middleware/permissionMiddleware');
-const { auditMiddleware, setAuditDetails } = require('../middleware/auditMiddleware');
-const { dbManager } = require('../config/database');
+const express = require('express')
+const router = express.Router()
+const { authenticateToken } = require('../middleware/auth')
+const { checkPermission } = require('../middleware/permissionMiddleware')
+const { auditMiddleware, setAuditDetails } = require('../middleware/auditMiddleware')
+const { dbManager } = require('../config/database')
 
-router.use(auditMiddleware);
+router.use(auditMiddleware)
 
 /**
  * GET /api/system/stats
@@ -23,7 +23,7 @@ router.get('/stats',
           success: false,
           message: 'Không có quyền truy cập thống kê hệ thống',
           code: 'INSUFFICIENT_PERMISSIONS'
-        });
+        })
       }
 
       // Get system statistics
@@ -33,7 +33,7 @@ router.get('/stats',
           COUNT(CASE WHEN is_active = 1 THEN 1 END) as activeUsers,
           COUNT(CASE WHEN last_login >= date('now', '-7 days') THEN 1 END) as recentActiveUsers
         FROM users
-      `;
+      `
 
       const documentStatsQuery = `
         SELECT 
@@ -41,20 +41,20 @@ router.get('/stats',
           COUNT(CASE WHEN created_at >= date('now', '-30 days') THEN 1 END) as documentsThisMonth,
           COUNT(DISTINCT author_id) as activeAuthors
         FROM documents
-      `;
+      `
 
       const systemStatsQuery = `
         SELECT 
           COUNT(*) as totalAuditLogs,
           COUNT(CASE WHEN timestamp >= date('now', '-24 hours') THEN 1 END) as logsLast24Hours
         FROM audit_logs
-      `;
+      `
 
       const [userStats, documentStats, systemStats] = await Promise.all([
         dbManager.get(userStatsQuery),
         dbManager.get(documentStatsQuery),
         dbManager.get(systemStatsQuery)
-      ]);
+      ])
 
       // Department activity
       const deptActivityQuery = `
@@ -67,9 +67,9 @@ router.get('/stats',
         WHERE u.is_active = 1
         GROUP BY u.department
         ORDER BY documentCount DESC
-      `;
+      `
 
-      const departmentActivity = await dbManager.all(deptActivityQuery);
+      const departmentActivity = await dbManager.all(deptActivityQuery)
 
       const stats = {
         users: userStats,
@@ -82,22 +82,22 @@ router.get('/stats',
           memoryUsage: process.memoryUsage(),
           environment: process.env.NODE_ENV || 'development'
         }
-      };
+      }
 
       setAuditDetails(res, 'SYSTEM_STATS_VIEWED', 'system', null, {
         adminId: req.user.id
-      });
+      })
 
       res.json({
         success: true,
         data: stats,
         timestamp: new Date().toISOString(),
         requestId: req.requestId
-      });
+      })
     } catch (error) {
-      next(error);
+      next(error)
     }
   }
-);
+)
 
-module.exports = router;
+module.exports = router

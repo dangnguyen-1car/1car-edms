@@ -7,11 +7,11 @@
  * =================================================================
  */
 
-const express = require('express');
-const router = express.Router();
-const AuthService = require('../services/authService');
-const { authenticateToken } = require('../middleware/auth');
-const { createError } = require('../middleware/errorHandler');
+const express = require('express')
+const router = express.Router()
+const AuthService = require('../services/authService')
+const { authenticateToken } = require('../middleware/auth')
+const { createError } = require('../middleware/errorHandler')
 // const { loggerUtils } = require('../utils/logger'); // loggerUtils không được sử dụng trực tiếp ở đây
 
 /**
@@ -20,19 +20,19 @@ const { createError } = require('../middleware/errorHandler');
  */
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    
+    const { email, password } = req.body
+
     if (!email || !password) {
-      throw createError('Email và mật khẩu là bắt buộc', 400, 'MISSING_CREDENTIALS');
+      throw createError('Email và mật khẩu là bắt buộc', 400, 'MISSING_CREDENTIALS')
     }
 
     const context = {
       ip: req.ip || req.connection?.remoteAddress,
       userAgent: req.get('User-Agent'),
       requestId: req.requestId
-    };
+    }
 
-    const result = await AuthService.login(email, password, context);
+    const result = await AuthService.login(email, password, context)
 
     res.status(200).json({
       success: true,
@@ -43,12 +43,11 @@ router.post('/login', async (req, res, next) => {
       },
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
 /**
  * POST /api/auth/logout
@@ -56,28 +55,27 @@ router.post('/login', async (req, res, next) => {
  */
 router.post('/logout', authenticateToken, async (req, res, next) => {
   try {
-    const accessToken = req.token;
-    const user = req.user; // user từ authenticateToken middleware
-    
+    const accessToken = req.token
+    const user = req.user // user từ authenticateToken middleware
+
     const context = {
       ip: req.ip || req.connection?.remoteAddress,
       userAgent: req.get('User-Agent'),
       requestId: req.requestId
-    };
+    }
 
-    const result = await AuthService.logout(accessToken, user, context);
+    const result = await AuthService.logout(accessToken, user, context)
 
     res.status(200).json({
       success: true,
       message: result.message,
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
 /**
  * POST /api/auth/refresh
@@ -85,19 +83,19 @@ router.post('/logout', authenticateToken, async (req, res, next) => {
  */
 router.post('/refresh', async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
-    
+    const { refreshToken } = req.body
+
     if (!refreshToken) {
-      throw createError('Refresh token là bắt buộc', 400, 'MISSING_REFRESH_TOKEN');
+      throw createError('Refresh token là bắt buộc', 400, 'MISSING_REFRESH_TOKEN')
     }
 
     const context = {
       ip: req.ip || req.connection?.remoteAddress,
       userAgent: req.get('User-Agent'),
       requestId: req.requestId
-    };
+    }
 
-    const result = await AuthService.refreshToken(refreshToken, context);
+    const result = await AuthService.refreshToken(refreshToken, context)
 
     res.status(200).json({
       success: true,
@@ -107,12 +105,11 @@ router.post('/refresh', async (req, res, next) => {
       },
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
 /**
  * POST /api/auth/verify-token
@@ -120,20 +117,20 @@ router.post('/refresh', async (req, res, next) => {
  */
 router.post('/verify-token', async (req, res, next) => {
   try {
-    const { token } = req.body;
-    
+    const { token } = req.body
+
     if (!token) {
-      throw createError('Token là bắt buộc', 400, 'MISSING_TOKEN');
+      throw createError('Token là bắt buộc', 400, 'MISSING_TOKEN')
     }
 
-    const { verifyAccessToken } = require('../config/jwt');
-    const decoded = verifyAccessToken(token);
-    
-    const User = require('../models/User'); // Import User model
-    const user = await User.findById(decoded.id);
-    
+    const { verifyAccessToken } = require('../config/jwt')
+    const decoded = verifyAccessToken(token)
+
+    const User = require('../models/User') // Import User model
+    const user = await User.findById(decoded.id)
+
     if (!user || !user.is_active) {
-      throw createError('Token không hợp lệ hoặc user không tồn tại', 401, 'INVALID_TOKEN');
+      throw createError('Token không hợp lệ hoặc user không tồn tại', 401, 'INVALID_TOKEN')
     }
 
     res.status(200).json({
@@ -144,12 +141,11 @@ router.post('/verify-token', async (req, res, next) => {
       },
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
 /**
  * GET /api/auth/profile
@@ -157,8 +153,8 @@ router.post('/verify-token', async (req, res, next) => {
  */
 router.get('/profile', authenticateToken, async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const result = await AuthService.getProfile(userId); // AuthService.getProfile đã trả về { success: true, user: ... }
+    const userId = req.user.id
+    const result = await AuthService.getProfile(userId) // AuthService.getProfile đã trả về { success: true, user: ... }
 
     res.status(200).json({
       success: result.success,
@@ -166,12 +162,11 @@ router.get('/profile', authenticateToken, async (req, res, next) => {
       user: result.user, // result.user đã là đối tượng user được làm sạch
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
 /**
  * PUT /api/auth/profile
@@ -179,34 +174,33 @@ router.get('/profile', authenticateToken, async (req, res, next) => {
  */
 router.put('/profile', authenticateToken, async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const updateData = req.body;
-    
+    const userId = req.user.id
+    const updateData = req.body
+
     // Không cần xóa các trường nhạy cảm ở đây nữa nếu AuthService.updateProfile đã xử lý.
     // Tuy nhiên, để an toàn, có thể giữ lại việc xóa các trường không muốn client tự ý thay đổi.
-    delete updateData.id;
-    delete updateData.email;
-    delete updateData.password_hash; // Đảm bảo không cho cập nhật password_hash
-    delete updateData.password; // Càng không cho gửi password dạng plain text
-    delete updateData.role;
-    delete updateData.is_active;
+    delete updateData.id
+    delete updateData.email
+    delete updateData.password_hash // Đảm bảo không cho cập nhật password_hash
+    delete updateData.password // Càng không cho gửi password dạng plain text
+    delete updateData.role
+    delete updateData.is_active
     // Thêm các trường không được phép cập nhật qua profile ở đây nếu cần
-    delete updateData.created_at;
-    delete updateData.updated_at;
-    delete updateData.last_login;
-    delete updateData.created_by;
-    delete updateData.failed_login_attempts;
-    delete updateData.locked_until;
-
+    delete updateData.created_at
+    delete updateData.updated_at
+    delete updateData.last_login
+    delete updateData.created_by
+    delete updateData.failed_login_attempts
+    delete updateData.locked_until
 
     const context = { // ++ THÊM CONTEXT
       ip: req.ip || req.connection?.remoteAddress,
       userAgent: req.get('User-Agent'),
       requestId: req.requestId
-    };
+    }
 
     // ++ GỌI AuthService.updateProfile VỚI CONTEXT
-    const result = await AuthService.updateProfile(userId, updateData, context);
+    const result = await AuthService.updateProfile(userId, updateData, context)
 
     res.status(200).json({
       success: true, // Nên lấy từ result.success
@@ -214,12 +208,11 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
       user: result.user, // ++ SỬA ĐỂ TRẢ VỀ user TRỰC TIẾP
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
 /**
  * POST /api/auth/change-password
@@ -227,31 +220,30 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
  */
 router.post('/change-password', authenticateToken, async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const { current_password, password } = req.body; // Sửa tên biến từ currentPassword sang current_password cho khớp với frontend
-    
+    const userId = req.user.id
+    const { current_password, password } = req.body // Sửa tên biến từ currentPassword sang current_password cho khớp với frontend
+
     if (!current_password || !password) {
-      throw createError('Mật khẩu hiện tại và mật khẩu mới là bắt buộc', 400, 'MISSING_PASSWORDS');
+      throw createError('Mật khẩu hiện tại và mật khẩu mới là bắt buộc', 400, 'MISSING_PASSWORDS')
     }
 
     const context = {
       ip: req.ip || req.connection?.remoteAddress,
       userAgent: req.get('User-Agent'),
       requestId: req.requestId
-    };
+    }
 
-    const result = await AuthService.changePassword(userId, current_password, password, context);
+    const result = await AuthService.changePassword(userId, current_password, password, context)
 
     res.status(200).json({
       success: true,
       message: result.message,
       timestamp: new Date().toISOString(),
       requestId: req.requestId
-    });
-
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
+})
 
-module.exports = router;
+module.exports = router

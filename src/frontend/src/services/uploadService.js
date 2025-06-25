@@ -20,11 +20,7 @@ class UploadService {
         },
         // Add upload progress tracking if needed
         onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          // You can emit progress events here or update a UI element
-          console.log(`Upload Progress: ${percentCompleted}%`);
+        // You can emit progress events here or update a UI element          
         },
       });
 
@@ -33,8 +29,7 @@ class UploadService {
         data: response.data.data,
         message: response.data.message
       };
-    } catch (error) {
-      console.error('Upload error:', error);
+    } catch (error) {      
       if (error.response?.data) {
         return {
           success: false,
@@ -62,8 +57,7 @@ class UploadService {
         success: true,
         data: response.data.data
       };
-    } catch (error) {
-      console.error('Get uploaded files error:', error);
+    } catch (error) {      
       return {
         success: false,
         message: error.response?.data?.message || 'Không thể lấy danh sách file đã tải lên. Vui lòng thử lại.',
@@ -84,8 +78,7 @@ class UploadService {
         success: true,
         message: response.data.message || 'File đã được xóa thành công'
       };
-    } catch (error) {
-      console.error('Delete file error:', error);
+    } catch (error) {      
       return {
         success: false,
         message: error.response?.data?.message || 'Không thể xóa file. Vui lòng thử lại.',
@@ -111,8 +104,7 @@ class UploadService {
         data: response.data.data,
         message: response.data.message || 'File đã được liên kết với tài liệu thành công'
       };
-    } catch (error) {
-      console.error('Link file to document error:', error);
+    } catch (error) {      
       return {
         success: false,
         message: error.response?.data?.message || 'Không thể liên kết file với tài liệu. Vui lòng thử lại.',

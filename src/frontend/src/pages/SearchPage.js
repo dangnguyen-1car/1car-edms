@@ -15,7 +15,7 @@ import DocumentCard from '../components/documents/DocumentCard';
 function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  useAuth();
 
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page')) || 1);
   const [pageSize, setPageSize] = useState(parseInt(searchParams.get('limit')) || 12);
@@ -108,7 +108,6 @@ function SearchPage() {
 
   useEffect(() => {
     if (isError) {
-      console.error('Search error:', error);
       toast.error(`Lỗi tìm kiếm: ${error?.response?.data?.message || error?.message || 'Không thể kết nối'}`);
     }
   }, [isError, error]);

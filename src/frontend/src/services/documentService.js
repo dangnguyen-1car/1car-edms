@@ -16,8 +16,7 @@ class DocumentService {
     try {
       const response = await api.get('/documents/types');
       return response.data.data.documentTypes || [];
-    } catch (error) {
-      console.error('Error fetching document types:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải các loại tài liệu.');
     }
   }
@@ -26,8 +25,7 @@ class DocumentService {
     try {
       const response = await api.get('/documents/departments');
       return response.data.data.departments || [];
-    } catch (error) {
-      console.error('Error fetching departments:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách phòng ban.');
     }
   }
@@ -36,8 +34,7 @@ class DocumentService {
     try {
       const response = await api.get('/documents/workflow-states');
       return response.data.data.workflowStates || [];
-    } catch (error) {
-      console.error('Error fetching workflow states:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách trạng thái.');
     }
   }
@@ -50,8 +47,7 @@ class DocumentService {
     try {
       const response = await api.get('/documents/search-filters');
       return response.data;
-    } catch (error) {
-      console.error('Error fetching search filters:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải bộ lọc tìm kiếm. Vui lòng thử lại.');
     }
   }
@@ -69,8 +65,7 @@ class DocumentService {
       });
       const response = await api.get(`/documents?${params.toString()}`);
       return response.data;
-    } catch (error) {
-      console.error('Error searching documents:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Lỗi khi tìm kiếm tài liệu.');
     }
   }
@@ -88,8 +83,7 @@ class DocumentService {
       }
       const response = await api.get(`/documents/search-suggestions?query=${encodeURIComponent(query)}&limit=${limit}`);
       return response.data;
-    } catch (error) {
-      console.error('Error fetching search suggestions:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải gợi ý tìm kiếm. Vui lòng thử lại.');
     }
   }
@@ -122,8 +116,7 @@ class DocumentService {
         }
       });
       return response.data;
-    } catch (error) {
-      console.error('Error getting suggested code:', error);
+    } catch (error) {      
       throw new Error(
         error.response?.data?.message ||
         error.message ||
@@ -136,8 +129,7 @@ class DocumentService {
     try {
       const response = await api.post('/documents/check-code', { code });
       return response.data;
-    } catch (error) {
-      console.error('Check code availability error:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Lỗi kiểm tra mã tài liệu');
     }
   }
@@ -152,8 +144,7 @@ class DocumentService {
     try {
       const response = await api.get('/documents/pending-approval', { params });
       return response.data;
-    } catch (error) {
-      console.error('Error fetching pending approvals:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải danh sách tài liệu chờ duyệt.');
     }
   }
@@ -180,8 +171,7 @@ class DocumentService {
     try {
       const response = await api.get('/documents/pending-approval/stats');
       return response.data;
-    } catch (error) {
-      console.error('Error fetching pending approval stats:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải thống kê tài liệu chờ duyệt.');
     }
   }
@@ -197,8 +187,7 @@ class DocumentService {
     try {
       const response = await api.post(`/documents/${documentId}/workflow`, { action, comment });
       return response.data;
-    } catch (error) {
-      console.error(`Error processing workflow action '${action}' for document ${documentId}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || `Lỗi khi ${action} tài liệu.`);
     }
   }
@@ -211,8 +200,7 @@ class DocumentService {
     try {
       const response = await api.get(`/documents/${id}`);
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching document with ID ${id}:`, error);
+    } catch (error) {      
       if (error.response?.status === 404) {
         throw new Error('Không tìm thấy tài liệu.');
       }
@@ -224,8 +212,7 @@ class DocumentService {
     try {
       const response = await api.post('/documents', documentData);
       return response.data;
-    } catch (error) {
-      console.error('Error creating document:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tạo tài liệu mới.');
     }
   }
@@ -234,8 +221,7 @@ class DocumentService {
     try {
       const response = await api.put(`/documents/${id}`, documentData);
       return response.data;
-    } catch (error) {
-      console.error(`Error updating document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể cập nhật tài liệu.');
     }
   }
@@ -244,8 +230,7 @@ class DocumentService {
     try {
       const response = await api.delete(`/documents/${id}`);
       return response.data;
-    } catch (error) {
-      console.error(`Error deleting document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể xóa tài liệu.');
     }
   }
@@ -277,8 +262,7 @@ class DocumentService {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error(`Error downloading document ${id}:`, error);
-      throw new Error(error.response?.data?.message || 'Không thể tải xuống tài liệu. Vui lòng thử lại.');
+            throw new Error(error.response?.data?.message || 'Không thể tải xuống tài liệu. Vui lòng thử lại.');
     }
   }
 
@@ -295,8 +279,7 @@ class DocumentService {
     try {
       const response = await api.put(`/documents/${id}/status`, statusData);
       return response.data;
-    } catch (error) {
-      console.error(`Error updating status for document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể cập nhật trạng thái. Vui lòng thử lại.');
     }
   }
@@ -311,8 +294,7 @@ class DocumentService {
     try {
       const response = await api.post(`/documents/${id}/versions`, versionData);
       return response.data;
-    } catch (error) {
-      console.error(`Error creating version for document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tạo phiên bản mới. Vui lòng thử lại.');
     }
   }
@@ -326,8 +308,7 @@ class DocumentService {
     try {
       const response = await api.get(`/documents/${id}/versions`);
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching version history for document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải lịch sử phiên bản. Vui lòng thử lại.');
     }
   }
@@ -341,8 +322,7 @@ class DocumentService {
     try {
       const response = await api.get(`/documents/${id}/workflow`);
       return response.data;
-    } catch (error) {
-      console.error(`Error fetching workflow history for document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể tải lịch sử workflow. Vui lòng thử lại.');
     }
   }
@@ -361,8 +341,7 @@ class DocumentService {
         data: response.data.data,
         message: response.data.message || 'Tài liệu đã được phê duyệt'
       };
-    } catch (error) {
-      console.error(`Error approving document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể phê duyệt tài liệu. Vui lòng thử lại.');
     }
   }
@@ -381,8 +360,7 @@ class DocumentService {
         data: response.data.data,
         message: response.data.message || 'Tài liệu đã được từ chối'
       };
-    } catch (error) {
-      console.error(`Error rejecting document ${id}:`, error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể từ chối tài liệu. Vui lòng thử lại.');
     }
   }

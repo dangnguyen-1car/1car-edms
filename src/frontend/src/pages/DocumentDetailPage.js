@@ -1,223 +1,457 @@
-// src/pages/DocumentDetailPage.js
+// src/pages/DocumentDetailPage.js - Cập nhật hoàn thiện với tab Phân quyền
 /**
  * =================================================================
- * EDMS 1CAR - Document Detail Page (Optimized & Refactored)
- * This version uses a single-column layout, removing the inner-sidebar
- * and simplifying the content display as requested.
+ * EDMS 1CAR - Document Detail Page (Updated with Permissions Tab)
  * =================================================================
  */
-
-// 1. IMPORTS
-// -----------------------------------------------------------------
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import {
-    FiEdit, FiDownload, FiShare, FiPrinter, FiStar, FiCheckCircle,
-    FiGitBranch, FiAlertCircle, FiClock, FiHome, FiChevronRight, FiRefreshCw,
-    FiEye, FiList, FiPaperclip
+  FiEdit, FiDownload, FiShare, FiPrinter, FiStar, FiCheckCircle, FiGitBranch,
+  FiAlertCircle, FiClock, FiHome, FiRefreshCw, FiEye, FiList,
+  FiPaperclip, FiShield // *** THÊM ICON SHIELD ***
 } from 'react-icons/fi';
 
-// Component Imports (đã được sửa)
+// Component Imports
 import MetadataPanel from '../components/documents/MetadataPanel';
 import DocumentViewer from '../components/documents/DocumentViewer';
 import VersionHistory from '../components/documents/VersionHistory';
 import WorkflowHistory from '../components/documents/WorkflowHistory';
 import RelatedDocuments from '../components/documents/RelatedDocuments';
+import DocumentPermissionsPanel from '../components/documents/DocumentPermissionsPanel'; // *** THÊM IMPORT ***
 import NewVersionModal from '../components/documents/NewVersionModal';
 import ApprovalModal from '../components/documents/ApprovalModal';
 import ShareDocumentModal from '../components/documents/ShareDocumentModal';
 import ChangeStatusModal from '../components/documents/ChangeStatusModal';
 import VersionComparisonModal from '../components/documents/VersionComparisonModal';
-import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import Breadcrumb from '../components/common/Breadcrumb';
 
+// API & Context Imports
 import { documentAPI } from '../api/documentApi';
 import { useAuth } from '../contexts/AuthContext';
 
-// 2. COMPONENT DEFINITION
-// -----------------------------------------------------------------
 function DocumentDetailPage() {
+  // =================================================================
+  // HOOKS & STATE MANAGEMENT
+  // =================================================================
+  const { id: documentId } = useParams();
+  const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+  const queryClient = useQueryClient();
 
-    // 3. HOOKS & STATE MANAGEMENT
-    // -----------------------------------------------------------------
-    const { id: documentId } = useParams();
-    const navigate = useNavigate(); // SỬA: Khởi tạo hook useNavigate
-    const { user, hasPermission } = useAuth();
-    const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState('viewer');
+  const [isFavorite, setIsFavorite] = useState(false); // State này cần được fetch từ API
+  const [showNewVersionModal, setShowNewVersionModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showVersionComparisonModal, setShowVersionComparisonModal] = useState(false);
+  const [comparisonData, setComparisonData] = useState(null);
 
-    const [activeTab, setActiveTab] = useState('viewer');
-    const [isFavorite, setIsFavorite] = useState(false);
-    const [showNewVersionModal, setShowNewVersionModal] = useState(false);
-    const [showApprovalModal, setShowApprovalModal] = useState(false);
-    const [showShareModal, setShowShareModal] = useState(false);
-    const [showStatusModal, setShowStatusModal] = useState(false);
-    const [showVersionComparisonModal, setShowVersionComparisonModal] = useState(false);
-    const [comparisonData, setComparisonData] = useState(null);
+  // =================================================================
+  // DATA FETCHING (useQuery)
+  // =================================================================
+  const {
+    data: documentData,
+    isLoading: documentLoading,
+    error: documentError,
+    refetch: refetchDocument
+  } = useQuery({
+    queryKey: ['document', documentId],
+    queryFn: () => documentAPI.getDocument(documentId),
+    enabled: !!documentId,
+  });
 
-    // 4. CENTRALIZED DATA FETCHING
-    // -----------------------------------------------------------------
-    const { data: documentData, isLoading: documentLoading, error: documentError, refetch: refetchDocument } = useQuery({
-        queryKey: ['document', documentId],
-        queryFn: () => documentAPI.getDocument(documentId),
-        enabled: !!documentId,
-    });
+  const {
+    data: versionsData,
+    isLoading: versionsLoading,
+    error: versionsError,
+    refetch: refetchVersions
+  } = useQuery({
+    queryKey: ['documentVersions', documentId],
+    queryFn: () => documentAPI.getDocumentVersions(documentId),
+    enabled: !!documentId,
+  });
 
-    const { data: versionsData, isLoading: versionsLoading, error: versionsError, refetch: refetchVersions } = useQuery({
-        queryKey: ['documentVersions', documentId],
-        queryFn: () => documentAPI.getDocumentVersions(documentId),
-        enabled: !!documentId,
-    });
+  const {
+    data: workflowData,
+    isLoading: workflowLoading,
+    error: workflowError,
+    refetch: refetchWorkflow
+  } = useQuery({
+    queryKey: ['workflowHistory', documentId],
+    queryFn: () => documentAPI.getDocumentWorkflow(documentId),
+    enabled: !!documentId,
+  });
 
-    const { data: workflowData, isLoading: workflowLoading, error: workflowError, refetch: refetchWorkflow } = useQuery({
-        queryKey: ['workflowHistory', documentId],
-        queryFn: () => documentAPI.getDocumentWorkflow(documentId),
-        enabled: !!documentId,
-    });
-    
-    // ... (other queries remain the same)
+  // =================================================================
+  // MUTATIONS (useMutation)
+  // =================================================================
+  const compareVersionsMutation = useMutation({
+    mutationFn: ({ versionId1, versionId2 }) => documentAPI.compareVersions(versionId1.id, versionId2.id),
+    onSuccess: (data) => {
+      setComparisonData(data);
+      setShowVersionComparisonModal(true);
+    },
+    onError: () => toast.error('Không thể so sánh các phiên bản. Vui lòng thử lại.')
+  });
 
-    // 5. DATA MUTATIONS
-    // -----------------------------------------------------------------
-    // ... (mutations remain the same)
-    const compareVersionsMutation = useMutation({
-        mutationFn: ({ versionId1, versionId2 }) => documentAPI.compareVersions(versionId1.id, versionId2.id),
-        onSuccess: (data) => { setComparisonData(data); setShowVersionComparisonModal(true); },
-        onError: () => toast.error('Không thể so sánh phiên bản.')
-    });
+  // =================================================================
+  // DERIVED STATE & SIDE EFFECTS (useMemo, useEffect)
+  // =================================================================
+  const versions = useMemo(() => versionsData?.data?.versions || [], [versionsData]);
+  const workflowHistory = useMemo(() => workflowData?.data?.workflowHistory?.history || [], [workflowData]);
+  const isLoading = documentLoading || versionsLoading || workflowLoading;
 
+  // Effect để cập nhật trạng thái yêu thích từ dữ liệu tài liệu
+  useEffect(() => {
+    if (documentData?.data?.is_favorite !== undefined) {
+      setIsFavorite(documentData.data.is_favorite);
+    }
+  }, [documentData]);
 
-    // 6. DERIVED STATE & SIDE EFFECTS
-    // -----------------------------------------------------------------
-    const versions = useMemo(() => versionsData?.data?.versions || [], [versionsData]);
-    const workflowHistory = useMemo(() => workflowData?.data?.workflowHistory?.history || [], [workflowData]); // Adjusted path
-    const isLoading = documentLoading; // Base loading on the main document
+  // =================================================================
+  // PERMISSION CHECKS (Helper functions for rendering)
+  // =================================================================
+  const document = documentData?.data; // Dùng biến 'document' để tiện truy cập
 
-    // 7. EVENT HANDLERS
-    // -----------------------------------------------------------------
-    const refetchAllData = () => {
-        refetchDocument();
-        refetchVersions();
-        refetchWorkflow();
-    };
+  const canEdit = () => {
+    if (!document || !user) return false;
+    // user có quyền EDIT_DOCUMENT chung, hoặc user là tác giả và tài liệu đang ở trạng thái draft
+    return hasPermission('EDIT_DOCUMENT') || (document.author_id === user.id && document.status === 'draft');
+  };
 
-    const handleVersionComparison = (version1, version2) => {
-        // SỬA: Sử dụng đúng tham số đã truyền vào là `version1` và `version2`
-        compareVersionsMutation.mutate({ versionId1: version1, versionId2: version2 });
-    };
+  const canApprove = () => {
+    if (!document || !user) return false;
+    // user có quyền APPROVE_DOCUMENT chung và tài liệu đang ở trạng thái review
+    return document.status === 'review' && hasPermission('APPROVE_DOCUMENT');
+  };
 
-    // ... (other handlers remain the same)
-    const canEdit = () => hasPermission('edit_documents') || (documentData?.data.author_id === user.id && documentData?.data.status === 'draft');
-    const canApprove = () => documentData?.data.status === 'review' && (hasPermission('approve_documents') || user.role === 'manager');
-    const canCreateVersion = () => hasPermission('create_versions') || (documentData?.data.author_id === user.id && documentData?.data.status === 'published');
-    const canChangeStatus = () => hasPermission('manage_documents') || user.role === 'admin';
+  const canCreateVersion = () => {
+    if (!document || !user) return false;
+    // user có quyền CREATE_VERSION chung, hoặc user là tác giả và tài liệu đang ở trạng thái published
+    return hasPermission('CREATE_VERSION') || (document.author_id === user.id && document.status === 'published');
+  };
 
+  const canChangeStatus = () => {
+    if (!document || !user) return false;
+    // user có quyền CHANGE_DOCUMENT_STATUS chung hoặc là admin
+    return hasPermission('CHANGE_DOCUMENT_STATUS') || user.role === 'admin';
+  };
 
-    // 8. CONDITIONAL RENDERING (LOADING & ERROR)
-    // -----------------------------------------------------------------
-    if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="large" /></div>;
-    if (documentError) return <div className="min-h-screen p-8"><ErrorMessage title="Lỗi" message={documentError.message} onRetry={refetchDocument} /></div>;
-    if (!documentData?.data) return <div className="min-h-screen p-8"><ErrorMessage title="Không tìm thấy" message="Tài liệu không tồn tại." /></div>;
+  // *** THÊM MỚI: Kiểm tra quyền quản lý phân quyền ***
+  const canManagePermissions = () => {
+    if (!document || !user) return false;
+    // user có quyền MANAGE_PERMISSIONS chung hoặc là admin
+    return hasPermission('MANAGE_PERMISSIONS') || user.role === 'admin';
+  };
 
-    // 9. MAIN RENDER
-    // -----------------------------------------------------------------
-    const doc = documentData.data;
+  // =================================================================
+  // EVENT HANDLERS
+  // =================================================================
+  const refetchAllData = () => {
+    refetchDocument();
+    refetchVersions();
+    refetchWorkflow();
+    // Invalidate document permissions cache to ensure fresh data
+    queryClient.invalidateQueries(['documentPermissions', documentId]);
+  };
 
-    const breadcrumbItems = [
-        { label: 'Trang chủ', href: '/' },
-        { label: 'Tài liệu', href: '/documents' },
-        { label: doc.title, href: `/documents/${doc.id}`, current: true }
-    ];
+  const handleVersionComparison = (version1, version2) => {
+    if (!version1 || !version2) {
+      toast.error('Vui lòng chọn hai phiên bản để so sánh.');
+      return;
+    }
+    compareVersionsMutation.mutate({ versionId1: version1, versionId2: version2 });
+  };
 
-    const mainTabs = [
-        { id: 'viewer', label: 'Xem tài liệu', icon: FiEye },
-        { id: 'details', label: 'Chi tiết', icon: FiList },
-        { id: 'versions', label: 'Phiên bản', icon: FiGitBranch },
-        { id: 'workflow', label: 'Workflow', icon: FiRefreshCw },
-        { id: 'related', label: 'Liên quan', icon: FiPaperclip }
-    ];
+  // =================================================================
+  // TAB CONFIGURATION
+  // =================================================================
+  const tabs = [
+    {
+      id: 'viewer',
+      label: 'Xem tài liệu',
+      icon: FiEye,
+      component: <DocumentViewer document={document} />
+    },
+    {
+      id: 'metadata',
+      label: 'Thông tin',
+      icon: FiList,
+      component: <MetadataPanel document={document} />
+    },
+    {
+      id: 'versions',
+      label: 'Phiên bản',
+      icon: FiGitBranch,
+      component: <VersionHistory versions={versions} isLoading={versionsLoading} error={versionsError} onCompareVersions={handleVersionComparison} onRefresh={refetchVersions} />
+    },
+    {
+      id: 'workflow',
+      label: 'Quy trình',
+      icon: FiAlertCircle,
+      component: <WorkflowHistory history={workflowHistory} isLoading={workflowLoading} error={workflowError} onRefresh={refetchWorkflow} />
+    },
+    {
+      id: 'related',
+      label: 'Liên quan',
+      icon: FiPaperclip,
+      component: <RelatedDocuments documentId={documentId} />
+    },
+    // *** THÊM MỚI: Tab Phân quyền ***
+    ...(canManagePermissions() ? [{
+      id: 'permissions',
+      label: 'Phân quyền',
+      icon: FiShield, // Sử dụng icon Shield
+      component: <DocumentPermissionsPanel documentId={documentId} />
+    }] : [])
+  ];
 
+  // =================================================================
+  // BREADCRUMB CONFIGURATION
+  // =================================================================
+  const breadcrumbItems = [
+    { label: 'Trang chủ', href: '/', icon: FiHome },
+    { label: 'Tài liệu', href: '/documents' },
+    { label: document?.document_code || 'Tài liệu chi tiết', href: `/documents/${documentId}`, current: true }
+  ];
+
+  // =================================================================
+  // CONDITIONAL RENDERING (LOADING & ERROR)
+  // =================================================================
+  if (isLoading) {
     return (
-        <div className="min-h-screen bg-gray-f5">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-4">
-                  <Breadcrumb items={breadcrumbItems} />
-                </div>
-                {/* Header Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-6">
-                    {/* Header content and action buttons */}
-                    <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                        <div className="flex-1">
-                            <h1 className="text-2xl font-bold text-gray-900">{doc.title}</h1>
-                            <p className="text-sm text-gray-500 mt-1">Mã: {doc.document_code}</p>
-                        </div>
-                        <div className="flex items-center space-x-2 flex-wrap gap-2">
-                           {/* Action buttons here */}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Content Area */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex space-x-6 px-6 overflow-x-auto">
-                            {mainTabs.map(tab => {
-                                const TabIcon = tab.icon;
-                                return (
-                                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                                        className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${activeTab === tab.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                                        <TabIcon className="mr-2 h-4 w-4" />
-                                        {tab.label}
-                                    </button>
-                                )
-                            })}
-                        </nav>
-                    </div>
-                    <div className="p-6">
-                        {activeTab === 'viewer' && <DocumentViewer document={doc} onError={(e) => toast.error(e.message)} />}
-                        {activeTab === 'details' && 
-                            <MetadataPanel 
-                                document={doc}
-                                onRefresh={refetchDocument} 
-                                className="border-0 shadow-none p-0" 
-                            />
-                        }
-                        {activeTab === 'versions' && (
-                            <VersionHistory 
-                                document={doc} 
-                                versions={versions} 
-                                isLoading={versionsLoading} 
-                                error={versionsError} 
-                                onRefresh={refetchVersions}
-                                onCompareVersions={handleVersionComparison}
-                                isComparing={compareVersionsMutation.isLoading}
-                            />
-                        )}
-                        {activeTab === 'workflow' && (
-                            <WorkflowHistory 
-                                document={doc} 
-                                workflowHistory={workflowHistory} 
-                                isLoading={workflowLoading} 
-                                error={workflowError} 
-                                onRefresh={refetchWorkflow} 
-                            />
-                        )}
-                        {/* SỬA: `Maps` đã được định nghĩa và có thể sử dụng ở đây */}
-                        {activeTab === 'related' && <RelatedDocuments documentId={doc.id} onDocumentSelect={(d) => navigate(`/documents/${d.id}`)} />}
-                    </div>
-                </div>
-            </div>
-
-            {/* --- Modals --- */}
-            {showNewVersionModal && <NewVersionModal document={doc} isOpen={showNewVersionModal} onClose={() => setShowNewVersionModal(false)} onSuccess={refetchAllData} />}
-            {showApprovalModal && <ApprovalModal document={doc} isOpen={showApprovalModal} onClose={() => setShowApprovalModal(false)} onSuccess={refetchAllData} />}
-            {showShareModal && <ShareDocumentModal document={doc} isOpen={showShareModal} onClose={() => setShowShareModal(false)} />}
-            {showStatusModal && <ChangeStatusModal document={doc} isOpen={showStatusModal} onClose={() => setShowStatusModal(false)} onSuccess={refetchAllData} />}
-            {showVersionComparisonModal && <VersionComparisonModal isOpen={showVersionComparisonModal} comparisonData={comparisonData} onClose={() => setShowVersionComparisonModal(false)} />}
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="h-12 bg-gray-200 rounded mb-6"></div>
+            <div className="h-96 bg-gray-200 rounded"></div>
+          </div>
         </div>
+      </div>
     );
+  }
+
+  if (documentError) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <ErrorMessage message="Không thể tải thông tin tài liệu. Vui lòng thử lại." onRetry={refetchDocument} />
+        </div>
+      </div>
+    );
+  }
+
+  // =================================================================
+  // MAIN RENDER
+  // =================================================================
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <Breadcrumb items={breadcrumbItems} className="mb-6" />
+
+        {/* Document Header */}
+        <div className="bg-white shadow-sm rounded-lg mb-6">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-3">
+                  <h1 className="text-2xl font-bold text-gray-900 truncate">
+                    {document?.title}
+                  </h1>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {document?.document_code}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                  <span>Phiên bản: {document?.version}</span>
+                  <span>- </span>
+                  <span>Trạng thái: {document?.status}</span>
+                  <span>- </span>
+                  <span>Tác giả: {document?.author_name}</span>
+                  <span>- </span>
+                  <span>
+                    <FiClock className="inline w-4 h-4 mr-1" />
+                    {document?.updated_at ? new Date(document.updated_at).toLocaleDateString('vi-VN') : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setIsFavorite(!isFavorite)} // This needs API integration for actual favorite status
+                  className={`p-2 rounded-lg border ${
+                    isFavorite
+                      ? 'bg-yellow-50 border-yellow-200 text-yellow-600'
+                      : 'bg-white border-gray-300 text-gray-400 hover:text-gray-500'
+                  }`}
+                  title={isFavorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+                >
+                  <FiStar className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
+                </button>
+
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="p-2 rounded-lg border border-gray-300 text-gray-400 hover:text-gray-500"
+                  title="Chia sẻ"
+                >
+                  <FiShare className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={() => window.print()}
+                  className="p-2 rounded-lg border border-gray-300 text-gray-400 hover:text-gray-500"
+                  title="In"
+                >
+                  <FiPrinter className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={() => documentAPI.downloadDocument(documentId)} // This needs proper error handling and might trigger browser download
+                  className="p-2 rounded-lg border border-gray-300 text-gray-400 hover:text-gray-500"
+                  title="Tải xuống"
+                >
+                  <FiDownload className="w-5 h-5" />
+                </button>
+
+                {canEdit() && (
+                  <button
+                    onClick={() => navigate(`/documents/${documentId}/edit`)}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    <FiEdit className="w-4 h-4" />
+                    Chỉnh sửa
+                  </button>
+                )}
+
+                {canCreateVersion() && (
+                  <button
+                    onClick={() => setShowNewVersionModal(true)}
+                    className="btn btn-primary flex items-center gap-2"
+                  >
+                    <FiGitBranch className="w-4 h-4" />
+                    Tạo phiên bản
+                  </button>
+                )}
+
+                {canApprove() && (
+                  <button
+                    onClick={() => setShowApprovalModal(true)}
+                    className="btn btn-success flex items-center gap-2"
+                  >
+                    <FiCheckCircle className="w-4 h-4" />
+                    Phê duyệt
+                  </button>
+                )}
+
+                {canChangeStatus() && (
+                  <button
+                    onClick={() => setShowStatusModal(true)}
+                    className="btn btn-info flex items-center gap-2"
+                  >
+                    <FiAlertCircle className="w-4 h-4" />
+                    Đổi trạng thái
+                  </button>
+                )}
+
+                <button
+                  onClick={refetchAllData}
+                  className="p-2 rounded-lg border border-gray-300 text-gray-400 hover:text-gray-500"
+                  title="Làm mới"
+                >
+                  <FiRefreshCw className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="px-6">
+            <nav className="-mb-px flex space-x-8">
+              {tabs.map((tab) => {
+                const Icon = tab.icon; // Component icon
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="bg-white shadow-sm rounded-lg">
+          <div className="p-6">
+            {tabs.find(tab => tab.id === activeTab)?.component}
+          </div>
+        </div>
+
+        {/* Modals */}
+        {showNewVersionModal && (
+          <NewVersionModal
+            document={document}
+            onClose={() => setShowNewVersionModal(false)}
+            onSuccess={() => {
+              setShowNewVersionModal(false);
+              refetchAllData();
+            }}
+          />
+        )}
+        {showApprovalModal && (
+          <ApprovalModal
+            document={document}
+            onClose={() => setShowApprovalModal(false)}
+            onSuccess={() => {
+              setShowApprovalModal(false);
+              refetchAllData();
+            }}
+          />
+        )}
+        {showShareModal && (
+          <ShareDocumentModal
+            document={document}
+            onClose={() => setShowShareModal(false)}
+          />
+        )}
+        {showStatusModal && (
+          <ChangeStatusModal
+            document={document}
+            onClose={() => setShowStatusModal(false)}
+            onSuccess={() => {
+              setShowStatusModal(false);
+              refetchAllData();
+            }}
+          />
+        )}
+        {showVersionComparisonModal && comparisonData && (
+          <VersionComparisonModal
+            comparisonData={comparisonData}
+            onClose={() => {
+              setShowVersionComparisonModal(false);
+              setComparisonData(null);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default DocumentDetailPage;

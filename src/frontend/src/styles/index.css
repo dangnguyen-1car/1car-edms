@@ -1,4 +1,5 @@
-/** src/style/index.css
+/* src/frontend/src/styles/index.css - Cập nhật với styles cho phân quyền */
+/**
  * =================================================================
  * 1CAR EDMS - Global Styles
  * Tailwind CSS base styles, custom components, and utilities
@@ -9,81 +10,101 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles (từ file cũ) */
+/* Base styles */
 @layer base {
   html {
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; /* Thêm fallback fonts */
-    -webkit-font-smoothing: antialiased; /* Cải thiện rendering font trên Webkit */
-    -moz-osx-font-smoothing: grayscale; /* Cải thiện rendering font trên Firefox */
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 antialiased; /* Giữ nguyên từ file cũ */
+    @apply bg-gray-50 text-gray-900 antialiased;
   }
-
-  /* Default border color (từ file cũ, nhưng có thể Tailwind đã xử lý) */
-  /* * {
-    @apply border-gray-200;
-  } */
-  /* Bỏ đi nếu không thực sự cần thiết vì Tailwind có các utility cho border */
 }
 
-/* Component styles (Hợp nhất và tổ chức lại) */
+/* Component styles */
 @layer components {
-  /* Button styles (Kết hợp cả hai, ưu tiên cấu trúc file cũ, bổ sung từ .new) */
+  /* Button styles */
   .btn {
     @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
 
-  .btn-primary { /* Từ file cũ, nhưng sử dụng biến màu primary nếu có */
-    @apply btn bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500; /* Sử dụng màu blue trực tiếp nếu không có biến --color-primary */
+  .btn-primary {
+    @apply btn bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
   }
 
-  .btn-secondary { /* Từ file cũ */
+  .btn-secondary {
     @apply btn bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500;
   }
-  
-  .btn-secondary-outline { /* Đổi tên từ .btn-secondary của file .new.css để tránh trùng, hoặc chọn 1 trong 2 */
-     @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-100 focus:ring-gray-300; /* Điều chỉnh focus ring */
+
+  .btn-secondary-outline {
+     @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-100 focus:ring-gray-300;
   }
 
-  .btn-outline { /* Từ file cũ */
-    @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-blue-500; /* Giữ focus ring primary */
+  .btn-outline {
+    @apply btn border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-blue-500;
   }
 
-  .btn-success { /* Từ cả hai file, chọn một cách định nghĩa */
+  .btn-success {
     @apply btn bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
   }
 
-  .btn-danger { /* Từ cả hai file, chọn một cách định nghĩa */
+  .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
-  
-  .btn-icon { /* Thêm một kiểu button chỉ có icon */
+
+  .btn-warning {
+    @apply btn bg-yellow-600 text-white border border-yellow-600 hover:bg-yellow-700 hover:border-yellow-700 focus:ring-yellow-500;
+  }
+
+  .btn-info {
+    @apply btn bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;
+  }
+
+  .btn-danger-outline {
+    @apply bg-transparent text-red-600 border border-red-600 hover:bg-red-50 hover:text-red-700 focus:ring-red-500;
+  }
+
+  .btn-icon {
     @apply p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500;
   }
 
+  .btn-export-loading {
+    @apply opacity-75 cursor-not-allowed;
+  }
+  .btn-export-loading::before {
+    content: '';
+    @apply absolute inset-0 bg-white bg-opacity-25 rounded;
+  }
 
-  /* Form styles (Kết hợp cả hai) */
-  .form-label { /* Từ file cũ */
+  /* Form styles */
+  .form-label {
     @apply block text-sm font-medium text-gray-700 mb-1;
   }
 
-  .form-input, .form-select, .form-textarea { /* Hợp nhất từ .new.css và .form-input của file cũ */
-    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+  .form-input, .form-select, .form-textarea {
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
            sm:text-sm transition-colors;
   }
 
   .form-textarea {
-    @apply resize-y; /* Thêm từ .new.css */
+    @apply resize-y;
   }
 
-  .form-error { /* Từ file cũ */
+  .form-error {
     @apply mt-1 text-sm text-red-600;
   }
 
-  /* Card styles (từ file cũ, chi tiết hơn) */
+  .form-checkbox {
+    @apply h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded;
+  }
+  .form-radio {
+    @apply h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300;
+  }
+
+  /* Card styles */
   .card {
     @apply bg-white shadow rounded-lg border border-gray-200;
   }
@@ -100,373 +121,512 @@
     @apply px-6 py-4 border-t border-gray-200 bg-gray-50;
   }
 
-  /* Table styles (từ file cũ) */
+  /* Document Card */
+  .document-card {
+    @apply bg-white rounded-lg border border-gray-200 hover:shadow-xl transition-all duration-300 ease-in-out cursor-pointer;
+  }
+  .document-card-header {
+    @apply p-4 flex-grow;
+  }
+  .document-card-title {
+    @apply font-semibold text-base text-blue-700 hover:text-blue-800 line-clamp-2 flex-grow mr-2;
+  }
+  .document-card-footer {
+    @apply flex items-center justify-end space-x-1 p-3 border-t border-gray-100 bg-slate-50 rounded-b-lg;
+  }
+
+  /* Table styles */
   .table {
     @apply min-w-full divide-y divide-gray-200;
   }
   .table-header th {
-    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50; /* Thêm bg-gray-50 */
+    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50;
   }
-  .table-body tr:nth-child(even) { /* Thêm zebra stripes */
+  .table-body tr:nth-child(even) {
     @apply bg-gray-50;
   }
   .table-body td {
     @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
   }
 
-  /* Badge styles (Hợp nhất và chuẩn hóa tên class) */
-  .badge { /* Class cơ sở chung */
+  .table-container {
+    @apply overflow-hidden rounded-lg border border-gray-200;
+  }
+  .table-header {
+    @apply bg-gray-50 border-b border-gray-200;
+  }
+  .table-row {
+    @apply hover:bg-gray-50 transition-colors duration-150;
+  }
+  .table-cell {
+    @apply px-4 py-3 text-sm;
+  }
+  .table-cell-header {
+    @apply px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+  }
+
+  /* Badge styles */
+  .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
 
-  /* Document Status Badges (kết hợp từ cả hai, dùng tên class cụ thể hơn) */
+  .badge-primary {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .badge-secondary {
+    @apply bg-gray-100 text-gray-800;
+  }
+  .badge-success {
+    @apply bg-green-100 text-green-800;
+  }
+  .badge-danger {
+    @apply bg-red-100 text-red-800;
+  }
+  .badge-warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  .badge-info {
+    @apply bg-indigo-100 text-indigo-800;
+  }
+
+  /* Document Status Badges */
   .badge-status-draft { @apply badge bg-yellow-100 text-yellow-800; }
   .badge-status-review { @apply badge bg-blue-100 text-blue-800; }
   .badge-status-published { @apply badge bg-green-100 text-green-800; }
   .badge-status-archived { @apply badge bg-gray-100 text-gray-800; }
-  /* Các badge khác từ file cũ có thể được thêm vào nếu cần: .badge-success, .badge-warning, .badge-danger, .badge-info */
-  /* Nếu các badge này trùng mục đích với status, priority, security thì không cần */
+
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .status-draft {
+    @apply bg-gray-100 text-gray-800;
+  }
+  .status-review {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  .status-published {
+    @apply bg-green-100 text-green-800;
+  }
+  .status-archived {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .status-disposed {
+    @apply bg-red-100 text-red-800;
+  }
+
+  /* Type Badges */
+  .badge-type-pl { @apply badge bg-purple-100 text-purple-800 border border-purple-200; }
+  .badge-type-pr { @apply badge bg-blue-100 text-blue-800 border border-blue-200; }
+  .badge-type-wi { @apply badge bg-green-100 text-green-800 border border-green-200; }
+  .badge-type-fm { @apply badge bg-orange-100 text-orange-800 border border-orange-200; }
+  .badge-type-td { @apply badge bg-indigo-100 text-indigo-800 border border-indigo-200; }
+  .badge-type-tr { @apply badge bg-pink-100 text-pink-800 border border-pink-200; }
+  .badge-type-rc { @apply badge bg-gray-100 text-gray-800 border border-gray-200; }
 
 
-  /* Priority Badges (từ .new.css, chuẩn hóa tên class) */
+  /* Priority Badges */
   .badge-priority-urgent { @apply badge bg-red-100 text-red-700; }
   .badge-priority-high { @apply badge bg-orange-100 text-orange-700; }
   .badge-priority-normal { @apply badge bg-blue-100 text-blue-700; }
   .badge-priority-low { @apply badge bg-gray-100 text-gray-700; }
 
+  .priority-low {
+    @apply bg-gray-100 text-gray-800;
+  }
+  .priority-normal {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .priority-high {
+    @apply bg-orange-100 text-orange-800;
+  }
+  .priority-urgent {
+    @apply bg-red-100 text-red-800;
+  }
 
-  /* Security Level Badges (từ .new.css, chuẩn hóa tên class) */
+  /* Security Level Badges */
   .badge-security-restricted { @apply badge bg-red-100 text-red-700; }
   .badge-security-confidential { @apply badge bg-yellow-100 text-yellow-700; }
   .badge-security-internal { @apply badge bg-blue-100 text-blue-700; }
   .badge-security-public { @apply badge bg-green-100 text-green-700; }
 
+  .security-public {
+    @apply bg-green-100 text-green-800;
+  }
+  .security-internal {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .security-confidential {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  .security-restricted {
+    @apply bg-red-100 text-red-800;
+  }
 
-  /* Sidebar styles (từ file cũ) */
+  /* Sidebar styles */
   .sidebar-link {
     @apply flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200;
   }
-  .sidebar-link-active { /* Sử dụng màu primary nếu có */
-    @apply sidebar-link bg-blue-100 text-blue-900 border-r-2 border-blue-600 font-semibold; /* Thêm font-semibold */
+  .sidebar-link-active {
+    @apply sidebar-link bg-blue-100 text-blue-900 border-r-2 border-blue-600 font-semibold;
   }
   .sidebar-link-inactive {
-    @apply sidebar-link text-gray-600 hover:bg-gray-100 hover:text-gray-900; /* Tăng độ tương phản hover */
+    @apply sidebar-link text-gray-600 hover:bg-gray-100 hover:text-gray-900;
   }
 
-  /* Text truncation utilities (từ .new.css) */
-  .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
-  .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-  .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+  /* Breadcrumb */
+  .breadcrumb {
+    @apply flex items-center space-x-1 text-sm;
+  }
+  .breadcrumb-item {
+    @apply inline-flex items-center;
+  }
+  .breadcrumb-separator {
+    @apply w-4 h-4 text-gray-400 mx-1;
+  }
+  .breadcrumb-link {
+    @apply inline-flex items-center font-medium text-gray-700 hover:text-blue-600 transition-colors;
+  }
+  .breadcrumb-current {
+    @apply font-medium text-gray-500 cursor-default;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4;
+  }
+  .modal-content {
+    @apply bg-white rounded-lg shadow-xl max-w-md w-full mx-4 transform transition-all;
+  }
+  .modal-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
+  }
+  .modal-body {
+    @apply p-6;
+  }
+  .modal-footer {
+    @apply bg-gray-50 px-6 py-4 flex justify-end space-x-3 rounded-b-lg;
+  }
+
+  /* Status Indicator */
+  .status-indicator {
+    @apply w-2 h-2 rounded-full;
+  }
+  .status-indicator-draft {
+    @apply bg-yellow-400;
+  }
+  .status-indicator-review {
+    @apply bg-blue-400;
+  }
+  .status-indicator-published {
+    @apply bg-green-400;
+  }
+  .status-indicator-archived {
+    @apply bg-gray-400;
+  }
+
+  /* View Toggle */
+  .view-toggle {
+    @apply flex items-center bg-gray-100 rounded-lg p-1;
+  }
+  .view-toggle-button {
+    @apply p-2 rounded-md transition-colors duration-150;
+  }
+  .view-toggle-button-active {
+    @apply bg-white text-blue-600 shadow-sm;
+  }
+  .view-toggle-button-inactive {
+    @apply text-gray-500 hover:text-gray-700;
+  }
+
+  /* Permissions Panel Styles */
+  .permissions-panel {
+    @apply space-y-6;
+  }
+  .permissions-header {
+    @apply flex items-center justify-between;
+  }
+  .permissions-title {
+    @apply text-lg font-semibold text-gray-900 flex items-center gap-2;
+  }
+  .permissions-subtitle {
+    @apply text-sm text-gray-600 mt-1;
+  }
+  .permissions-form {
+    @apply bg-gray-50 p-4 rounded-lg border;
+  }
+  .permissions-form-title {
+    @apply font-medium text-gray-900 mb-4;
+  }
+  .permissions-form-grid {
+    @apply grid grid-cols-1 md:grid-cols-3 gap-4;
+  }
+  .permissions-form-actions {
+    @apply flex justify-end gap-2 mt-4;
+  }
+  .permissions-table {
+    @apply bg-white border rounded-lg overflow-hidden;
+  }
+  .permissions-table-header {
+    @apply bg-gray-50;
+  }
+  .permissions-table-row {
+    @apply hover:bg-gray-50;
+  }
+  .permissions-table-cell {
+    @apply px-6 py-4 whitespace-nowrap;
+  }
+  .permissions-empty-state {
+    @apply p-8 text-center text-gray-500;
+  }
+  .permissions-empty-icon {
+    @apply w-12 h-12 mx-auto mb-4 text-gray-300;
+  }
+  .permissions-summary {
+    @apply bg-blue-50 p-4 rounded-lg;
+  }
+  .permissions-summary-title {
+    @apply font-medium text-blue-900 mb-2;
+  }
+  .permissions-summary-grid {
+    @apply grid grid-cols-2 md:grid-cols-4 gap-4 text-sm;
+  }
+  .permissions-summary-item {
+    @apply text-blue-600 font-medium;
+  }
+  .permissions-summary-value {
+    @apply ml-2 text-blue-900;
+  }
+
+  /* Permission Badge Styles */
+  .permission-badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .permission-badge-read {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .permission-badge-write {
+    @apply bg-green-100 text-green-800;
+  }
+  .permission-badge-approve {
+    @apply bg-purple-100 text-purple-800;
+  }
+  .permission-badge-admin {
+    @apply bg-red-100 text-red-800;
+  }
+
+  /* Target Type Styles */
+  .target-info {
+    @apply flex items-center;
+  }
+  .target-icon {
+    @apply flex-shrink-0 w-5 h-5 text-gray-400;
+  }
+  .target-details {
+    @apply ml-3;
+  }
+  .target-name {
+    @apply text-sm font-medium text-gray-900;
+  }
+  .target-email {
+    @apply text-sm text-gray-500 flex items-center gap-1;
+  }
+  .target-department {
+    @apply text-xs text-gray-500;
+  }
+
+  /* React Select Customization */
+  .react-select-container {
+    @apply relative;
+  }
+  .react-select__control {
+    @apply border-gray-300 shadow-sm rounded-md hover:border-gray-400 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500;
+  }
+  .react-select__control--is-focused {
+    @apply border-blue-500 ring-1 ring-blue-500 shadow-sm;
+  }
+  .react-select__menu {
+    @apply shadow-lg border border-gray-200 rounded-md;
+  }
+  .react-select__option {
+    @apply px-3 py-2 cursor-pointer;
+  }
+  .react-select__option--is-focused {
+    @apply bg-blue-50 text-blue-900;
+  }
+  .react-select__option--is-selected {
+    @apply bg-blue-600 text-white;
+  }
+  .react-select__placeholder {
+    @apply text-gray-400;
+  }
+  .react-select__single-value {
+    @apply text-gray-900;
+  }
+  .react-select__input {
+    @apply text-gray-900;
+  }
+
+  /* Loading States */
+  .skeleton-loader {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+  .loading-spinner {
+    @apply animate-spin rounded-full border-2 border-gray-300 border-t-blue-600;
+  }
+  .loading-spinner-sm {
+    @apply w-4 h-4;
+  }
+  .loading-spinner-md {
+    @apply w-6 h-6;
+  }
+  .loading-spinner-lg {
+    @apply w-8 h-8;
+  }
+
+  /* Error States */
+  .error-message {
+    @apply bg-red-50 border border-red-200 rounded-md p-4;
+  }
+  .error-title {
+    @apply text-red-800 font-medium;
+  }
+  .error-description {
+    @apply text-red-700 text-sm mt-1;
+  }
+
+  /* Success States */
+  .success-message {
+    @apply bg-green-50 border border-green-200 rounded-md p-4;
+  }
+  .success-title {
+    @apply text-green-800 font-medium;
+  }
+  .success-description {
+    @apply text-green-700 text-sm mt-1;
+  }
+
+  /* Responsive Utilities */
+  .responsive-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
+  }
+  .responsive-table {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+
+  /* Animation Classes */
+  .fade-in {
+    @apply transition-opacity duration-300 ease-in-out;
+  }
+  .slide-in {
+    @apply transition-transform duration-300 ease-in-out;
+  }
+  .scale-in {
+    @apply transition-transform duration-200 ease-in-out;
+  }
+
+  /* Hover Effects */
+  .hover-lift {
+    @apply transition-transform duration-200 ease-in-out hover:-translate-y-1 hover:shadow-lg;
+  }
+  .hover-scale {
+    @apply transition-transform duration-200 ease-in-out hover:scale-105;
+  }
 }
 
-/* Utility styles (Hợp nhất) */
+/* Utility styles */
 @layer utilities {
-  .text-balance { /* Từ file cũ */
+  .text-balance {
     text-wrap: balance;
   }
 
-  /* Custom Scrollbar (từ .new.css) */
+  /* Custom Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: #f1f5f9; /* slate-100 */ }
   ::-webkit-scrollbar-thumb { background: #cbd5e1; /* slate-300 */ border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #94a3b8; /* slate-400 */ }
 
-  /* Hide scrollbar utility (từ file cũ) */
+  /* Hide scrollbar utility */
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
 
-  /* Focus styles for accessibility (từ .new.css, nhưng có thể Tailwind đã có focus-visible) */
-  /* .focus-visible:focus {
-    outline: 2px solid #3b82f6; // blue-500
-    outline-offset: 2px;
-  } */
-  /* Tailwind's `focus-visible:ring-2` thường đủ dùng */
+  /* Focus states */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
+  }
+
+  /* Text truncation utilities */
+  .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+  .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 }
 
-/* Animations (Hợp nhất) */
-@keyframes spin { /* Từ .new.css */
+/* Animations */
+@keyframes spin {
   to { transform: rotate(360deg); }
 }
-.animate-spin { /* Từ .new.css */
+.animate-spin {
   animation: spin 1s linear infinite;
 }
-/* Giữ lại .loading-spinner từ file cũ nếu nó khác .animate-spin */
-.loading-spinner { /* Từ file cũ */
-  @apply animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600; /* Sử dụng màu blue trực tiếp */
+.loading-spinner {
+  @apply animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600;
 }
 
-
-@keyframes fadeIn { /* Từ file cũ */
+@keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.animate-fadeIn { animation: fadeIn 0.3s ease-out; } /* Thêm class sử dụng */
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+.fade-in { animation: fadeIn 0.3s ease-in-out; }
 
-
-@keyframes slideUp { /* Từ file cũ */
+@keyframes slideUp {
   from { transform: translateY(10px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
-.animate-slideUp { animation: slideUp 0.3s ease-out; } /* Thêm class sử dụng */
+.animate-slideUp { animation: slideUp 0.3s ease-out; }
+.slide-up { animation: slideUp 0.3s ease-out; }
 
 
-/* Print styles (Hợp nhất) */
-@media print {
-  .no-print { display: none !important; }
-  .print-only { display: block !important; } /* Từ file cũ */
+/* Custom Scrollbar (outside @layer components as it uses raw CSS properties) */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 #f7fafc;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f7fafc;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e0;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #a0aec0;
 }
 
-/* Mobile responsive adjustments (từ file cũ, rất hữu ích) */
-@media (max-width: 640px) { /* sm breakpoint của Tailwind */
+/* Print styles */
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-break-before {
+    page-break-before: always;
+  }
+  .print-break-after {
+    page-break-after: always;
+  }
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) { /* sm breakpoint of Tailwind */
   .card {
-    @apply mx-0 rounded-none sm:mx-4 sm:rounded-lg; /* Điều chỉnh cho mobile */
+    @apply mx-0 rounded-none sm:mx-4 sm:rounded-lg;
   }
   .table-responsive {
     @apply overflow-x-auto;
   }
 }
 
-/**
- * ENHANCED CSS STYLES
- *
- * TABLE OF CONTENTS
- * -----------------
- * 1.0 UTILITIES
- * - Animations
- * - Focus States
- * - Text Truncation
- *
- * 2.0 COMPONENTS
- * - Badge
- * - Breadcrumb
- * - Button
- * - Card (Document Card)
- * - Modal
- * - Status Indicator
- * - Table
- * - View Toggle
- *
- * 3.0 STATE STYLES
- * - Loading
- *
- * 4.0 RESPONSIVE STYLES
- */
-
-/* * 1.0 UTILITIES
- * ============================================ */
-
-/* Animation utilities */
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
-}
-.slide-up {
-  animation: slideUp 0.3s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Focus states */
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
-}
-
-/* Truncate text utilities */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-
-/* * 2.0 COMPONENTS
- * ============================================ */
-
-/* Badge */
-.badge {
-  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
-}
-.badge-status-draft {
-  @apply bg-yellow-100 text-yellow-800 border border-yellow-200;
-}
-.badge-status-review {
-  @apply bg-blue-100 text-blue-800 border border-blue-200;
-}
-.badge-status-published {
-  @apply bg-green-100 text-green-800 border border-green-200;
-}
-.badge-status-archived {
-  @apply bg-gray-100 text-gray-800 border border-gray-200;
-}
-.badge-type-pl {
-  @apply bg-purple-100 text-purple-800 border border-purple-200;
-}
-.badge-type-pr {
-  @apply bg-blue-100 text-blue-800 border border-blue-200;
-}
-.badge-type-wi {
-  @apply bg-green-100 text-green-800 border border-green-200;
-}
-.badge-type-fm {
-  @apply bg-orange-100 text-orange-800 border border-orange-200;
-}
-.badge-type-td {
-  @apply bg-indigo-100 text-indigo-800 border border-indigo-200;
-}
-.badge-type-tr {
-  @apply bg-pink-100 text-pink-800 border border-pink-200;
-}
-.badge-type-rc {
-  @apply bg-gray-100 text-gray-800 border border-gray-200;
-}
-
-/* Breadcrumb */
-.breadcrumb {
-  @apply flex items-center space-x-1 text-sm;
-}
-.breadcrumb-item {
-  @apply inline-flex items-center;
-}
-.breadcrumb-separator {
-  @apply w-4 h-4 text-gray-400 mx-1;
-}
-.breadcrumb-link {
-  @apply inline-flex items-center font-medium text-gray-700 hover:text-blue-600 transition-colors;
-}
-.breadcrumb-current {
-  @apply font-medium text-gray-500 cursor-default;
-}
-
-/* Button */
-.btn-warning {
-  @apply bg-yellow-600 text-white border border-yellow-600 hover:bg-yellow-700 hover:border-yellow-700 focus:ring-yellow-500;
-}
-.btn-danger {
-  @apply bg-red-600 text-white border border-red-600 hover:bg-red-700 hover:border-red-700 focus:ring-red-500;
-}
-.btn-danger-outline {
-  @apply bg-transparent text-red-600 border border-red-600 hover:bg-red-50 hover:text-red-700 focus:ring-red-500;
-}
-.btn-export-loading {
-  @apply opacity-75 cursor-not-allowed;
-}
-.btn-export-loading::before {
-  content: '';
-  @apply absolute inset-0 bg-white bg-opacity-25 rounded;
-}
-
-/* Card (Document Card) */
-.document-card {
-  @apply bg-white rounded-lg border border-gray-200 hover:shadow-xl transition-all duration-300 ease-in-out cursor-pointer;
-}
-.document-card-header {
-  @apply p-4 flex-grow;
-}
-.document-card-title {
-  @apply font-semibold text-base text-blue-700 hover:text-blue-800 line-clamp-2 flex-grow mr-2;
-}
-.document-card-footer {
-  @apply flex items-center justify-end space-x-1 p-3 border-t border-gray-100 bg-slate-50 rounded-b-lg;
-}
-
-/* Modal */
-.modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4;
-}
-.modal-content {
-  @apply bg-white rounded-lg shadow-xl max-w-md w-full mx-4 transform transition-all;
-}
-.modal-header {
-  @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
-}
-.modal-body {
-  @apply p-6;
-}
-.modal-footer {
-  @apply bg-gray-50 px-6 py-4 flex justify-end space-x-3 rounded-b-lg;
-}
-
-/* Status Indicator */
-.status-indicator {
-  @apply w-2 h-2 rounded-full;
-}
-.status-indicator-draft {
-  @apply bg-yellow-400;
-}
-.status-indicator-review {
-  @apply bg-blue-400;
-}
-.status-indicator-published {
-  @apply bg-green-400;
-}
-.status-indicator-archived {
-  @apply bg-gray-400;
-}
-
-/* Table */
-.table-container {
-  @apply overflow-hidden rounded-lg border border-gray-200;
-}
-.table-header {
-  @apply bg-gray-50 border-b border-gray-200;
-}
-.table-row {
-  @apply hover:bg-gray-50 transition-colors duration-150;
-}
-.table-cell {
-  @apply px-4 py-3 text-sm;
-}
-.table-cell-header {
-  @apply px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
-}
-
-/* View Toggle */
-.view-toggle {
-  @apply flex items-center bg-gray-100 rounded-lg p-1;
-}
-.view-toggle-button {
-  @apply p-2 rounded-md transition-colors duration-150;
-}
-.view-toggle-button-active {
-  @apply bg-white text-blue-600 shadow-sm;
-}
-.view-toggle-button-inactive {
-  @apply text-gray-500 hover:text-gray-700;
-}
-
-
-/* * 3.0 STATE STYLES
- * ============================================ */
-
-/* Loading */
-.loading-overlay {
-  @apply absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10;
-}
-.loading-spinner {
-  @apply animate-spin rounded-full border-2 border-gray-300 border-t-blue-600;
-}
-
-
-/* * 4.0 RESPONSIVE STYLES
- * ============================================ */
 @media (max-width: 768px) {
   .table-responsive {
     @apply overflow-x-auto;
@@ -476,5 +636,12 @@
   }
   .table-cell-mobile {
     @apply px-2 py-2 text-xs;
+  }
+}
+
+/* Dark Mode Support (Future Enhancement) */
+@media (prefers-color-scheme: dark) {
+  .dark-mode {
+    @apply bg-gray-900 text-white;
   }
 }
