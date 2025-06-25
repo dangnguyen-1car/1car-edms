@@ -175,6 +175,7 @@ const uploadRoutes = require('./routes/upload')
 const userRoutes = require('./routes/users')
 const systemSettingsRoutes = require('./routes/systemSettings')
 const auditLogRoutes = require('./routes/auditLogRoutes')
+const backupRoutes = require('./routes/backup') // <<< THÊM DÒNG NÀY
 
 // API Routes - Mount routes properly
 app.use('/api/auth', authRoutes)
@@ -183,6 +184,7 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/system-settings', systemSettingsRoutes)
 app.use('/api/audit-logs', auditLogRoutes)
+app.use('/api/backups', backupRoutes) // <<< THÊM DÒNG NÀY
 
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {
@@ -269,6 +271,7 @@ async function startServer () {
       appLogger.info('  - User Management: /api/users/*')
       appLogger.info('  - System Settings: /api/system-settings/*')
       appLogger.info('  - Audit Logs: /api/audit-logs/*')
+      appLogger.info('  - Backups: /api/backups/*') // <<< Log thêm route mới
       appLogger.info('EDMS 1CAR ready for 40 users with compliance:')
       appLogger.info('  - C-PR-MG-003: Access control procedures')
       appLogger.info('  - C-FM-MG-004: Role-based permission matrix')

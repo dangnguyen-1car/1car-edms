@@ -1,0 +1,13 @@
+{
+  "backups": [
+    {
+      "fileName": "edms_backup_2025-06-25T16-19-35-199Z.db",
+      "filePath": "database\\backups\\manual\\edms_backup_2025-06-25T16-19-35-199Z.db",
+      "timestamp": "2025-06-25T16:19:35.199Z",
+      "reason": "manual",
+      "status": "failed",
+      "error": "Source database file not found: ./database/edms.db",
+      "createdBy": 39
+    }
+  ]
+}

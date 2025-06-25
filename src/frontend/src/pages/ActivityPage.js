@@ -6,7 +6,6 @@ import {
   FiActivity, 
   FiAlertCircle, 
   FiSearch, 
-  FiFilter, 
   FiUser, 
   FiCalendar, 
   FiEye, 
@@ -45,7 +44,7 @@ function ActivityPage() {
   
   // State for filters and pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize] = useState(20);
   const [filters, setFilters] = useState({
     userId: '',
     action: '',
@@ -74,7 +73,7 @@ function ActivityPage() {
     (hasPermission('view_audit_logs') || currentUser?.role === 'admin');
 
   // Fetch audit logs summary
-  const { data: summaryData, isLoading: isLoadingSummary } = useQuery({
+  const { data: summaryData } = useQuery({
     queryKey: ['audit-logs-summary', filters.dateFrom, filters.dateTo],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -132,8 +131,7 @@ function ActivityPage() {
       window.URL.revokeObjectURL(url);
       
       toast.success('Xuất file Excel thành công!');
-    } catch (error) {
-      console.error('Export error:', error);
+    } catch (error) {      
       toast.error('Lỗi khi xuất file Excel');
     }
   };

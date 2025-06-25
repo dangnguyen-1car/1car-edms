@@ -1,5 +1,5 @@
 // src/frontend/src/pages/UsageStatisticsPage.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -7,9 +7,7 @@ import {
   FiUsers, 
   FiFileText, 
   FiHardDrive,
-  FiCalendar,
   FiRefreshCw,
-  FiDownload,
   FiEye,
   FiActivity
 } from 'react-icons/fi';
@@ -23,10 +21,7 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  LineChart,
-  Line
-} from 'recharts';
+  Cell} from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import DatePicker from 'react-datepicker';
