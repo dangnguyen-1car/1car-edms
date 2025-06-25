@@ -1,22 +1,11 @@
-// src/backend/config/database.js
-/**
- * =================================================================
- * EDMS 1CAR - Database Configuration (FIXED PATH)
- * SQLite database setup aligned with the latest 003-align-schema-definition.sql (SQL_vD)
- * This file creates the FINAL schema structure if the database is new.
- * =================================================================
- */
+// src/backend/config/database.js - PHIÊN BẢN CUỐI CÙNG (CLEAN CODE)
 
 const sqlite3 = require('sqlite3').verbose()
 const path = require('path')
 const fs = require('fs-extra')
 const bcrypt = require('bcrypt')
 const { security } = require('./index')
-// const AuditLogModel = require('../models/AuditLog'); // Import AuditLogModel
 
-// --- SỬA LỖI ĐƯỜNG DẪN DATABASE ---
-// Sử dụng path.join và __dirname để đảm bảo đường dẫn luôn đúng,
-// trỏ về thư mục `database` ở gốc dự án.
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', '..', '..', 'database', 'edms.db')
 const DB_DIR = path.dirname(DB_PATH)
 
@@ -51,11 +40,15 @@ class DatabaseManager {
 
   async configurePragma () {
     const pragmaSettings = [
-      'PRAGMA foreign_keys = ON', 'PRAGMA journal_mode = WAL',
-      'PRAGMA synchronous = NORMAL', 'PRAGMA cache_size = 10000',
+      'PRAGMA foreign_keys = ON',
+      'PRAGMA journal_mode = WAL',
+      'PRAGMA synchronous = NORMAL',
+      'PRAGMA cache_size = 10000',
       'PRAGMA temp_store = MEMORY'
     ]
-    for (const pragma of pragmaSettings) await this.run(pragma)
+    for (const pragma of pragmaSettings) {
+      await this.run(pragma)
+    }
     console.log('Database PRAGMA settings configured')
   }
 
@@ -63,111 +56,120 @@ class DatabaseManager {
     try {
       await this.run('CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, description TEXT, executed_at DATETIME DEFAULT CURRENT_TIMESTAMP)')
       await this.run(`
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
-                    name TEXT NOT NULL, department TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
-                    position TEXT, phone TEXT, is_active INTEGER DEFAULT 1, last_login DATETIME,
-                    password_changed_at DATETIME, failed_login_attempts INTEGER DEFAULT 0, locked_until DATETIME,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_by INTEGER,
-                    FOREIGN KEY (created_by) REFERENCES users(id), CHECK (role IN ('admin', 'user')),
-                    CHECK (department IN (
-                        'Ban Giám đốc', 'Phòng Phát triển Nhượng quyền', 'Phòng Đào tạo Tiêu chuẩn',
-                        'Phòng Marketing', 'Phòng Kỹ thuật QC', 'Phòng Tài chính',
-                        'Phòng Công nghệ Hệ thống', 'Phòng Pháp lý', 'Bộ phận Tiếp nhận CSKH',
-                        'Bộ phận Kỹ thuật Garage', 'Bộ phận QC Garage', 'Bộ phận Kho/Kế toán Garage',
-                        'Bộ phận Marketing Garage', 'Quản lý Garage'
-                    )), CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 10)
-                )`)
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
+            name TEXT NOT NULL, department TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
+            position TEXT, phone TEXT, is_active INTEGER DEFAULT 1, last_login DATETIME,
+            password_changed_at DATETIME, failed_login_attempts INTEGER DEFAULT 0, locked_until DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_by INTEGER,
+            FOREIGN KEY (created_by) REFERENCES users(id), CHECK (role IN ('admin', 'user')),
+            CHECK (department IN (
+                'Ban Giám đốc', 'Phòng Phát triển Nhượng quyền', 'Phòng Đào tạo Tiêu chuẩn',
+                'Phòng Marketing', 'Phòng Kỹ thuật QC', 'Phòng Tài chính',
+                'Phòng Công nghệ Hệ thống', 'Phòng Pháp lý', 'Bộ phận Tiếp nhận CSKH',
+                'Bộ phận Kỹ thuật Garage', 'Bộ phận QC Garage', 'Bộ phận Kho/Kế toán Garage',
+                'Bộ phận Marketing Garage', 'Quản lý Garage'
+            )), CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 10)
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS documents (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, document_code TEXT UNIQUE NOT NULL, title TEXT NOT NULL,
-                    description TEXT, type TEXT NOT NULL, department TEXT NOT NULL, status TEXT DEFAULT 'draft',
-                    version TEXT DEFAULT '01.00', priority TEXT DEFAULT 'normal', security_level TEXT DEFAULT 'internal',
-                    author_id INTEGER NOT NULL, reviewer_id INTEGER, approver_id INTEGER, file_path TEXT,
-                    file_name TEXT, file_size INTEGER, mime_type TEXT, scope_of_application TEXT, recipients TEXT,
-                    review_cycle INTEGER DEFAULT 365, retention_period INTEGER DEFAULT 2555, next_review_date DATE,
-                    disposal_date DATE, change_reason TEXT, change_summary TEXT, keywords TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    published_at DATETIME, archived_at DATETIME,
-                    FOREIGN KEY (author_id) REFERENCES users(id), FOREIGN KEY (reviewer_id) REFERENCES users(id),
-                    FOREIGN KEY (approver_id) REFERENCES users(id),
-                    CHECK (type IN ('PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC')),
-                    CHECK (status IN ('draft', 'review', 'published', 'archived', 'disposed')),
-                    CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
-                    CHECK (security_level IN ('public', 'internal', 'confidential', 'restricted'))
-                )`)
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, document_code TEXT UNIQUE NOT NULL, title TEXT NOT NULL,
+            description TEXT, type TEXT NOT NULL, department TEXT NOT NULL, status TEXT DEFAULT 'draft',
+            version TEXT DEFAULT '01.00', priority TEXT DEFAULT 'normal', security_level TEXT DEFAULT 'internal',
+            author_id INTEGER NOT NULL, reviewer_id INTEGER, approver_id INTEGER, file_path TEXT,
+            file_name TEXT, file_size INTEGER, mime_type TEXT, scope_of_application TEXT, recipients TEXT,
+            review_cycle INTEGER DEFAULT 365, retention_period INTEGER DEFAULT 2555, next_review_date DATE,
+            disposal_date DATE, change_reason TEXT, change_summary TEXT, keywords TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            published_at DATETIME, archived_at DATETIME,
+            FOREIGN KEY (author_id) REFERENCES users(id), FOREIGN KEY (reviewer_id) REFERENCES users(id),
+            FOREIGN KEY (approver_id) REFERENCES users(id),
+            CHECK (type IN ('PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC')),
+            CHECK (status IN ('draft', 'review', 'published', 'archived', 'disposed')),
+            CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+            CHECK (security_level IN ('public', 'internal', 'confidential', 'restricted'))
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS document_versions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, version TEXT NOT NULL,
-                    file_path TEXT, file_name TEXT, file_size INTEGER, change_reason TEXT, change_summary TEXT,
-                    change_type TEXT, status TEXT DEFAULT 'current', created_by INTEGER NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-                    FOREIGN KEY (created_by) REFERENCES users(id),
-                    CHECK (change_type IN ('major', 'minor', 'patch')),
-                    CHECK (status IN ('current', 'superseded', 'archived')),
-                    UNIQUE(document_id, version)
-                )`)
+        CREATE TABLE IF NOT EXISTS document_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, version TEXT NOT NULL,
+            file_path TEXT, file_name TEXT, file_size INTEGER, change_reason TEXT, change_summary TEXT,
+            change_type TEXT, status TEXT DEFAULT 'current', created_by INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY (created_by) REFERENCES users(id),
+            CHECK (change_type IN ('major', 'minor', 'patch')),
+            CHECK (status IN ('current', 'superseded', 'archived')),
+            UNIQUE(document_id, version)
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS workflow_transitions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, from_status TEXT,
-                    to_status TEXT NOT NULL, comment TEXT, decision TEXT, transitioned_by INTEGER NOT NULL,
-                    transitioned_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
-                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-                    FOREIGN KEY (transitioned_by) REFERENCES users(id),
-                    CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
-                )`)
-
+        CREATE TABLE IF NOT EXISTS workflow_transitions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, from_status TEXT,
+            to_status TEXT NOT NULL, comment TEXT, decision TEXT, transitioned_by INTEGER NOT NULL,
+            transitioned_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
+            FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY (transitioned_by) REFERENCES users(id),
+            CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS audit_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
-                    resource_type TEXT NOT NULL, resource_id INTEGER, details TEXT, ip_address TEXT,
-                    user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id),
-                    CHECK (action IN ('USER_LOGIN', 'USER_LOGOUT', 'USER_CREATED', 'USER_UPDATED', 'USER_DELETED', 
-                                      'USER_PASSWORD_CHANGED', 'USER_LOCKED', 'USER_UNLOCKED', 'DOCUMENT_CREATED', 
-                                      'DOCUMENT_VIEWED', 'DOCUMENT_UPDATED', 'DOCUMENT_DELETED', 'DOCUMENT_VERSION_CREATED', 
-                                      'DOCUMENT_STATUS_CHANGED', 'DOCUMENT_WORKFLOW_ACTION', 'DOCUMENT_DOWNLOADED', 
-                                      'DOCUMENT_SEARCHED', 'DOCUMENT_FAVORITED', 'DOCUMENT_UNFAVORITED', 
-                                      'DOCUMENT_STATISTICS_VIEWED', 'DOCUMENTS_DUE_REVIEW_VIEWED', 
-                                      'PERMISSION_GRANTED', 'PERMISSION_REVOKED', 'SYSTEM_CONFIGURATION_UPDATED', 
-                                      'SYSTEM_STARTUP', 'SYSTEM_SHUTDOWN', 'SYSTEM_HEALTH_CHECK', 'SYSTEM_ERROR',
-                                      'SEARCH_PERFORMED', 'DOCUMENT_CODE_SUGGESTED', 'VIEW_PENDING_APPROVALS',
-                                      'VIEW_PENDING_APPROVAL_STATS')),
-                    CHECK (resource_type IN ('user', 'document', 'system', 'permission'))
-                )
-            `)
-
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
+            resource_type TEXT NOT NULL, resource_id INTEGER, details TEXT, ip_address TEXT,
+            user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            CHECK (action IN (
+                'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
+                'ACCOUNT_LOCKED', 'ACCOUNT_UNLOCKED', 'TOKEN_REFRESHED',
+                'USER_CREATED', 'USER_UPDATED', 'USER_PROFILE_UPDATED', 'USER_ACTIVATED', 'USER_DEACTIVATED',
+                'USER_DELETED', 'USER_VIEWED', 'USERS_LISTED', 'USER_PASSWORD_RESET',
+                'DOCUMENT_CREATED', 'DOCUMENT_UPDATED', 'DOCUMENT_DELETED', 'DOCUMENT_VIEWED',
+                'DOCUMENT_DOWNLOADED', 'DOCUMENT_UPLOADED', 'DOCUMENT_SEARCHED', 'SEARCH_DOCUMENTS',
+                'DOCUMENTS_SEARCHED',
+                'DOCUMENT_APPROVED', 'DOCUMENT_REJECTED', 'DOCUMENT_PUBLISHED', 'DOCUMENT_ARCHIVED', 'DOCUMENT_STATUS_CHANGED',
+                'VERSION_CREATED', 'VERSION_COMPARED', 'VERSION_RESTORED', 'VERSION_HISTORY_VIEWED',
+                'WORKFLOW_TRANSITION', 'WORKFLOW_APPROVED', 'WORKFLOW_REJECTED', 'WORKFLOW_RETURNED',
+                'WORKFLOW_HISTORY_VIEWED', 'WORKFLOW_TRANSITIONS_QUERIED', 'WORKFLOW_STATS_VIEWED', 'VIEW_WORKFLOW_STATS',
+                'FILE_UPLOADED', 'FILE_DOWNLOADED', 'FILE_DELETED', 'FILE_ATTACHED', 'DOCUMENT_FILE_ATTACHED',
+                'PERMISSION_GRANTED', 'PERMISSION_REVOKED', 'PERMISSION_CHECKED', 'PERMISSION_DENIED', 'VIEW_DOCUMENT_PERMISSIONS',
+                'SYSTEM_BACKUP', 'SYSTEM_RESTORE', 'SYSTEM_MAINTENANCE', 'SYSTEM_ERROR', 'SYSTEM_STARTUP',
+                'SYSTEM_SHUTDOWN', 'SYSTEM_SETTINGS_UPDATED', 'ENDPOINT_NOT_FOUND', 'ERROR_OCCURRED',
+                'DOCUMENT_STATISTICS_VIEWED', 'DOCUMENTS_DUE_REVIEW_VIEWED', 'SEARCH_FILTERS_VIEWED',
+                'LOCKED_USERS_VIEWED', 'SYSTEM_STATS_VIEWED', 'DEPARTMENT_STATS_VIEWED', 'USER_STATS_VIEWED',
+                'SYSTEM_DATA_VIEWED', 'SYSTEM_VIEWED', 'AUDIT_LOGS_VIEWED', 'VIEW_AUDIT_LOGS'
+            )),
+            CHECK (resource_type IN ('user', 'document', 'version', 'file', 'workflow', 'permission', 'system', 'audit_log', 'auth', 'document_permissions'))
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS document_permissions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, user_id INTEGER,
-                    department TEXT, permission_type TEXT NOT NULL, granted_by INTEGER NOT NULL,
-                    granted_at DATETIME DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME, is_active INTEGER DEFAULT 1,
-                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-                    FOREIGN KEY (user_id) REFERENCES users(id), FOREIGN KEY (granted_by) REFERENCES users(id),
-                    CHECK (permission_type IN ('read', 'write', 'approve', 'admin')),
-                    CHECK ((user_id IS NOT NULL AND department IS NULL) OR (user_id IS NULL AND department IS NOT NULL))
-                )`)
+        CREATE TABLE IF NOT EXISTS document_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, user_id INTEGER,
+            department TEXT, permission_type TEXT NOT NULL, granted_by INTEGER NOT NULL,
+            granted_at DATETIME DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME, is_active INTEGER DEFAULT 1,
+            revoked_by INTEGER, revoked_at DATETIME,
+            FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id), FOREIGN KEY (granted_by) REFERENCES users(id),
+            FOREIGN KEY (revoked_by) REFERENCES users(id),
+            CHECK (permission_type IN ('read', 'write', 'approve', 'admin')),
+            CHECK ((user_id IS NOT NULL AND department IS NULL) OR (user_id IS NULL AND department IS NOT NULL))
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS file_uploads (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, original_name TEXT NOT NULL, file_name TEXT NOT NULL,
-                    file_path TEXT NOT NULL, file_size INTEGER NOT NULL, mime_type TEXT NOT NULL, checksum TEXT,
-                    uploaded_by INTEGER NOT NULL, document_id INTEGER, version_id INTEGER,
-                    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (uploaded_by) REFERENCES users(id), FOREIGN KEY (document_id) REFERENCES documents(id),
-                    FOREIGN KEY (version_id) REFERENCES document_versions(id)
-                )`)
+        CREATE TABLE IF NOT EXISTS file_uploads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, original_name TEXT NOT NULL, file_name TEXT NOT NULL,
+            file_path TEXT NOT NULL, file_size INTEGER NOT NULL, mime_type TEXT NOT NULL, checksum TEXT,
+            uploaded_by INTEGER NOT NULL, document_id INTEGER, version_id INTEGER,
+            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (uploaded_by) REFERENCES users(id), FOREIGN KEY (document_id) REFERENCES documents(id),
+            FOREIGN KEY (version_id) REFERENCES document_versions(id)
+        )`)
       await this.run(`
-                CREATE TABLE IF NOT EXISTS document_relationships (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, parent_document_id INTEGER NOT NULL,
-                    child_document_id INTEGER NOT NULL, relationship_type TEXT NOT NULL, created_by INTEGER NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE CASCADE,
-                    FOREIGN KEY (child_document_id) REFERENCES documents(id) ON DELETE CASCADE,
-                    FOREIGN KEY (created_by) REFERENCES users(id),
-                    CHECK (relationship_type IN ('references', 'supersedes', 'implements', 'related')),
-                    UNIQUE(parent_document_id, child_document_id, relationship_type)
-                )`)
+        CREATE TABLE IF NOT EXISTS document_relationships (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, parent_document_id INTEGER NOT NULL,
+            child_document_id INTEGER NOT NULL, relationship_type TEXT NOT NULL, created_by INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY (child_document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY (created_by) REFERENCES users(id),
+            CHECK (relationship_type IN ('references', 'supersedes', 'implements', 'related')),
+            UNIQUE(parent_document_id, child_document_id, relationship_type)
+        )`)
       console.log('Database tables ensured (created if not exist with final schema).')
     } catch (error) {
       console.error('Failed to create/ensure tables:', error)
@@ -224,7 +226,9 @@ class DatabaseManager {
       'CREATE INDEX IF NOT EXISTS idx_relationships_child ON document_relationships(child_document_id)',
       'CREATE INDEX IF NOT EXISTS idx_relationships_type ON document_relationships(relationship_type)'
     ]
-    for (const indexSQL of indexes) await this.run(indexSQL)
+    for (const indexSQL of indexes) {
+      await this.run(indexSQL)
+    }
     console.log('Database indexes created/ensured successfully')
   }
 
@@ -243,28 +247,28 @@ class DatabaseManager {
 
   async createViews () {
     try {
-      await this.run('DROP VIEW IF EXISTS v_document_summary;')
-      await this.run('DROP VIEW IF EXISTS document_summary;')
+      await this.run('DROP VIEW IF EXISTS v_document_summary')
+      await this.run('DROP VIEW IF EXISTS document_summary')
       await this.run(`
-                CREATE VIEW IF NOT EXISTS v_document_summary AS
-                SELECT d.id, d.document_code, d.title, d.type, d.department, d.status, d.version,
-                    d.priority, d.security_level, u.name as author_name, u.department as author_department,
-                    d.created_at, d.updated_at, d.published_at,
-                    (SELECT COUNT(*) FROM document_versions dv WHERE dv.document_id = d.id) as version_count,
-                    (SELECT COUNT(*) FROM workflow_transitions wt WHERE wt.document_id = d.id) as workflow_steps
-                FROM documents d LEFT JOIN users u ON d.author_id = u.id`)
-      await this.run('DROP VIEW IF EXISTS v_user_activity;')
-      await this.run('DROP VIEW IF EXISTS user_activity;')
+        CREATE VIEW IF NOT EXISTS v_document_summary AS
+        SELECT d.id, d.document_code, d.title, d.type, d.department, d.status, d.version,
+            d.priority, d.security_level, u.name as author_name, u.department as author_department,
+            d.created_at, d.updated_at, d.published_at,
+            (SELECT COUNT(*) FROM document_versions dv WHERE dv.document_id = d.id) as version_count,
+            (SELECT COUNT(*) FROM workflow_transitions wt WHERE wt.document_id = d.id) as workflow_steps
+        FROM documents d LEFT JOIN users u ON d.author_id = u.id`)
+      await this.run('DROP VIEW IF EXISTS v_user_activity')
+      await this.run('DROP VIEW IF EXISTS user_activity')
       await this.run(`
-                CREATE VIEW IF NOT EXISTS v_user_activity AS
-                SELECT u.id, u.name, u.department, u.role,
-                    COUNT(DISTINCT d.id) as documents_created, COUNT(DISTINCT dv.id) as versions_created,
-                    COUNT(DISTINCT wt.id) as workflow_actions, MAX(al.timestamp) as last_activity
-                FROM users u LEFT JOIN documents d ON u.id = d.author_id
-                LEFT JOIN document_versions dv ON u.id = dv.created_by
-                LEFT JOIN workflow_transitions wt ON u.id = wt.transitioned_by
-                LEFT JOIN audit_logs al ON u.id = al.user_id
-                GROUP BY u.id, u.name, u.department, u.role`)
+        CREATE VIEW IF NOT EXISTS v_user_activity AS
+        SELECT u.id, u.name, u.department, u.role,
+            COUNT(DISTINCT d.id) as documents_created, COUNT(DISTINCT dv.id) as versions_created,
+            COUNT(DISTINCT wt.id) as workflow_actions, MAX(al.timestamp) as last_activity
+        FROM users u LEFT JOIN documents d ON u.id = d.author_id
+        LEFT JOIN document_versions dv ON u.id = dv.created_by
+        LEFT JOIN workflow_transitions wt ON u.id = wt.transitioned_by
+        LEFT JOIN audit_logs al ON u.id = al.user_id
+        GROUP BY u.id, u.name, u.department, u.role`)
       console.log('Database views created/ensured successfully')
     } catch (error) {
       console.error('Failed to create views:', error)
@@ -281,7 +285,9 @@ class DatabaseManager {
         const result = await this.run('INSERT INTO users (email, password_hash, name, department, role, position, is_active, password_changed_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)',
           ['admin@1car.vn', hashedPassword, 'System Administrator', 'Ban Giám đốc', 'admin', 'System Administrator', 1])
         adminId = result.lastID
-        if (adminId) await this.run('UPDATE users SET created_by = ? WHERE id = ?', [adminId, adminId])
+        if (adminId) {
+          await this.run('UPDATE users SET created_by = ? WHERE id = ?', [adminId, adminId])
+        }
         console.log('Default admin user created')
       }
       const migrationRecord = await this.get('SELECT version FROM schema_migrations WHERE version = \'003\'')
@@ -297,7 +303,9 @@ class DatabaseManager {
             [adminId, 'SYSTEM_STARTUP', 'system', JSON.stringify({ message: 'EDMS 1CAR system initialized/started', version: '1.0.0', schema_aligned_to_migration: '003' })])
           console.log('SYSTEM_STARTUP audit log created.')
         }
-      } else console.warn('Admin user ID not available for initial SYSTEM_STARTUP audit log.')
+      } else {
+        console.warn('Admin user ID not available for initial SYSTEM_STARTUP audit log.')
+      }
       console.log('Default data initialization checked/completed')
     } catch (error) {
       console.error('Failed to initialize default data:', error)
@@ -306,33 +314,56 @@ class DatabaseManager {
 
   run (sql, params = []) {
     return new Promise((resolve, reject) => {
-      if (!this.db) return reject(new Error('Database not initialized for run operation'))
+      if (!this.db) {
+        return reject(new Error('Database not initialized for run operation'))
+      }
       this.db.run(sql, params, function (err) {
-        if (err) { console.error(`SQL Error (run): ${err.message} - SQL: ${sql} - Params: ${JSON.stringify(params)}`); reject(err) } else resolve({ lastID: this.lastID, changes: this.changes })
+        if (err) {
+          console.error(`SQL Error (run): ${err.message} - SQL: ${sql} - Params: ${JSON.stringify(params)}`)
+          reject(err)
+        } else {
+          resolve({ lastID: this.lastID, changes: this.changes })
+        }
       })
     })
   }
 
   get (sql, params = []) {
     return new Promise((resolve, reject) => {
-      if (!this.db) return reject(new Error('Database not initialized for get operation'))
+      if (!this.db) {
+        return reject(new Error('Database not initialized for get operation'))
+      }
       this.db.get(sql, params, (err, row) => {
-        if (err) { console.error(`SQL Error (get): ${err.message} - SQL: ${sql} - Params: ${JSON.stringify(params)}`); reject(err) } else resolve(row)
+        if (err) {
+          console.error(`SQL Error (get): ${err.message} - SQL: ${sql} - Params: ${JSON.stringify(params)}`)
+          reject(err)
+        } else {
+          resolve(row)
+        }
       })
     })
   }
 
   all (sql, params = []) {
     return new Promise((resolve, reject) => {
-      if (!this.db) return reject(new Error('Database not initialized for all operation'))
+      if (!this.db) {
+        return reject(new Error('Database not initialized for all operation'))
+      }
       this.db.all(sql, params, (err, rows) => {
-        if (err) { console.error(`SQL Error (all): ${err.message} - SQL: ${sql} - Params: ${JSON.stringify(params)}`); reject(err) } else resolve(rows)
+        if (err) {
+          console.error(`SQL Error (all): ${err.message} - SQL: ${sql} - Params: ${JSON.stringify(params)}`)
+          reject(err)
+        } else {
+          resolve(rows)
+        }
       })
     })
   }
 
   async transaction (queriesCallback) {
-    if (!this.db) throw new Error('Database not initialized for transaction')
+    if (!this.db) {
+      throw new Error('Database not initialized for transaction')
+    }
     return new Promise((resolve, reject) => {
       this.db.serialize(async () => {
         try {
@@ -356,9 +387,17 @@ class DatabaseManager {
     return new Promise((resolve, reject) => {
       if (this.db) {
         this.db.close((err) => {
-          if (err) { console.error('Failed to close database connection:', err); reject(err) } else { console.log('Database connection closed'); this.db = null; this.isInitialized = false; resolve() }
+          if (err) {
+            console.error('Failed to close database connection:', err)
+            reject(err)
+          } else {
+            console.log('Database connection closed')
+            this.db = null
+            this.isInitialized = false
+            resolve()
+          }
         })
-      } else { // Sửa lỗi cú pháp tại đây
+      } else {
         resolve()
       }
     })
@@ -366,7 +405,9 @@ class DatabaseManager {
 
   async healthCheck () {
     try {
-      if (!this.db || !this.isInitialized) return { connected: false, integrity: false, status: 'unhealthy', error: 'Database not initialized', timestamp: new Date().toISOString() }
+      if (!this.db || !this.isInitialized) {
+        return { connected: false, integrity: false, status: 'unhealthy', error: 'Database not initialized', timestamp: new Date().toISOString() }
+      }
       const result = await this.get('SELECT 1 as test')
       const integrity = await this.get('PRAGMA integrity_check')
       return { connected: !!result, integrity: integrity.integrity_check === 'ok', status: 'healthy', timestamp: new Date().toISOString() }
@@ -377,7 +418,9 @@ class DatabaseManager {
 
   async getStatistics () {
     try {
-      if (!this.db || !this.isInitialized) throw new Error('Database not initialized for statistics')
+      if (!this.db || !this.isInitialized) {
+        throw new Error('Database not initialized for statistics')
+      }
       const stats = await this.get(`
                 SELECT (SELECT COUNT(*) FROM users) as total_users, (SELECT COUNT(*) FROM documents) as total_documents,
                     (SELECT COUNT(*) FROM document_versions) as total_versions, (SELECT COUNT(*) FROM audit_logs) as total_audit_logs,

@@ -1,15 +1,14 @@
-// src/backend/services/documentService.js - ĐÃ SỬA LỖI
+// src/backend/services/documentService.js - ĐÃ SỬA LỖI LOGIC
 
-// Các module require ở cấp cao nhất - chỉ những module an toàn, không gây phụ thuộc vòng
 const { createError } = require('../middleware/errorHandler')
 const { dbManager } = require('../config/database')
-const fs = require('fs-extra') // SỬA LỖI: Thêm thư viện xử lý file
-const path = require('path') // SỬA LỖI: Thêm thư viện xử lý đường dẫn
+const fs = require('fs-extra')
+const path = require('path')
 const PROJECT_ROOT = path.join(__dirname, '..')
 
 class DocumentService {
   // ===============================================================
-  // CÁC HÀM XỬ LÝ LẤY DANH SÁCH (giữ nguyên logic)
+  // CÁC HÀM XỬ LÝ LẤY DANH SÁCH
   // ===============================================================
 
   /**
@@ -47,6 +46,7 @@ class DocumentService {
       const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'updated_at'
       const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
 
+      // *** PHỤC HỒI LOGIC QUAN TRỌNG TẠI ĐÂY ***
       const query = `
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name,
@@ -61,11 +61,12 @@ class DocumentService {
                 LIMIT ? OFFSET ?
             `
       const queryParams = [user.id, user.id, ...params, limit, (page - 1) * limit]
+      // *** KẾT THÚC PHẦN PHỤC HỒI ***
 
       const documents = await dbManager.all(query, queryParams)
+      // Logic đếm tổng số trang vẫn giữ nguyên
       const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereClause}`
       const countParams = [...params]
-
       const totalResult = await dbManager.get(countQuery, countParams)
       const total = totalResult.count
 
@@ -130,10 +131,8 @@ class DocumentService {
      * Xử lý workflow action (approve, reject, request_changes)
      */
   async processWorkflowAction (documentId, action, comment, user) {
-    // SỬA LỖI: Di chuyển require vào trong hàm
     const AuditService = require('./auditService')
     try {
-      // ... (toàn bộ logic của hàm này giữ nguyên)
       const validActions = ['approve', 'reject', 'request_changes']
       if (!validActions.includes(action)) {
         throw createError('Hành động không hợp lệ', 400, 'INVALID_ACTION')
@@ -188,7 +187,6 @@ class DocumentService {
      * Lấy chi tiết tài liệu
      */
   async getDocument (id, user, context = {}) {
-    // SỬA LỖI: Di chuyển require vào trong hàm
     const AuditService = require('./auditService')
     try {
       const document = await dbManager.get(`
@@ -231,20 +229,12 @@ class DocumentService {
     }
   }
 
-  // ===============================================================
-  // SỬA LỖI: BỔ SUNG HÀM downloadDocument ĐÃ BỊ THIẾU
-  // ===============================================================
   /**
      * Lấy nội dung file để download
-     * @param {number} id - ID của tài liệu
-     * @param {Object} user - Người dùng thực hiện
-     * @param {Object} context - Context của request
-     * @returns {Promise<Object>} Object chứa nội dung và thông tin file
      */
   async downloadDocument (id, user, context = {}) {
     const AuditService = require('./auditService')
     try {
-      // Lấy thông tin tài liệu và kiểm tra quyền
       const documentResult = await this.getDocument(id, user, context)
       const document = documentResult.data
 
@@ -252,8 +242,6 @@ class DocumentService {
         throw createError('Tài liệu này không có file đính kèm.', 404, 'FILE_NOT_FOUND')
       }
 
-      // Tạo đường dẫn tuyệt đối đến file.
-      // Giả định thư mục 'uploads' nằm ở gốc của dự án.
       const relativePath = document.file_path.startsWith('/') ? document.file_path.substring(1) : document.file_path
       const absolutePath = path.join(PROJECT_ROOT, relativePath)
 
@@ -262,10 +250,8 @@ class DocumentService {
         throw createError('File không tồn tại trên server.', 500, 'FILE_NOT_FOUND_ON_DISK')
       }
 
-      // Đọc nội dung file
       const fileContent = await fs.readFile(absolutePath)
 
-      // Ghi log hành động download
       await AuditService.log({
         userId: user.id,
         action: 'DOCUMENT_DOWNLOADED',
@@ -287,7 +273,6 @@ class DocumentService {
       }
     } catch (error) {
       console.error(`Error in downloadDocument for ID ${id}:`, error)
-      // Ném lỗi để route handler có thể bắt và xử lý
       throw error
     }
   }
@@ -307,9 +292,6 @@ class DocumentService {
 
   /**
    * Lấy lịch sử phiên bản của tài liệu.
-   * @param {number} id - ID của tài liệu.
-   * @param {Object} user - Người dùng hiện tại.
-   * @returns {Promise<Object>} Danh sách các phiên bản tài liệu.
    */
   async getVersionHistory (id, user) {
     try {
@@ -341,10 +323,6 @@ class DocumentService {
 
   /**
    * Tạo một phiên bản mới cho tài liệu.
-   * @param {number} id - ID của tài liệu.
-   * @param {Object} versionData - Dữ liệu của phiên bản mới.
-   * @param {Object} user - Người dùng hiện tại.
-   * @returns {Promise<Object>} Kết quả của việc tạo phiên bản.
    */
   async createDocumentVersion (id, versionData, user) {
     const AuditService = require('./auditService')
@@ -357,12 +335,10 @@ class DocumentService {
         throw createError('Không tìm thấy tài liệu', 404, 'DOCUMENT_NOT_FOUND')
       }
 
-      // Chỉ tác giả hoặc admin mới có thể tạo phiên bản mới
       if (document.author_id !== user.id && user.role !== 'admin') {
         throw createError('Bạn không có quyền tạo phiên bản mới cho tài liệu này', 403, 'INSUFFICIENT_PERMISSION')
       }
 
-      // Bắt đầu giao dịch
       await dbManager.run('BEGIN TRANSACTION')
 
       try {
@@ -372,8 +348,6 @@ class DocumentService {
           [id, version_number, file_path, file_name, file_size, mime_type, changes_summary, user.id]
         )
 
-        // Cập nhật thông tin phiên bản hiện tại của tài liệu chính (nếu cần)
-        // Ví dụ: cập nhật file_path, file_name, version_number trên bảng documents
         await dbManager.run(
           'UPDATE documents SET file_path = ?, file_name = ?, file_size = ?, mime_type = ?, version_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
           [file_path, file_name, file_size, mime_type, version_number, id]
@@ -396,7 +370,7 @@ class DocumentService {
         }
       } catch (innerError) {
         await dbManager.run('ROLLBACK')
-        throw innerError // Ném lỗi để khối catch bên ngoài bắt lấy
+        throw innerError
       }
     } catch (error) {
       console.error('Error in createDocumentVersion:', error)
@@ -409,9 +383,6 @@ class DocumentService {
 
   /**
    * Lấy lịch sử workflow của tài liệu.
-   * @param {number} id - ID của tài liệu.
-   * @param {Object} user - Người dùng hiện tại.
-   * @returns {Promise<Object>} Danh sách các chuyển đổi workflow.
    */
   async getWorkflowHistory (id, user) {
     try {

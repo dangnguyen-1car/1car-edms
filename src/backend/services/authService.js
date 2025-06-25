@@ -21,7 +21,7 @@ class AuthService {
   static async login (email, password, context = {}) {
     // Đã xóa bỏ khối try...catch không cần thiết
     // Find user by email
-    const user = await User.findByEmail(email)
+    const user = await UserService.findByEmail(email)
 
     if (!user) {
       // Log failed login attempt
