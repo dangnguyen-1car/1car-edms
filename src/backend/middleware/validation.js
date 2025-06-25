@@ -1,3 +1,4 @@
+// src/backend/middleware/validation.js
 /**
  * =================================================================
  * EDMS 1CAR - Input Validation Middleware
@@ -122,25 +123,7 @@ const validationRules = {
     .isInt({ min: 1 })
     .withMessage('ID must be a positive integer'),
 
-  // Pagination validation
-  page: query('page')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Page must be a positive integer'),
-
-  limit: query('limit')
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1 and 100'),
-
-  // Search query validation
-  search: query('search')
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 100 })
-    .withMessage('Search query must be between 1 and 100 characters'),
-
-  // Date validation
+  // Date validation (for body)
   date: body('date')
     .optional()
     .isISO8601()
@@ -221,11 +204,67 @@ const validationRules = {
     .withMessage('Retention period must be between 365 and 3650 days'),
 
   // IP address validation
-  ipAddress: body('ip_address')
+  ipAddress: query('ip_address')
     .optional()
     .isIP()
     .withMessage('Invalid IP address format')
 }
+
+// Date range validation middleware
+const validateDateRange = [
+  query('dateFrom')
+    .optional()
+    .isISO8601()
+    .withMessage('dateFrom phải là định dạng ngày hợp lệ (YYYY-MM-DD)'),
+  query('dateTo')
+    .optional()
+    .isISO8601()
+    .withMessage('dateTo phải là định dạng ngày hợp lệ (YYYY-MM-DD)')
+    .custom((value, { req }) => {
+      if (req.query.dateFrom && value) {
+        const fromDate = new Date(req.query.dateFrom)
+        const toDate = new Date(value)
+        if (toDate < fromDate) {
+          throw new Error('dateTo phải sau dateFrom')
+        }
+      }
+      return true
+    }),
+  (req, res, next) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dữ liệu không hợp lệ',
+        errors: errors.array()
+      })
+    }
+    next()
+  }
+]
+
+// Pagination validation
+const validatePagination = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('page phải là số nguyên dương'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('limit phải từ 1 đến 100'),
+  (req, res, next) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dữ liệu phân trang không hợp lệ',
+        errors: errors.array()
+      })
+    }
+    next()
+  }
+]
 
 /**
  * User validation schemas
@@ -289,8 +328,7 @@ const userValidation = {
 
   // List users validation
   list: [
-    validationRules.page,
-    validationRules.limit,
+    validatePagination,
     query('department').optional().isIn([
       'Ban Giám đốc',
       'Phòng Phát triển Nhượng quyền',
@@ -309,7 +347,11 @@ const userValidation = {
     ]),
     query('role').optional().isIn(['admin', 'user']),
     query('is_active').optional().isBoolean(),
-    validationRules.search,
+    query('search')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Search query must be between 1 and 100 characters'),
     handleValidationErrors
   ]
 }
@@ -377,9 +419,12 @@ const documentValidation = {
 
   // Search documents validation
   search: [
-    validationRules.page,
-    validationRules.limit,
-    validationRules.search,
+    validatePagination,
+    query('search')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Search query must be between 1 and 100 characters'),
     query('type').optional().isIn(['PL', 'PR', 'WI', 'FM', 'TD', 'TR', 'RC']),
     query('department').optional().isIn([
       'Ban Giám đốc',
@@ -399,8 +444,7 @@ const documentValidation = {
     ]),
     query('status').optional().isIn(['draft', 'review', 'published', 'archived']),
     query('author_id').optional().isInt({ min: 1 }),
-    query('date_from').optional().isISO8601(),
-    query('date_to').optional().isISO8601(),
+    validateDateRange,
     handleValidationErrors
   ],
 
@@ -432,8 +476,7 @@ const documentValidation = {
 const auditValidation = {
   // List audit logs validation
   list: [
-    validationRules.page,
-    validationRules.limit,
+    validatePagination,
     query('user_id').optional().isInt({ min: 1 }),
     query('action').optional().isAlpha(),
     query('resource_type').optional().isAlpha(),
@@ -454,10 +497,13 @@ const auditValidation = {
       'Bộ phận Marketing Garage',
       'Quản lý Garage'
     ]),
-    query('date_from').optional().isISO8601(),
-    query('date_to').optional().isISO8601(),
+    validateDateRange,
     validationRules.ipAddress.optional(),
-    validationRules.search,
+    query('search')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Search query must be between 1 and 100 characters'),
     handleValidationErrors
   ],
 
@@ -584,5 +630,7 @@ module.exports = {
   // Custom validators
   validateFileUpload,
   sanitizeInput,
-  handleValidationErrors
+  handleValidationErrors,
+  validateDateRange,
+  validatePagination
 }

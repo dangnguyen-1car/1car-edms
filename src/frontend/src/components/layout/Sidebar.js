@@ -31,7 +31,9 @@ import {
     FiClock,
     FiBarChart2, // SỬA LỖI: Đã sửa từ FiBarChart3 thành FiBarChart2
     FiX,
-    FiAlertTriangle
+    FiAlertTriangle,
+    FiShield,     // Thêm import mới
+    FiTrendingUp  // Thêm import mới
 } from 'react-icons/fi';
 
 // =================================================================
@@ -115,21 +117,44 @@ function Sidebar({ isOpen, onClose }) {
             );
         }
 
+        // Cập nhật phần Báo cáo & Thống kê
         if (['manager', 'admin'].includes(user?.role)) {
             baseItems.push({
-                name: 'Báo cáo',
+                name: 'Báo cáo & Thống kê',
                 href: '/reports',
-                icon: FiBarChart2, // SỬA LỖI: Sử dụng icon đã được sửa
+                icon: FiBarChart2,
                 current: location.pathname.startsWith('/reports'),
-                roles: ['admin', 'manager']
+                roles: ['admin', 'manager'],
+                children: [
+                    {
+                        name: 'Báo cáo Hoạt động',
+                        href: '/reports/activity',
+                        current: location.pathname === '/reports/activity',
+                        roles: ['admin'],
+                        icon: FiActivity
+                    },
+                    {
+                        name: 'Báo cáo Tuân thủ',
+                        href: '/reports/compliance',
+                        current: location.pathname === '/reports/compliance',
+                        roles: ['admin', 'manager'],
+                        icon: FiShield
+                    },
+                    {
+                        name: 'Thống kê Sử dụng',
+                        href: '/reports/usage',
+                        current: location.pathname === '/reports/usage',
+                        roles: ['admin', 'manager'],
+                        icon: FiTrendingUp
+                    }
+                ]
             });
         }
 
         if (user?.role === 'admin') {
             baseItems.push(
                 { name: 'Quản lý người dùng', href: '/users', icon: FiUsers, current: location.pathname.startsWith('/users'), roles: ['admin'] },
-                { name: 'Lưu trữ', href: '/archive', icon: FiArchive, current: location.pathname === '/archive', roles: ['admin'] },
-                { name: 'Hoạt động', href: '/activity', icon: FiActivity, current: location.pathname === '/activity', roles: ['admin'] },
+                { name: 'Lưu trữ', href: '/archive', icon: FiArchive, current: location.pathname === '/archive', roles: ['admin'] },               
                 { name: 'Cài đặt', href: '/settings', icon: FiSettings, current: location.pathname === '/settings', roles: ['admin'] }
             );
         }

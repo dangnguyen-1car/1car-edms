@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 // src/components/documents/ChangeStatusModal.js
 /**
  * =================================================================
@@ -47,8 +48,7 @@ function ChangeStatusModal({ document, isOpen, onClose, onSuccess }) {
             handleClose(true);
         },
         onError: (error) => {
-            toast.error(error?.response?.data?.message || 'Lỗi khi thay đổi trạng thái.');
-            console.error('Status change error:', error);
+            toast.error(error?.response?.data?.message || 'Lỗi khi thay đổi trạng thái.');            
         }
     });
 
@@ -92,7 +92,7 @@ function ChangeStatusModal({ document, isOpen, onClose, onSuccess }) {
 
     // 6. DERIVED STATE & MEMOIZATION
     // -----------------------------------------------------------------
-    const availableStatuses = useMemo(() => getAvailableStatuses(document?.status), [document?.status]);
+    const availableStatuses = useMemo(() => getAvailableStatuses(document?.status), [document?.status, getAvailableStatuses]);
     const currentStatusInfo = useMemo(() => getStatusInfo(document?.status), [document?.status]);
     const newStatusInfo = useMemo(() => getStatusInfo(formData.newStatus), [formData.newStatus]);
 

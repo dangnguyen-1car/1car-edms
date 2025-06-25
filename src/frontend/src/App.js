@@ -29,11 +29,13 @@ const SearchPage = React.lazy(() => import('./pages/SearchPage'));
 const UploadPage = React.lazy(() => import('./pages/UploadPage'));
 const UsersPage = React.lazy(() => import('./pages/UsersPage'));
 const ArchivePage = React.lazy(() => import('./pages/ArchivePage'));
-const ActivityPage = React.lazy(() => import('./pages/ActivityPage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
-// NEW: Pending Approval Page
 const PendingApprovalPage = React.lazy(() => import('./pages/PendingApprovalPage'));
+// Report Pages
+const ActivityPage = React.lazy(() => import('./pages/ActivityPage'));
+const ComplianceReportsPage = React.lazy(() => import('./pages/ComplianceReportsPage'));
+const UsageStatisticsPage = React.lazy(() => import('./pages/UsageStatisticsPage'));
 
 // =================================================================
 // React Query Client Configuration
@@ -59,9 +61,9 @@ const queryClient = new QueryClient({
 });
 
 // =================================================================
-// Route Protection Components
+// OPTIMIZED Route Protection Component
 // =================================================================
-function ProtectedRoute({ children, requiredRole = null, requiredPermission = null }) {
+function ProtectedRoute({ children, allowedRoles = [], requiredPermission = null }) {
   const { isAuthenticated, isLoading, user, hasPermission } = useAuth();
 
   if (isLoading) {
@@ -72,30 +74,20 @@ function ProtectedRoute({ children, requiredRole = null, requiredPermission = nu
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
+  // Check if the user's role is in the allowed list
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
 
+  // Check for specific permission if required
   if (requiredPermission && !hasPermission(requiredPermission)) {
     return <Navigate to="/unauthorized" replace />;
   }
 
+  // If all checks pass, render the layout and children
   return <Layout>{children}</Layout>;
 }
 
-function RoleBasedRoute({ children, allowedRoles = [] }) {
-  const { user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <PageLoader />;
-  }
-
-  if (!user || !allowedRoles.includes(user.role)) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-
-  return <Layout>{children}</Layout>;
-}
 
 // =================================================================
 // Main App Component
@@ -114,65 +106,60 @@ function App() {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/unauthorized" element={<NotFoundPage />} />
 
-                {/* Protected Routes */}
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/documents"
-                  element={
-                    <ProtectedRoute>
-                      <DocumentsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/documents/:id"
-                  element={
-                    <ProtectedRoute>
-                      <DocumentDetailPage />
-                    </ProtectedRoute>
-                  }
-                />
-                {/* NEW: Pending Approval Route */}
-                <Route
-                  path="/documents/pending-approval"
-                  element={
-                    <ProtectedRoute>
-                      <PendingApprovalPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/search"
-                  element={
-                    <ProtectedRoute>
-                      <SearchPage />
-                    </ProtectedRoute>
-                  }
-                />
+                {/* Common Protected Routes (for all authenticated users) */}
+                <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
+                <Route path="/documents/:id" element={<ProtectedRoute><DocumentDetailPage /></ProtectedRoute>} />
+                <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
+                <Route path="/documents/pending-approval" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
 
-                {/* Role-Based Routes */}
+                {/* Role-Specific Routes */}
                 <Route
                   path="/upload"
                   element={
-                    <RoleBasedRoute allowedRoles={['admin', 'manager', 'user']}>
+                    <ProtectedRoute allowedRoles={['admin', 'manager', 'user']}>
                       <UploadPage />
-                    </RoleBasedRoute>
+                    </ProtectedRoute>
                   }
                 />
 
-                {/* Admin & Specific Permission Routes */}
+                {/* Report Routes (Admin & Manager) */}
+                <Route 
+                  path="/reports" 
+                  element={<Navigate to="/reports/activity" replace />} 
+                />
+                <Route
+                  path="/reports/activity"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <ActivityPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports/compliance"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                      <ComplianceReportsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports/usage"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                      <UsageStatisticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Admin Only Routes */}
                 <Route
                   path="/users"
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute allowedRoles={['admin']}>
                       <UsersPage />
                     </ProtectedRoute>
                   }
@@ -180,23 +167,15 @@ function App() {
                 <Route
                   path="/archive"
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute allowedRoles={['admin']}>
                       <ArchivePage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/activity"
-                  element={
-                    <ProtectedRoute requiredRole="admin">
-                      <ActivityPage />
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/settings"
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute allowedRoles={['admin']}>
                       <SettingsPage />
                     </ProtectedRoute>
                   }
@@ -216,24 +195,10 @@ function App() {
                   background: '#363636',
                   color: '#fff',
                 },
-                success: {
-                  duration: 3000,
-                  theme: {
-                    primary: 'green',
-                    secondary: 'black',
-                  },
-                },
-                error: {
-                  duration: 5000,
-                  theme: {
-                    primary: 'red',
-                    secondary: 'black',
-                  },
-                },
               }}
             />
 
-            {/* React Query Devtools - Development Only */}
+            {/* React Query Devtools */}
             {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
           </ErrorBoundary>
         </AuthProvider>
