@@ -1,14 +1,15 @@
-// src/backend/services/documentService.js - ĐÃ SỬA LỖI LOGIC
+// src/backend/services/documentService.js - ĐÃ SỬA LỖI
 
+// Các module require ở cấp cao nhất - chỉ những module an toàn, không gây phụ thuộc vòng
 const { createError } = require('../middleware/errorHandler')
 const { dbManager } = require('../config/database')
-const fs = require('fs-extra')
-const path = require('path')
+const fs = require('fs-extra') // SỬA LỖI: Thêm thư viện xử lý file
+const path = require('path') // SỬA LỖI: Thêm thư viện xử lý đường dẫn
 const PROJECT_ROOT = path.join(__dirname, '..')
 
 class DocumentService {
   // ===============================================================
-  // CÁC HÀM XỬ LÝ LẤY DANH SÁCH
+  // CÁC HÀM XỬ LÝ LẤY DANH SÁCH (ĐÃ SỬA LỖI LOGIC)
   // ===============================================================
 
   /**
@@ -24,10 +25,12 @@ class DocumentService {
       let whereClause = "WHERE d.status = 'review'"
       const params = []
 
+      // Nếu không phải admin, chỉ lấy tài liệu họ được gán là reviewer hoặc approver
       if (user.role !== 'admin') {
         whereClause += ' AND (d.reviewer_id = ? OR d.approver_id = ?)'
         params.push(user.id, user.id)
       }
+      // Nếu là admin, không thêm điều kiện này để họ thấy tất cả.
 
       if (department) {
         whereClause += ' AND d.department = ?'
@@ -46,12 +49,17 @@ class DocumentService {
       const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'updated_at'
       const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
 
-      // *** PHỤC HỒI LOGIC QUAN TRỌNG TẠI ĐÂY ***
+      // *** SỬA LỖI TẠI ĐÂY: Cập nhật câu lệnh SQL để gán vai trò chính xác cho admin ***
       const query = `
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name,
                        JULIANDAY('now') - JULIANDAY(d.updated_at) as days_pending,
-                       (CASE WHEN d.reviewer_id = ? THEN 'reviewer' WHEN d.approver_id = ? THEN 'approver' ELSE 'observer' END) as user_role_in_workflow
+                       (CASE
+                          WHEN ? = 'admin' THEN 'approver'
+                          WHEN d.reviewer_id = ? THEN 'reviewer'
+                          WHEN d.approver_id = ? THEN 'approver'
+                          ELSE 'observer'
+                        END) as user_role_in_workflow
                 FROM documents d
                 LEFT JOIN users u_author ON d.author_id = u_author.id
                 LEFT JOIN users u_reviewer ON d.reviewer_id = u_reviewer.id
@@ -60,13 +68,15 @@ class DocumentService {
                 ORDER BY d.${sortColumn} ${sortDirection}
                 LIMIT ? OFFSET ?
             `
-      const queryParams = [user.id, user.id, ...params, limit, (page - 1) * limit]
-      // *** KẾT THÚC PHẦN PHỤC HỒI ***
+      // Cập nhật tham số cho câu lệnh query
+      const queryParams = [user.role, user.id, user.id, ...params, limit, (page - 1) * limit]
+      // *** KẾT THÚC PHẦN SỬA LỖI ***
 
       const documents = await dbManager.all(query, queryParams)
-      // Logic đếm tổng số trang vẫn giữ nguyên
       const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereClause}`
+      // Tham số cho countQuery không cần user.role và user.id lặp lại
       const countParams = [...params]
+
       const totalResult = await dbManager.get(countQuery, countParams)
       const total = totalResult.count
 

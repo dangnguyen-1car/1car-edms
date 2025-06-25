@@ -19,10 +19,14 @@ function WorkflowActionButtons({ document, currentUser }) {
   // Logic kiểm tra quyền hành động
   // =================================================================
 
-  // Kiểm tra quyền hành động của user hiện tại
-  const canPerformActions = (document.user_role_in_workflow === 'reviewer' || 
-                            document.user_role_in_workflow === 'approver') &&
-                           !isLoading;
+  // *** SỬA LỖI TẠI ĐÂY: Thêm điều kiện kiểm tra vai trò 'admin' của currentUser ***
+  // Kiểm tra quyền hành động của user hiện tại, cho phép admin thực hiện mọi hành động
+  const canPerformActions = (
+    currentUser?.role === 'admin' || // Admin luôn có quyền
+    document.user_role_in_workflow === 'reviewer' || 
+    document.user_role_in_workflow === 'approver'
+  ) && !isLoading;
+  // *** KẾT THÚC PHẦN SỬA LỖI ***
 
   // =================================================================
   // Event Handlers
