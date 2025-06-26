@@ -15,9 +15,8 @@ import {
     FiTag, FiSearch, FiRefreshCw, FiAlertCircle
 } from 'react-icons/fi';
 import { documentAPI } from '../../api/documentApi';
-import { dateTime, numeric } from '../../utils/formatters';
+import { dateTime } from '../../utils/formatters';
 import LoadingSpinner from '../common/LoadingSpinner';
-import ErrorMessage from '../common/ErrorMessage';
 
 // SỬA LỖI 2.1: Tạo một custom hook (hoặc hàm) để debounce giá trị
 // Giúp trì hoãn việc gọi API khi người dùng đang gõ
@@ -103,8 +102,7 @@ function RelatedDocuments({ documentId, onDocumentSelect }) {
         e.stopPropagation();
         try {
             await documentAPI.downloadDocument(docId);
-        } catch (downloadError) {
-            console.error('Download error:', downloadError);
+        } catch (downloadError) {            
         }
     };
 

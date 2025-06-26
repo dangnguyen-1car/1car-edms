@@ -50,8 +50,7 @@ function VersionCreateModal({ isOpen, onClose, documentId, onSuccess }) {
       } else {
         throw new Error(response.message || 'Lỗi tạo phiên bản mới');
       }
-    } catch (error) {
-      console.error('Error creating version:', error);
+    } catch (error) {      
       toast.error(error.message || 'Lỗi tạo phiên bản mới. Vui lòng thử lại.');
       setErrors({ general: error.message });
     } finally {

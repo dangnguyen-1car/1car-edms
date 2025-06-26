@@ -25,7 +25,7 @@ module.exports = {
   rules: {
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'warn',
-    "camelcase": "off"
+    camelcase: 'off'
   },
   overrides: [
     {
@@ -55,5 +55,5 @@ module.exports = {
     }
   },
   // Bỏ qua các thư mục không cần lint
-  ignorePatterns: ["node_modules/", "build/", "dist/", "public/"]
-};
+  ignorePatterns: ['node_modules/', 'build/', 'dist/', 'public/']
+}

@@ -9,7 +9,6 @@
 
 const { dbManager } = require('../config/database')
 const { logError, appLogger } = require('../utils/logger')
-const config = require('../config')
 const AuditLogModel = require('../models/AuditLog')
 
 class AuditService {

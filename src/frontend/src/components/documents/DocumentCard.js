@@ -1,17 +1,21 @@
 // src/frontend/src/components/documents/DocumentCard.js
-import React from 'react';
-import { FiFileText, FiUser, FiCalendar, FiEye, FiDownload, FiEdit, FiTag, FiTrash2, FiStar } from 'react-icons/fi';
+import React, { useState } from 'react'; // Import useState
+import { FiFileText, FiUser, FiCalendar, FiEye, FiDownload, FiEdit, FiTag, FiTrash2, FiStar, FiInfo } from 'react-icons/fi'; // Add FiInfo
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { documentService } from '../../services/documentService';
 import { favoritesService } from '../../services/favoritesService';
 import { toast } from 'react-hot-toast';
 import { getDocumentTypeDisplay, getStatusDisplay, getStatusBadgeColor } from '../../utils/documentUtils';
+import ViewMetadataModal from './ViewMetadataModal'; // Add import
 
 function DocumentCard({ document, onViewClick, onEditClick, onDeleteClick }) {
     // TẤT CẢ HOOKS ĐƯỢC GỌI Ở CẤP CAO NHẤT
     const { user, hasPermission, canAccessDepartment } = useAuth();
     const queryClient = useQueryClient();
+
+    // Thêm state trong component
+    const [showMetadataModal, setShowMetadataModal] = useState(false);
 
     // Mutation cho toggle favorite với Optimistic Update
     const toggleFavoriteMutation = useMutation({
@@ -242,6 +246,18 @@ function DocumentCard({ document, onViewClick, onEditClick, onDeleteClick }) {
                     )}
                 </div>
                 <div className="flex items-center gap-1">
+                    {/* Thêm nút trong phần action buttons */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMetadataModal(true);
+                        }}
+                        className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Xem chi tiết metadata"
+                    >
+                        <FiInfo className="w-4 h-4" />
+                    </button>
+
                     {canEdit() && (
                         <button
                             onClick={(e) => {
@@ -268,6 +284,13 @@ function DocumentCard({ document, onViewClick, onEditClick, onDeleteClick }) {
                     )}
                 </div>
             </div>
+
+            {/* Thêm modal ở cuối component */}
+            <ViewMetadataModal
+                isOpen={showMetadataModal}
+                onClose={() => setShowMetadataModal(false)}
+                document={document}
+            />
         </div>
     );
 }

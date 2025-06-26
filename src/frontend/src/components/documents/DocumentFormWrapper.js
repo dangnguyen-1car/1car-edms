@@ -39,8 +39,7 @@ function DocumentFormWrapper({
         } else {
           throw new Error(response.message || 'Lỗi tải thông tin tài liệu');
         }
-      } catch (error) {
-        console.error('Lỗi tải tài liệu để chỉnh sửa:', error);
+      } catch (error) {        
         toast.error(error.message || 'Lỗi tải thông tin tài liệu');
         onClose();
       } finally {

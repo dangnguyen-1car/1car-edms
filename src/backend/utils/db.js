@@ -8,7 +8,6 @@
 
 const { dbManager } = require('../config/database')
 const { logger } = require('../config')
-const crypto = require('crypto')
 
 /**
  * Database utility class with common operations

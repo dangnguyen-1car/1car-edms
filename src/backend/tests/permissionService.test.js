@@ -1,7 +1,5 @@
 // src/backend/tests/permissionService.test.js
 const PermissionService = require('../services/permissionService')
-const User = require('../models/User')
-const Document = require('../models/Document')
 const { dbManager } = require('../config/database')
 
 // Mock dbManager

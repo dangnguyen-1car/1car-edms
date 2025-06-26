@@ -1,6 +1,6 @@
 // src/frontend/src/components/documents/FileUploadArea.js
 import React, { useRef, useState } from 'react';
-import { FiUpload, FiFile, FiX, FiCheck, FiLoader } from 'react-icons/fi';
+import { FiUpload, FiX, FiCheck, FiLoader } from 'react-icons/fi';
 
 // --- Constants ---
 const ALLOWED_FILE_TYPES = [

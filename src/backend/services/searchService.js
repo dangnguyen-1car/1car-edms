@@ -29,7 +29,7 @@ class SearchService {
   static sanitizeFTSQuery (query) {
     const cleanedQuery = query
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s\-\.]/gu, ' ')
+      .replace(/[^\p{L}\p{N}\s\-.]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim()
     if (!cleanedQuery) return ''

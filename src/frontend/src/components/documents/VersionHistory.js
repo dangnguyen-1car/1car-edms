@@ -10,7 +10,7 @@
 import React, { useState } from 'react';
 import {
     FiClock, FiUser, FiFileText, FiEye, FiDownload, FiGitBranch,
-    FiEdit, FiCheckCircle, FiXCircle, FiAlertCircle, FiLoader
+    FiEdit, FiCheckCircle, FiXCircle, FiLoader
 } from 'react-icons/fi';
 import { dateTime, numeric } from '../../utils/formatters';
 import { documentAPI } from '../../api/documentApi';
@@ -191,11 +191,11 @@ function VersionHistory({ document, versions = [], isLoading = false, error = nu
     };
 
     const handleDownloadVersion = async (version) => {
-        try { await documentAPI.downloadDocumentVersion(document.id, version.id); } catch (error) { console.error('Version download failed:', error); }
+        try { await documentAPI.downloadDocumentVersion(document.id, version.id); } catch (error) {  }
     };
 
     const handleViewVersion = async (version) => {
-        try { console.log('Viewing version:', version); } catch (error) { console.error('Version view failed:', error); }
+        try {  } catch (error) {  }
     };
 
     if (isLoading) return <HistoryLoading />;

@@ -184,8 +184,7 @@ export function AuthProvider({ children }) {
         try {
             const accessToken = Cookies.get('accessToken');
             if (accessToken) await authService.logout(accessToken);
-        } catch (error) {
-            console.error('Logout API failed:', error);
+        } catch (error) {            
         } finally {
             Cookies.remove('accessToken', { path: '/' });
             Cookies.remove('refreshToken', { path: '/' });
@@ -216,8 +215,7 @@ export function AuthProvider({ children }) {
             } else {
                 throw new Error('Token refresh failed on server');
             }
-        } catch (error) {
-            console.error('Token refresh process failed:', error);
+        } catch (error) {            
             await logout();
             throw error;
         }
@@ -246,11 +244,10 @@ export function AuthProvider({ children }) {
                     await refreshAuthToken();
                 }
             } catch (error) {
-                console.warn('Access token verification failed, attempting refresh...');
+                
                 try {
                     await refreshAuthToken();
-                } catch (refreshError) {
-                    console.error('Final auth attempt failed after refresh.');
+                } catch (refreshError) {                    
                 }
             }
         } else {

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom'; // <<< THÊM DÒNG NÀY
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { FiPlus, FiFilter, FiRefreshCw, FiGrid, FiList, FiFileText } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
@@ -42,7 +42,6 @@ import { documentTypeOptions, departmentOptions } from '../utils/documentUtils';
 function DocumentsPage() {
   // === HOOKS & STATE MANAGEMENT ===
   const { hasPermission } = useAuth();
-  const queryClient = useQueryClient();
   const navigate = useNavigate(); // <<< 2. KHỞI TẠO HOOK
 
   // Modal states

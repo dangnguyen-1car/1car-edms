@@ -9,7 +9,6 @@
 const winston = require('winston')
 const path = require('path')
 const fs = require('fs-extra')
-const crypto = require('crypto')
 
 // Environment configuration
 const NODE_ENV = process.env.NODE_ENV || 'development'

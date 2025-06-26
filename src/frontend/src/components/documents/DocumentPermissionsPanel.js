@@ -20,13 +20,11 @@ import SkeletonLoader from '../common/SkeletonLoader';
 
 import { documentAPI } from '../../api/documentApi';
 import { userAPI } from '../../api/userApi';
-import { useAuth } from '../../contexts/AuthContext';
 
 const DocumentPermissionsPanel = ({ documentId }) => {
   // =================================================================
   // HOOKS INITIALIZATION (useState, useContext, useQueryClient)
-  // =================================================================
-  const { } = useAuth();
+  // =================================================================  
   const queryClient = useQueryClient();
 
   // State cho form thêm quyền mới

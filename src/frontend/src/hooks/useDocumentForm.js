@@ -29,8 +29,7 @@ export function useDocumentForm(
         if (typeof initialData.recipients === 'string' && initialData.recipients.trim().startsWith('[')) {
             try {
                 recipientsArray = JSON.parse(initialData.recipients);
-            } catch (e) {
-                console.error("Lỗi phân tích cú pháp chuỗi recipients:", initialData.recipients, e);
+            } catch (e) {                
                 recipientsArray = []; // Mặc định thành mảng rỗng nếu phân tích lỗi
             }
         } else if (Array.isArray(initialData.recipients)) {

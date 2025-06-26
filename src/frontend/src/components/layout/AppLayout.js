@@ -9,7 +9,7 @@ function AppLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Lấy thông tin người dùng từ AuthContext để truyền vào các component con
-  const { user } = useAuth();
+  useAuth();
 
   // Hàm được gọi bởi Header khi nhấn nút menu
   const handleMenuClick = () => {

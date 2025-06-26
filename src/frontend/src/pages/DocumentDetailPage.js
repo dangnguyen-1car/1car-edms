@@ -17,17 +17,17 @@ import WorkflowHistory from '../components/documents/WorkflowHistory';
 import RelatedDocuments from '../components/documents/RelatedDocuments';
 import DocumentPermissionsPanel from '../components/documents/DocumentPermissionsPanel';
 import NewVersionModal from '../components/documents/NewVersionModal';
-import ApprovalModal from '../components/documents/ApprovalModal';
 import ShareDocumentModal from '../components/documents/ShareDocumentModal';
-import ChangeStatusModal from '../components/documents/ChangeStatusModal';
 import VersionComparisonModal from '../components/documents/VersionComparisonModal';
 import ErrorMessage from '../components/common/ErrorMessage';
 import Breadcrumb from '../components/common/Breadcrumb';
+import WorkflowActionModal from '../components/documents/WorkflowActionModal'; // Import WorkflowActionModal
 
 // API & Context Imports
 import { documentAPI } from '../api/documentApi';
 import { favoritesService } from '../services/favoritesService';
 import { useAuth } from '../contexts/AuthContext';
+import { useWorkflowActions } from '../hooks/useWorkflowActions'; // Import hook xử lý workflow
 
 function DocumentDetailPage() {
     // =================================================================
@@ -37,14 +37,15 @@ function DocumentDetailPage() {
     const navigate = useNavigate();
     const { user, hasPermission } = useAuth();
     const queryClient = useQueryClient();
+    const { processWorkflowAction, isLoading: isProcessingWorkflow } = useWorkflowActions(); // Sử dụng hook xử lý workflow
 
     const [activeTab, setActiveTab] = useState('viewer');
     const [showNewVersionModal, setShowNewVersionModal] = useState(false);
-    const [showApprovalModal, setShowApprovalModal] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
-    const [showStatusModal, setShowStatusModal] = useState(false);
     const [showVersionComparisonModal, setShowVersionComparisonModal] = useState(false);
     const [comparisonData, setComparisonData] = useState(null);
+    // State mới cho WorkflowActionModal
+    const [workflowModalState, setWorkflowModalState] = useState({ isOpen: false, action: '', document: null });
 
     // =================================================================
     // DATA FETCHING (useQuery)
@@ -144,7 +145,7 @@ function DocumentDetailPage() {
     // =================================================================
     const versions = useMemo(() => versionsData?.data?.versions || [], [versionsData]);
     const workflowHistory = useMemo(() => workflowData?.data?.workflowHistory?.history || [], [workflowData]);
-    const isLoading = documentLoading || versionsLoading || workflowLoading;
+    const isLoading = documentLoading || versionsLoading || workflowLoading || isProcessingWorkflow; // Thêm isProcessingWorkflow vào isLoading
 
     // =================================================================
     // PERMISSION CHECKS (Helper functions for rendering)
@@ -165,7 +166,6 @@ function DocumentDetailPage() {
         if (!document || !user) return false;
         return hasPermission('CREATE_VERSION') || (document.author_id === user.id && document.status === 'published');
     };
-
 
     const canManagePermissions = () => {
         if (!document || !user) return false;
@@ -213,12 +213,35 @@ function DocumentDetailPage() {
                 }
             );
         } catch (error) {
-            
+            // Error handled by toast.promise
         }
     };
 
     const handlePrint = () => {
         window.print();
+    };
+
+    // Hàm mở WorkflowActionModal
+    const openWorkflowModal = (action) => {
+        setWorkflowModalState({ isOpen: true, action, document });
+    };
+
+    // Hàm đóng WorkflowActionModal
+    const closeWorkflowModal = () => {
+        setWorkflowModalState({ isOpen: false, action: '', document: null });
+        refetchAllData(); // Refresh data sau khi thực hiện hành động workflow
+    };
+
+    // Hàm xử lý khi xác nhận hành động từ WorkflowActionModal
+    const handleWorkflowActionConfirm = (comment) => {
+        if (workflowModalState.document) {
+            processWorkflowAction({
+                documentId: workflowModalState.document.id,
+                action: workflowModalState.action,
+                comment: comment.trim()
+            });
+            closeWorkflowModal(); // Đóng modal sau khi gửi hành động
+        }
     };
 
     // =================================================================
@@ -444,13 +467,39 @@ function DocumentDetailPage() {
                                 </button>
                             )}
 
+                            {/* Sử dụng WorkflowActionModal cho hành động phê duyệt */}
                             {canApprove() && (
                                 <button
-                                    onClick={() => setShowApprovalModal(true)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                                    onClick={() => openWorkflowModal('approve')}
+                                    disabled={isProcessingWorkflow}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <FiCheckCircle className="w-4 h-4" />
                                     Phê duyệt
+                                </button>
+                            )}
+
+                            {/* Nút Từ chối */}
+                            {(document.user_role_in_workflow === 'reviewer' || document.user_role_in_workflow === 'approver') && (
+                                <button
+                                    onClick={() => openWorkflowModal('reject')}
+                                    disabled={isProcessingWorkflow}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <FiAlertCircle className="w-4 h-4" />
+                                    Từ chối
+                                </button>
+                            )}
+
+                             {/* Nút Yêu cầu chỉnh sửa */}
+                            {(document.user_role_in_workflow === 'reviewer' || document.user_role_in_workflow === 'approver') && (
+                                <button
+                                    onClick={() => openWorkflowModal('request_changes')}
+                                    disabled={isProcessingWorkflow}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <FiEdit className="w-4 h-4" />
+                                    Yêu cầu chỉnh sửa
                                 </button>
                             )}
 
@@ -505,29 +554,11 @@ function DocumentDetailPage() {
                     />
                 )}
 
-                {showApprovalModal && (
-                    <ApprovalModal
-                        document={document}
-                        isOpen={showApprovalModal}
-                        onClose={() => setShowApprovalModal(false)}
-                        onSuccess={refetchAllData}
-                    />
-                )}
-
                 {showShareModal && (
                     <ShareDocumentModal
                         document={document}
                         isOpen={showShareModal}
                         onClose={() => setShowShareModal(false)}
-                    />
-                )}
-
-                {showStatusModal && (
-                    <ChangeStatusModal
-                        document={document}
-                        isOpen={showStatusModal}
-                        onClose={() => setShowStatusModal(false)}
-                        onSuccess={refetchAllData}
                     />
                 )}
 
@@ -539,6 +570,18 @@ function DocumentDetailPage() {
                             setShowVersionComparisonModal(false);
                             setComparisonData(null);
                         }}
+                    />
+                )}
+
+                {/* Workflow Action Modal chung */}
+                {workflowModalState.isOpen && (
+                    <WorkflowActionModal
+                        document={workflowModalState.document}
+                        action={workflowModalState.action}
+                        isOpen={workflowModalState.isOpen}
+                        onClose={closeWorkflowModal}
+                        onConfirm={handleWorkflowActionConfirm}
+                        isLoading={isProcessingWorkflow}
                     />
                 )}
             </div>

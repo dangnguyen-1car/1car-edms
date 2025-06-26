@@ -1,5 +1,5 @@
 // src/frontend/src/components/common/FilePreviewModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // SỬA ĐỔI: Thêm useCallback
 import { FiX, FiDownload, FiLoader, FiAlertCircle, FiFile, FiEye } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
@@ -9,45 +9,43 @@ function FilePreviewModal({ isOpen, onClose, fileInfo }) {
   const [error, setError] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  // --- Effects ---
+  // --- Helper Functions (SỬA ĐỔI: Bọc trong useCallback) ---
+  const resetState = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    setPreviewUrl(null);
+  }, []); // Mảng dependency rỗng vì hàm này không phụ thuộc vào props hay state nào
+
+  const loadPreview = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (fileInfo.url) {
+        setPreviewUrl(fileInfo.url);
+      } else if (fileInfo.previewUrl) {
+        setPreviewUrl(fileInfo.previewUrl);
+      } else {
+        const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+        const fileId = fileInfo.id || fileInfo.filename;
+        setPreviewUrl(`${baseUrl}/files/preview/${fileId}`);
+      }
+    } catch (err) {
+      setError('Không thể tải xem trước file');
+    } finally {
+      setLoading(false);
+    }
+  }, [fileInfo]); // Phụ thuộc vào fileInfo
+
+  // --- Effects (SỬA ĐỔI: Cập nhật mảng dependency) ---
   useEffect(() => {
     if (isOpen && fileInfo) {
       loadPreview();
     } else {
       resetState();
     }
-  }, [isOpen, fileInfo]);
+  }, [isOpen, fileInfo, loadPreview, resetState]);
 
-  // --- Helper Functions ---
-  const resetState = () => {
-    setLoading(true);
-    setError(null);
-    setPreviewUrl(null);
-  };
-
-  const loadPreview = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Kiểm tra xem có URL preview không
-      if (fileInfo.url) {
-        setPreviewUrl(fileInfo.url);
-      } else if (fileInfo.previewUrl) {
-        setPreviewUrl(fileInfo.previewUrl);
-      } else {
-        // Tạo URL preview từ file path hoặc ID
-        const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
-        const fileId = fileInfo.id || fileInfo.filename;
-        setPreviewUrl(`${baseUrl}/files/preview/${fileId}`);
-      }
-    } catch (err) {
-      console.error('Error loading preview:', err);
-      setError('Không thể tải xem trước file');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDownload = async () => {
     try {
@@ -64,8 +62,7 @@ function FilePreviewModal({ isOpen, onClose, fileInfo }) {
       document.body.removeChild(link);
 
       toast.success('Đang tải xuống file...');
-    } catch (error) {
-      console.error('Download error:', error);
+    } catch (error) {      
       toast.error('Lỗi tải xuống file');
     }
   };

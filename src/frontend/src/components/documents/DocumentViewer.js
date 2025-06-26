@@ -93,8 +93,7 @@ function DocumentViewer({ document, onError }) {
                 } else {
                     if (isMounted) setError('Định dạng file không được hỗ trợ xem trực tuyến.');
                 }
-            } catch (err) {
-                console.error('Error loading document content:', err);
+            } catch (err) {                
                 const errorMessage = err.response?.data?.message || 'Không thể tải nội dung tài liệu.';
                 if (isMounted) {
                     setError(errorMessage);
@@ -113,7 +112,7 @@ function DocumentViewer({ document, onError }) {
         return () => {
             isMounted = false;
         };
-    }, [document?.id, onError]); // Thêm onError vào dependency array
+    }, [document.file_name, document.id, document.mime_type, onError]); // Thêm onError vào dependency array
 
 
     // 7. EVENT HANDLERS
@@ -125,7 +124,7 @@ function DocumentViewer({ document, onError }) {
     };
 
     const onDocumentLoadError = (error) => {
-        console.error('PDF load error:', error);
+        
         const errorMessage = 'Không thể tải file PDF. File có thể bị lỗi hoặc không được hỗ trợ.';
         setError(errorMessage);
         onError?.(new Error(errorMessage));
@@ -142,8 +141,7 @@ function DocumentViewer({ document, onError }) {
     const handleDownload = async () => {
         try {
             await documentAPI.downloadDocument(document.id);
-        } catch (downloadError) {
-            console.error('Download error:', downloadError);
+        } catch (downloadError) {            
             onError?.(new Error('Tải xuống tài liệu thất bại.'));
         }
     };

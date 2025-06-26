@@ -170,8 +170,7 @@ function UploadPage() {
       } else {
         throw new Error(response.data.message || 'Upload thất bại');
       }
-    } catch (error) {
-      console.error('Upload error:', error);
+    } catch (error) {      
       toast.error(error.response?.data?.message || error.message || 'Đã xảy ra lỗi khi tải lên file');
     } finally {
       setUploading(false);

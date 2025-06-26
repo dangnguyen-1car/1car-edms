@@ -8,11 +8,11 @@
 
 import React, { useState } from 'react';
 import {
-    FiX, FiGitBranch, FiClock, FiUser, FiFileText,
-    FiInfo, FiDownload, FiEye, FiAlertCircle, FiLoader
+    FiGitBranch, FiClock, FiUser, FiFileText,
+    FiInfo, FiDownload, FiAlertCircle, FiLoader
 } from 'react-icons/fi';
 import ReactDiffViewer from 'react-diff-viewer-continued';
-import { dateTime, numeric } from '../../utils/formatters';
+import { dateTime } from '../../utils/formatters';
 import Modal from '../common/Modal';
 
 // --- Constants ---

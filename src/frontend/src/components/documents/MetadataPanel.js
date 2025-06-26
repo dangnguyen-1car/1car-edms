@@ -8,7 +8,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import {
-    FiUser, FiCalendar, FiClock, FiEye, FiEdit,
+    FiEye, FiEdit,
     FiArchive, FiRefreshCw, FiChevronDown, FiChevronRight, FiInfo
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';

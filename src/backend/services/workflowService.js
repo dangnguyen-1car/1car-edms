@@ -303,7 +303,6 @@ class WorkflowService {
     // Ánh xạ workflowAction sang targetState hoặc permission action
     // Ví dụ: 'APPROVE' có thể tương ứng với việc chuyển sang 'published'
     // và yêu cầu quyền 'APPROVE_DOCUMENT'
-    const { ipAddress = null, userAgent = null, sessionId = null } = context
     try {
       const document = await dbManager.get('SELECT * FROM documents WHERE id = ?', [documentId])
       if (!document) return { allowed: false, reason: 'Document not found' }
@@ -507,11 +506,12 @@ class WorkflowService {
           ? { allowed: true, reason: 'Author or reviewer can archive from draft/review' }
           : { allowed: false, reason: 'Only author or reviewer can archive from draft/review' }
 
-      default:
+      default:{
         // Kiểm tra quyền chung cho các action không cụ thể ở trên
         const genericPermissionAction = `TRANSITION_${currentStatus.toUpperCase()}_TO_${targetState.toUpperCase()}`
         const genericPermCheck = await PermissionService.checkPermission(user.id, genericPermissionAction, 'workflow', document.id)
         return genericPermCheck
+      }
     }
   }
 
@@ -574,7 +574,6 @@ class WorkflowService {
    * @private
    */
   static async handlePostTransitionActions (document, fromStatus, toStatus, userId, comment, context = {}) { //
-    const { ipAddress = null, userAgent = null, sessionId = null } = context
     try {
       appLogger.info(`Handling post-transition for doc ${document.id}: ${fromStatus} -> ${toStatus}`, { userId })
 

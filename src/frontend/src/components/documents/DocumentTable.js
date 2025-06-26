@@ -1,11 +1,12 @@
 // src/frontend/src/components/documents/DocumentTable.js
-import React from 'react';
-import { FiEye, FiEdit, FiDownload, FiTrash2, FiChevronUp, FiChevronDown, FiExternalLink } from 'react-icons/fi';
+import React, { useState } from 'react'; // Import useState
+import { FiEye, FiEdit, FiDownload, FiTrash2, FiChevronUp, FiChevronDown, FiExternalLink, FiInfo } from 'react-icons/fi'; // Add FiInfo
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { documentService } from '../../services/documentService';
 import { getStatusBadgeColor, getTypeBadgeColor, getStatusDisplay } from '../../utils/documentUtils';
 import WorkflowActionButtons from './WorkflowActionButtons';
+import ViewMetadataModal from './ViewMetadataModal'; // Import ViewMetadataModal
 
 function DocumentTable({
   documents,
@@ -17,6 +18,7 @@ function DocumentTable({
   context = 'default',
 }) {
   const { user, hasPermission, canAccessDepartment } = useAuth();
+  const [selectedDocumentForMetadata, setSelectedDocumentForMetadata] = useState(null); // Add state
 
   const canView = (document) => {
     if (!user) return document.security_level === 'public';
@@ -125,22 +127,33 @@ function DocumentTable({
       <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm text-gray-900 truncate max-w-32" title={document.author_name}>{document.author_name || 'N/A'}</div></td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center space-x-1">
-          {canView(document) && 
+          {canView(document) &&
             <button onClick={(e) => { e.stopPropagation(); if (onViewClick) onViewClick(document.id); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Xem chi tiết">
               <FiEye size={16} />
             </button>
           }
-          {canEdit(document) && 
+          {/* Thêm cột action với nút metadata */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedDocumentForMetadata(document);
+            }}
+            className="p-1 text-gray-400 hover:text-blue-600"
+            title="Xem metadata"
+          >
+            <FiInfo className="w-4 h-4" />
+          </button>
+          {canEdit(document) &&
             <button onClick={(e) => { e.stopPropagation(); if (onEditClick) onEditClick(document.id); }} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Chỉnh sửa">
               <FiEdit size={16} />
             </button>
           }
-          {canView(document) && 
+          {canView(document) &&
             <button onClick={(e) => handleDownload(e, document)} className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Tải xuống">
               <FiDownload size={16} />
             </button>
           }
-          {canDelete(document) && 
+          {canDelete(document) &&
             <button onClick={(e) => { e.stopPropagation(); if (onDeleteClick) onDeleteClick(document); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Xóa tài liệu">
               <FiTrash2 size={16} />
             </button>
@@ -187,6 +200,14 @@ function DocumentTable({
           </tbody>
         </table>
       </div>
+
+      {selectedDocumentForMetadata && (
+        <ViewMetadataModal
+          isOpen={!!selectedDocumentForMetadata}
+          onClose={() => setSelectedDocumentForMetadata(null)}
+          document={selectedDocumentForMetadata}
+        />
+      )}
     </div>
   );
 }

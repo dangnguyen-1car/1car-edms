@@ -12,8 +12,7 @@ export const authService = {
     try {
       const response = await api.post('/auth/login', { email, password });
       return response.data;
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra email và mật khẩu.');
     }
   },
@@ -22,8 +21,7 @@ export const authService = {
     try {
       const response = await api.post('/auth/logout');
       return response.data;
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Lỗi đăng xuất. Vui lòng thử lại.');
     }
   },
@@ -32,8 +30,7 @@ export const authService = {
     try {
       const response = await api.post('/auth/refresh', { refreshToken });
       return response.data;
-    } catch (error) {
-      console.error('Refresh token error:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
   },
@@ -42,8 +39,7 @@ export const authService = {
     try {
       const response = await api.post('/auth/verify-token', { token });
       return response.data;
-    } catch (error) {
-      console.error('Verify token error:', error);
+    } catch (error) {      
       // Return a structured error response instead of throwing
       return {
         success: false,
@@ -56,8 +52,7 @@ export const authService = {
     try {
       const response = await api.get('/auth/profile');
       return response.data;
-    } catch (error) {
-      console.error('Get profile error:', error);
+    } catch (error) {      
       // Return structured error response
       return {
         success: false,
@@ -70,8 +65,7 @@ export const authService = {
     try {
       const response = await api.put('/auth/profile', updateData);
       return response.data;
-    } catch (error) {
-      console.error('Update profile error:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể cập nhật thông tin người dùng. Vui lòng thử lại.');
     }
   },
@@ -83,8 +77,7 @@ export const authService = {
         password: newPassword
       });
       return response.data;
-    } catch (error) {
-      console.error('Change password error:', error);
+    } catch (error) {      
       throw new Error(error.response?.data?.message || 'Không thể thay đổi mật khẩu. Vui lòng kiểm tra mật khẩu hiện tại và thử lại.');
     }
   }

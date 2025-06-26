@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FiArchive, FiRotateCcw, FiAlertCircle, FiSearch, FiFilter, FiFileText, FiCalendar, FiUser, FiRefreshCw } from 'react-icons/fi';
+import { FiArchive, FiRotateCcw, FiAlertCircle, FiFilter, FiRefreshCw } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -70,8 +70,7 @@ function ArchivePage() {
   });
 
   useEffect(() => {
-    if (isError && error) {
-      console.error("Error fetching archived documents:", error);
+    if (isError && error) {      
       toast.error(error.response?.data?.message || error.message || "Lỗi tải tài liệu lưu trữ.");
     }
   }, [isError, error]);

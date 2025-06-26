@@ -37,10 +37,8 @@ export function useWorkflowActions() {
     onError: (error) => {
       // Hiển thị thông báo lỗi
       const errorMessage = error.message || 'Có lỗi xảy ra khi xử lý tài liệu';
-      toast.error(errorMessage);
-      
-      // Log error để debug
-      console.error('Workflow action failed:', error);
+      toast.error(errorMessage);  
+            
     }
   });
 

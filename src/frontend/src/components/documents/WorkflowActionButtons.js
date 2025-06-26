@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { FiEye, FiCheck, FiX, FiEdit3 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import { useWorkflowActions } from '../../hooks/useWorkflowActions';
-import DocumentApprovalModal from './DocumentApprovalModal';
+import WorkflowActionModal from './WorkflowActionModal'; // Thay thế DocumentApprovalModal bằng WorkflowActionModal
 
 /**
  * Component tái sử dụng cho các nút hành động workflow
@@ -13,7 +13,8 @@ import DocumentApprovalModal from './DocumentApprovalModal';
  */
 function WorkflowActionButtons({ document, currentUser }) {
   const { processWorkflowAction, isLoading } = useWorkflowActions();
-  const [showCommentModal, setShowCommentModal] = useState(null);
+  // Cập nhật state để quản lý trạng thái modal chung
+  const [modalState, setModalState] = useState({ isOpen: false, action: '', document: null });
 
   // =================================================================
   // Logic kiểm tra quyền hành động
@@ -32,36 +33,38 @@ function WorkflowActionButtons({ document, currentUser }) {
   // Event Handlers
   // =================================================================
 
-  // Xử lý hành động phê duyệt (không cần comment)
+  // Mở modal với hành động và tài liệu cụ thể
+  const openModal = (action, doc) => {
+    setModalState({ isOpen: true, action, document: doc });
+  };
+
+  // Đóng modal
+  const closeModal = () => {
+    setModalState({ isOpen: false, action: '', document: null });
+  };
+
+  // Xử lý hành động phê duyệt (không cần comment, nhưng vẫn mở modal để thống nhất)
   const handleApprove = () => {
-    processWorkflowAction({
-      documentId: document.id,
-      action: 'approve'
-    });
+    openModal('approve', document);
   };
 
   // Xử lý hành động cần comment (reject, request_changes)
   const handleActionWithComment = (action) => {
-    setShowCommentModal({ action, documentId: document.id });
+    openModal(action, document);
   };
 
   // Submit comment và thực hiện hành động - CẬP NHẬT để nhận comment từ Modal
-  const handleSubmitComment = (comment) => {
-    const { action, documentId } = showCommentModal;
+  const handleSubmitAction = (comment) => {
+    const { action, document: docToProcess } = modalState;
     
     processWorkflowAction({
-      documentId,
+      documentId: docToProcess.id,
       action,
       comment: comment.trim()
     });
 
-    // Đóng modal
-    setShowCommentModal(null);
-  };
-
-  // Đóng modal
-  const handleCloseModal = () => {
-    setShowCommentModal(null);
+    // Đóng modal sau khi xử lý
+    closeModal();
   };
 
   // =================================================================
@@ -117,12 +120,12 @@ function WorkflowActionButtons({ document, currentUser }) {
       </div>
 
       {/* Modal chung cho tất cả hành động cần comment */}
-      <DocumentApprovalModal
-        isOpen={showCommentModal !== null}
-        onClose={handleCloseModal}
-        document={document}
-        action={showCommentModal?.action}
-        onConfirm={handleSubmitComment}
+      <WorkflowActionModal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        action={modalState.action}
+        document={modalState.document}
+        onConfirm={handleSubmitAction} // Sử dụng handleSubmitAction để xử lý từ modal
         isLoading={isLoading}
       />
     </>

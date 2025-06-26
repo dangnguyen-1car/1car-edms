@@ -1,10 +1,9 @@
 // src/frontend/src/pages/PendingApprovalPage.js
-import React, { useState, useCallback, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FiClock, FiFilter, FiRefreshCw } from 'react-icons/fi';
 import { documentService } from '../services/documentService';
 import { PageLoader } from '../components/common/LoadingSpinner';
-import { toast } from 'react-hot-toast';
 
 import SearchFilters from '../components/documents/SearchFilters';
 import DocumentTable from '../components/documents/DocumentTable';
@@ -13,7 +12,6 @@ import Pagination from '../components/common/Pagination';
 // import DocumentApprovalModal from '../components/documents/DocumentApprovalModal';
 
 function PendingApprovalPage() {
-  const queryClient = useQueryClient();
   
   const [filters, setFilters] = useState({
     page: 1,

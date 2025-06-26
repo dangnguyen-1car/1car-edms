@@ -13,8 +13,8 @@ import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import {
-    FiShare, FiCopy, FiMail, FiUsers, FiLink, FiCheck,
-    FiAlertCircle, FiX, FiCalendar, FiShield
+    FiShare, FiCopy, FiUsers, FiLink, FiCheck,
+    FiAlertCircle, FiCalendar, FiShield
 } from 'react-icons/fi';
 import { documentAPI } from '../../api/documentApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,7 +27,7 @@ function ShareDocumentModal({ document, isOpen, onClose, onSuccess }) {
     // 3. HOOKS & STATE MANAGEMENT
     // -----------------------------------------------------------------
     const queryClient = useQueryClient();
-    const { user } = useAuth();
+    useAuth();
     const [activeTab, setActiveTab] = useState('users');
     const [formData, setFormData] = useState({
         selectedUsers: [],
@@ -68,7 +68,7 @@ function ShareDocumentModal({ document, isOpen, onClose, onSuccess }) {
         },
         onError: (error) => {
             toast.error(error?.response?.data?.message || 'Lỗi khi chia sẻ tài liệu.');
-            console.error('Share error:', error);
+            
         }
     });
 
@@ -79,8 +79,7 @@ function ShareDocumentModal({ document, isOpen, onClose, onSuccess }) {
             toast.success('Đã tạo liên kết chia sẻ.');
         },
         onError: (error) => {
-            toast.error(error?.response?.data?.message || 'Lỗi khi tạo liên kết.');
-            console.error('Generate link error:', error);
+            toast.error(error?.response?.data?.message || 'Lỗi khi tạo liên kết.');            
         }
     });
 

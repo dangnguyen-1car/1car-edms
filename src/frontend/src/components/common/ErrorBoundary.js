@@ -28,10 +28,6 @@ class ErrorBoundary extends React.Component {
     componentDidCatch(error, errorInfo) {
         this.setState({ error: error, errorInfo: errorInfo });
         
-        const errorDetails = {
-            // ...
-            userId: this.getUserId() // Call the updated function
-        };
         // ... (rest of the logic is unchanged)
     }
 
@@ -45,8 +41,7 @@ class ErrorBoundary extends React.Component {
                 const parsed = JSON.parse(userContext);
                 return parsed.id || 'anonymous';
             }
-        } catch (e) {
-            console.error('Error parsing user context from localStorage:', e);
+        } catch (e) {            
         }
         return 'anonymous';
     }

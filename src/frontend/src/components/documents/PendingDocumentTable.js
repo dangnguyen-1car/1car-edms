@@ -2,7 +2,7 @@
 import React from 'react';
 import { FiAlertTriangle, FiClock, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { getStatusBadgeColor, getPriorityBadgeColor, getDocumentTypeDisplay } from '../../utils/documentUtils';
+import { getPriorityBadgeColor } from '../../utils/documentUtils';
 import WorkflowActionButtons from './WorkflowActionButtons';
 
 function PendingDocumentTable({

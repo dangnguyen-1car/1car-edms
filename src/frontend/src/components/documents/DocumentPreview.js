@@ -1,6 +1,6 @@
 // src/frontend/src/components/documents/DocumentPreview.js
 import React from 'react';
-import { FiFile, FiUser, FiCalendar, FiTag, FiShield, FiClock } from 'react-icons/fi';
+import { FiFile, FiUser, FiCalendar, FiTag, FiClock } from 'react-icons/fi';
 
 function DocumentPreview({ data }) {
   // If no data is provided, don't render anything
@@ -8,14 +8,6 @@ function DocumentPreview({ data }) {
 
   // --- Helper Functions ---
 
-  /**
-   * Formats a date string into a localized date string (Vietnamese locale).
-   * @param {string} date - The date string to format.
-   * @returns {string} The formatted date string.
-   */
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('vi-VN');
-  };
 
   /**
    * Returns the human-readable label for a given security level.

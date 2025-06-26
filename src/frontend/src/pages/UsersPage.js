@@ -11,10 +11,9 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FiUsers, FiPlus, FiEdit, FiLock, FiUnlock, FiKey, FiAlertCircle, FiSearch, FiFilter, FiX, FiRefreshCw } from 'react-icons/fi';
+import { FiUsers, FiPlus, FiEdit, FiLock, FiUnlock, FiKey, FiAlertCircle, FiFilter, FiX, FiRefreshCw } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import Layout from '../components/layout/Layout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import Pagination from '../components/common/Pagination';
 import { userService } from '../services/userService';

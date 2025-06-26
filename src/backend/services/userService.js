@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt')
 const { dbManager } = require('../config/database')
 const User = require('../models/User')
 // Đảm bảo createAuditLog được import từ logger (nếu chưa có) hoặc logAudit từ loggerUtils (nếu dùng loggerUtils)
-const { logAudit, logError, createAuditLog } = require('../utils/logger') // Thêm createAuditLog nếu logAudit không đủ
+const { logError, createAuditLog } = require('../utils/logger') // Thêm createAuditLog nếu logAudit không đủ
 const { ValidationError, NotFoundError, ConflictError } = require('../utils/errors')
 
 class UserService {

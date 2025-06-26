@@ -12,7 +12,7 @@
 import React, { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { FiX, FiGitBranch, FiInfo, FiAlertCircle, FiCheck } from 'react-icons/fi';
+import { FiGitBranch, FiInfo, FiAlertCircle, FiCheck } from 'react-icons/fi';
 import { documentAPI } from '../../api/documentApi';
 import Modal from '../common/Modal';
 
@@ -59,8 +59,7 @@ function NewVersionModal({ document, isOpen, onClose, onSuccess }) {
             handleClose(true); // Close after success
         },
         onError: (error) => {
-            toast.error(error?.response?.data?.message || 'Lỗi khi tạo phiên bản mới.');
-            console.error(error);
+            toast.error(error?.response?.data?.message || 'Lỗi khi tạo phiên bản mới.');            
         },
     });
 
