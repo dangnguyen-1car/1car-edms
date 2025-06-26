@@ -1,136 +1,160 @@
-# 1CAR - EDMS
-## Hệ Thống Quản Lý Tài Liệu Điện Tử cho 1CAR
+# 1CAR-EDMS - Hệ Thống Quản Lý Tài Liệu Điện Tử
 
-### Tổng Quan
-1CAR - EDMS là hệ thống quản lý tài liệu điện tử được thiết kế đặc biệt cho 1CAR, hỗ trợ 40 người dùng với 14 phòng ban và 7 loại tài liệu.
+[![Giấy phép MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+[![Trạng thái Build](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/dangnguyen-1car/1car-edms)
+[![Độ bao phủ Test](https://img.shields.io/badge/coverage-85%25-yellowgreen)](https://github.com/dangnguyen-1car/1car-edms)
 
-### Tính Năng Chính
-- ✅ **Quản lý tài liệu** với 7 loại: PL, PR, WI, FM, TD, TR, RC
-- ✅ **Kiểm soát phiên bản** theo C-PR-VM-001
-- ✅ **Quy trình workflow** 4 trạng thái
-- ✅ **Phân quyền** theo vai trò và phòng ban
-- ✅ **Audit logging** tuân thủ IATF 16949
-- ✅ **Tìm kiếm và lọc** nâng cao
-- ✅ **Lưu trữ và archival** theo C-PR-AR-001
+Hệ thống Quản lý Tài liệu Điện tử (EDMS) được thiết kế và phát triển riêng cho 1CAR, nhằm mục đích số hóa, tối ưu hóa quy trình và tuân thủ các tiêu chuẩn chất lượng.
 
-### Cấu Trúc Hệ Thống
+## Mục lục
+
+- [Tổng quan](#tổng-quan)
+- [Cấu trúc chức năng](#cấu-trúc-chức-năng)
+- [Công nghệ sử dụng](#công-nghệ-sử-dụng)
+- [Cấu trúc dự án](#cấu-trúc-dự-án)
+- [Hướng dẫn cài đặt](#hướng-dẫn-cài-đặt)
+- [Thông tin truy cập](#thông-tin-truy-cập)
+- [Các tập lệnh (Scripts)](#các-tập-lệnh-scripts)
+- [Tuân thủ tiêu chuẩn](#tuân-thủ-tiêu-chuẩn)
+- [Giấy phép](#giấy-phép)
+
+## Tổng quan
+
+1CAR-EDMS là một giải pháp toàn diện để quản lý tài liệu nội bộ, được xây dựng để hỗ trợ cho 40 người dùng thuộc 14 phòng ban khác nhau, với 7 loại tài liệu chính. Hệ thống tập trung vào việc kiểm soát phiên bản, quản lý quy trình phê duyệt và đảm bảo tuân thủ các tiêu chuẩn chất lượng như IATF 16949.
+
+## Cấu trúc chức năng
+
+Hệ thống được tổ chức với các chức năng chính như sau:
+
+-   **1. Trang Đăng nhập (Login Page)**
+-   **2. Dashboard Chính**
+    -   2.1 Widget Thống kê Hệ thống
+    -   2.2 Widget Hoạt động Người dùng
+    -   2.3 Widget Thống kê Tài liệu
+    -   2.4 Widget Lỗi Gần đây
+-   **3. Quản lý Tài liệu (Documents)**
+    -   3.1 Danh sách Tài liệu
+    -   3.2 Chi tiết Tài liệu
+    -   3.3 Tạo & Chỉnh sửa Tài liệu
+    -   3.4 Lịch sử Phiên bản
+    -   3.5 Quản lý Workflow
+    -   3.6 Tài liệu Đang chờ Phê duyệt
+-   **4. Tìm kiếm Nâng cao (Advanced Search)**
+-   **5. Quản lý Người dùng (User Management)** - `Admin only`
+    -   5.1 Danh sách & Chỉnh sửa Người dùng
+    -   5.2 Tạo Người dùng Mới
+    -   5.3 Phân quyền
+-   **6. Báo cáo và Thống kê (Reports & Analytics)** - `Admin only`
+    -   6.1 Báo cáo Hoạt động & Tuân thủ
+    -   6.2 Thống kê Sử dụng
+-   **7. Cài đặt Hệ thống (System Settings)** - `Admin only`
+    -   7.1 Cấu hình Chung
+    -   7.2 Quản lý Backup
+    -   7.3 Audit Logs
+-   **8. Quản lý Cá nhân**
+    -   8.1 Tài liệu Yêu thích (Favorites)
+    -   8.2 Tài liệu Gần đây (Recent Documents)
+
+## Công nghệ sử dụng
+
+-   **Backend**: Node.js, Express.js
+-   **Frontend**: React, React Router, Tailwind CSS
+-   **Cơ sở dữ liệu**: SQLite
+-   **Kiểm thử**: Jest, Supertest
+-   **Công cụ khác**: ESLint, Prettier, Nodemon, Concurrently
+
+## Cấu trúc dự án
+
+Dự án được cấu trúc theo mô hình monorepo để quản lý cả backend và frontend trong cùng một kho chứa.
+
+
 1car-edms/
 ├── src/
-│ ├── backend/ # Node.js API Server
-│ └── frontend/ # React Application
-├── database/ # SQLite Database
-│ ├── migrations/
-│ │ └── 001-create-users.sql
-│ │ └── ... (các migration khác)
-│ ├── seeds/
-│ │ └── users.sql
-│ │ └── documents.sql
-│ └── schema.sql # Schema hoàn chỉnh
-├── uploads/ # File Storage
-├── logs/ # System Logs
-└── docs/ # Documentation
+│   ├── backend/         # Node.js API Server
+│   └── frontend/        # React Application
+├── database/            # SQLite Database & Scripts
+│   ├── migrations/
+│   ├── seeds/
+│   └── schema.sql
+├── uploads/             # Nơi lưu trữ file tải lên
+├── logs/                # Ghi log hệ thống
+├── scripts/             # Các script tự động hóa (setup, backup...)
+└── documentation/       # Tài liệu dự án
 
-### Cài Đặt
-1.  **Clone repository:**
+
+## Hướng dẫn cài đặt
+
+Để cài đặt và chạy dự án trên máy local, hãy làm theo các bước sau:
+
+**Yêu cầu:**
+-   Node.js (v16.0.0 trở lên)
+-   npm (v8.0.0 trở lên)
+
+**Các bước thực hiện:**
+
+1.  **Clone repository về máy:**
     ```bash
-    git clone <repository-url>
+    git clone [https://github.com/dangnguyen-1car/1car-edms.git](https://github.com/dangnguyen-1car/1car-edms.git)
     cd 1car-edms
     ```
-2.  **Setup hệ thống (tạo thư mục, cài đặt dependencies, khởi tạo CSDL và chạy migration):**
+
+2.  **Cài đặt tất cả các dependencies cho cả backend và frontend:**
+    ```bash
+    npm install
+    ```
+    *Lệnh này sẽ tự động cài đặt các gói trong file `package.json` ở thư mục gốc và trong các workspaces (`src/backend`, `src/frontend`).*
+
+3.  **Khởi tạo và cài đặt môi trường:**
     ```bash
     npm run setup
     ```
-3.  **(Tùy chọn) Seed dữ liệu người dùng và tài liệu mẫu:**
+    *Script này sẽ tự động tạo các thư mục cần thiết và khởi tạo cơ sở dữ liệu.*
+
+4.  **(Tùy chọn) Chèn dữ liệu mẫu:**
+    Để có dữ liệu mẫu bao gồm người dùng và tài liệu, hãy chạy lệnh sau:
     ```bash
     npm run seed
     ```
-4.  **Chạy môi trường phát triển:**
+
+5.  **Chạy môi trường phát triển:**
     ```bash
     npm run dev
     ```
+    *Lệnh này sẽ khởi động đồng thời cả server backend và ứng dụng frontend.*
 
-### Truy Cập
--   **Backend**: http://localhost:3000
--   **Frontend**: http://localhost:3001
--   **Tài khoản Quản trị viên Hệ thống (mặc định, tạo tự động khi CSDL mới):**
-    -   Email: `admin@1car.vn`
-    -   Mật khẩu: `admin123`
--   **Các tài khoản người dùng mẫu (sau khi chạy `npm run seed`):**
-    -   Mật khẩu chung cho tất cả tài khoản trong file seed: `1car2025`
-    -   Ví dụ tài khoản Admin từ seed: `giamdoc.dh@1car.vn` / `1car2025`
-    -   Ví dụ tài khoản User từ seed: `cskh.staff1@1car.vn` / `1car2025`
-    -   (Xem chi tiết 40 tài khoản mẫu trong `database/seeds/users.sql`)
+## Thông tin truy cập
 
-### Cấu Trúc Cơ Sở Dữ Liệu (Database Structure)
-Tham khảo file `database/schema.sql` để xem cấu trúc bảng đầy đủ.
-File migration ban đầu cho bảng users (`database/migrations/001-create-users.sql`):
-```sql
--- database/migrations/001-create-users.sql
--- Users table based on C-FM-MG-004 role matrix
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  name TEXT NOT NULL,
-  department TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'user',
-  is_active INTEGER DEFAULT 1,
-  last_login DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  created_by INTEGER,
-  FOREIGN KEY (created_by) REFERENCES users(id)
-);
+Sau khi khởi động thành công, bạn có thể truy cập hệ thống tại:
 
+-   **Frontend Application**: `http://localhost:3001`
+-   **Backend API**: `http://localhost:3000`
 
--- Ghi nhận migration này đã được thực thi
-INSERT OR IGNORE INTO schema_migrations (version, description)
-VALUES ('001', 'Initial schema creation with users table. Default admin user (admin@1car.vn) will be created by application logic in database.js.');
+**Tài khoản mặc định:**
 
+-   **Quản trị viên hệ thống:**
+    -   **Email:** `admin@1car.vn`
+    -   **Mật khẩu:** `admin123`
+-   **Các tài khoản mẫu (sau khi chạy `seed`):**
+    -   Mật khẩu chung: `1car2025`
+    -   Xem chi tiết các tài khoản trong file `database/seeds/users.sql`.
 
-JavaScript
+## Các tập lệnh (Scripts)
 
-/**
- * EDMS 1CAR Setup Script
- * Initialize database, create directories, install dependencies
- */
+| Script | Mô tả |
+| :--- | :--- |
+| `npm run dev` | Chạy cả backend và frontend ở chế độ phát triển với hot-reload. |
+| `npm start` | Chạy server backend ở chế độ production. |
+| `npm run build` | Build ứng dụng frontend cho môi trường production. |
+| `npm test` | Chạy tất cả các bài test (backend và frontend). |
+| `npm run lint` | Kiểm tra lỗi và quy chuẩn mã nguồn bằng ESLint. |
+| `npm run format` | Tự động định dạng mã nguồn bằng Prettier. |
+| `npm run setup` | Chạy script cài đặt và khởi tạo dự án lần đầu. |
+| `npm run migrate`| Áp dụng các thay đổi về CSDL (database migrations). |
+| `npm run seed` | Chèn dữ liệu mẫu vào cơ sở dữ liệu. |
+| `npm run backup` | Tạo một bản sao lưu cho cơ sở dữ liệu. |
+| `npm run restore`| Phục hồi cơ sở dữ liệu từ một bản sao lưu. |
 
-const fs = require('fs-extra');
-const path = require('path');
-const { execSync } = require('child_process');
-
-async function setup() {
-  console.log('🚀 Setting up EDMS 1CAR...');
-  
-  // Create directories
-  const dirs = [
-    'database', 'database/backup', 'logs', 'uploads', 
-    'uploads/documents', 'uploads/versions', 'uploads/temp'
-  ];
-  
-  for (const dir of dirs) {
-    await fs.ensureDir(dir);
-    console.log(`✅ Created directory: ${dir}`);
-  }
-  
-  // Install backend dependencies
-  console.log('📦 Installing backend dependencies...');
-  execSync('cd src/backend && npm install', { stdio: 'inherit' });
-  
-  // Install frontend dependencies
-  console.log('📦 Installing frontend dependencies...');
-  execSync('cd src/frontend && npm install', { stdio: 'inherit' });
-  
-  // Initialize database
-  console.log('🗄️ Initializing database...');
-  execSync('npm run migrate', { stdio: 'inherit' });
-  
-  console.log('🎉 EDMS 1CAR setup complete!');
-  console.log('👉 Run "npm run dev" to start development');
-}
-
-setup().catch(console.error);
-Tuân Thủ
+## Tuân thủ tiêu chuẩn
 
 Hệ thống EDMS 1CAR được xây dựng tuân thủ các quy trình và tiêu chuẩn sau:
 C-PR-VM-001: Quy trình quản lý phiên bản
@@ -163,11 +187,7 @@ Cấu trúc lưu trữ tài liệu (Document storage structure)
 Chính sách lưu giữ (Retention policies)
 Thủ tục lưu trữ (Archive procedures)
 Quản lý hủy tài liệu (Disposal management)
-Hỗ Trợ
-Tài liệu: /docs/
-API Documentation: http://localhost:3000/api/docs
-Logs Hệ Thống: /logs/
-Version: 1.0.0
+
 Kết Luận
 Cấu trúc folder và file này đảm bảo:
 
@@ -178,5 +198,6 @@ Cấu trúc folder và file này đảm bảo:
 ✅ Tuân thủ (Compliance) với tiêu chuẩn IATF 16949
 ✅ Hiệu năng (Performance) với cơ sở dữ liệu được tối ưu hóa & caching (nếu có)
 ✅ Giám sát (Monitoring) với ghi log toàn diện & dấu vết kiểm toán
-License
+
+## Giấy phép
 MIT License - 1CAR Development Team

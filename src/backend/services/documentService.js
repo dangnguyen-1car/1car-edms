@@ -1,10 +1,11 @@
-// src/backend/services/documentService.js - ĐÃ SỬA LỖI
-
+// src/backend/services/documentService.js - CẬP NHẬT PHẦN getDocument
 // Các module require ở cấp cao nhất - chỉ những module an toàn, không gây phụ thuộc vòng
 const { createError } = require('../middleware/errorHandler')
 const { dbManager } = require('../config/database')
 const fs = require('fs-extra') // SỬA LỖI: Thêm thư viện xử lý file
 const path = require('path') // SỬA LỖI: Thêm thư viện xử lý đường dẫn
+const recentDocumentsService = require('./recentDocumentsService')
+const favoritesService = require('./favoritesService')
 const PROJECT_ROOT = path.join(__dirname, '..')
 
 class DocumentService {
@@ -194,10 +195,11 @@ class DocumentService {
   }
 
   /**
-     * Lấy chi tiết tài liệu
+     * Lấy chi tiết tài liệu - CẬP NHẬT để ghi lại lượt xem
      */
   async getDocument (id, user, context = {}) {
     const AuditService = require('./auditService')
+
     try {
       const document = await dbManager.get(`
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
@@ -218,6 +220,14 @@ class DocumentService {
         throw createError('Bạn không có quyền truy cập tài liệu này', 403, 'ACCESS_DENIED')
       }
 
+      // Kiểm tra xem tài liệu có trong danh sách yêu thích không
+      const isFavorite = await favoritesService.isFavorite(user.id, id)
+
+      // GHI LẠI LƯỢT XEM - Fire-and-forget operation
+      if (user && user.id) {
+        recentDocumentsService.recordDocumentView(user.id, id)
+      }
+
       await AuditService.log({
         userId: user.id,
         action: 'DOCUMENT_VIEWED',
@@ -228,7 +238,10 @@ class DocumentService {
 
       return {
         success: true,
-        data: document
+        data: {
+          ...document,
+          is_favorite: isFavorite
+        }
       }
     } catch (error) {
       console.error('Error in getDocument:', error)

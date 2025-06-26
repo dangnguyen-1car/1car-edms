@@ -1,16 +1,14 @@
 // src/frontend/src/components/layout/Sidebar.js
 /* =================================================================
- * 1CAR EDMS - Enhanced Sidebar Navigation (Corrected and Hardened Version)
- * Navigation sidebar based on C-FM-MG-004 role permissions
+ * 1CAR EDMS - Enhanced Sidebar Navigation (Optimally Merged Version)
+ * Hợp nhất giao diện đẹp của phiên bản cũ và logic tính năng của phiên bản mới.
  *
- * REFACTOR:
- * - Merged the visually appealing dark theme from the old file with new functionalities.
- * - Added a notification badge for "Pending Approvals" by fetching data with TanStack Query.
- * - Fixed the crash caused by an invalid icon name ('FiBarChart3').
- * - Corrected the import to use a valid icon ('FiBarChart2').
- * - Hardened the component by adding a check to prevent rendering if an
- * icon component is undefined, thus preventing future crashes.
- * - Maintained the optimized structure of fetching user data via useAuth().
+ * TÍNH NĂNG CHÍNH:
+ * - Giữ lại giao diện tối màu (dark theme) và cấu trúc 2 cột (desktop/mobile) ổn định.
+ * - Tích hợp useQuery để hiển thị badge "Chờ phê duyệt" với số liệu động.
+ * - Áp dụng logic phân quyền mới, ẩn/hiện menu theo vai trò người dùng (user, manager, admin).
+ * - Thêm các mục menu mới: "Yêu thích", "Gần đây" và các báo cáo chi tiết.
+ * - Tối ưu hóa logic xác định mục menu đang được chọn (active state).
  * ================================================================= */
 
 import React from 'react';
@@ -19,28 +17,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { documentService } from '../../services/documentService';
 import {
-    FiHome,
-    FiFileText,
-    FiUsers,
-    FiSettings,
-    FiSearch,
-    FiArchive,
-    FiUpload,
-    FiActivity,
-    FiStar,
-    FiClock,
-    FiBarChart2, // SỬA LỖI: Đã sửa từ FiBarChart3 thành FiBarChart2
-    FiX,
-    FiAlertTriangle,
-    FiShield,     // Thêm import mới
-    FiTrendingUp  // Thêm import mới
+    FiHome, FiFileText, FiUsers, FiSettings, FiSearch, FiArchive,
+    FiUpload, FiActivity, FiStar, FiClock, FiBarChart2, FiX,
+    FiAlertTriangle, FiShield, FiTrendingUp
 } from 'react-icons/fi';
 
 // =================================================================
 // 1. Helper Functions
 // =================================================================
 
-// Enhanced role display function
 const getRoleDisplayName = (role) => {
     const roleNames = {
         'admin': 'Quản trị viên',
@@ -51,7 +36,6 @@ const getRoleDisplayName = (role) => {
     return roleNames[role] || 'Không xác định';
 };
 
-// Enhanced role badge styling
 const getRoleBadgeClass = (role) => {
     const badgeClasses = {
         'admin': 'bg-red-100 text-red-800',
@@ -62,13 +46,14 @@ const getRoleBadgeClass = (role) => {
     return badgeClasses[role] || 'bg-gray-100 text-gray-800';
 };
 
+
 // =================================================================
 // 2. Main Sidebar Component
 // =================================================================
 
 function Sidebar({ isOpen, onClose }) {
     const location = useLocation();
-    const { user } = useAuth(); // Get user data directly from context
+    const { user } = useAuth();
 
     // --- Data Fetching (TanStack Query for Pending Approvals Badge) ---
     const { data: pendingStats } = useQuery({
@@ -80,7 +65,7 @@ function Sidebar({ isOpen, onClose }) {
     });
     const pendingCount = pendingStats?.data?.total_pending || 0;
 
-    // --- Navigation Logic ---
+    // --- Navigation Logic (from new version) ---
     const getNavigationItems = () => {
         const baseItems = [
             { name: 'Trang chủ', href: '/', icon: FiHome, current: location.pathname === '/', roles: ['admin', 'manager', 'user', 'guest'] },
@@ -117,7 +102,6 @@ function Sidebar({ isOpen, onClose }) {
             );
         }
 
-        // Cập nhật phần Báo cáo & Thống kê
         if (['manager', 'admin'].includes(user?.role)) {
             baseItems.push({
                 name: 'Báo cáo & Thống kê',
@@ -126,27 +110,9 @@ function Sidebar({ isOpen, onClose }) {
                 current: location.pathname.startsWith('/reports'),
                 roles: ['admin', 'manager'],
                 children: [
-                    {
-                        name: 'Báo cáo Hoạt động',
-                        href: '/reports/activity',
-                        current: location.pathname === '/reports/activity',
-                        roles: ['admin'],
-                        icon: FiActivity
-                    },
-                    {
-                        name: 'Báo cáo Tuân thủ',
-                        href: '/reports/compliance',
-                        current: location.pathname === '/reports/compliance',
-                        roles: ['admin', 'manager'],
-                        icon: FiShield
-                    },
-                    {
-                        name: 'Thống kê Sử dụng',
-                        href: '/reports/usage',
-                        current: location.pathname === '/reports/usage',
-                        roles: ['admin', 'manager'],
-                        icon: FiTrendingUp
-                    }
+                    { name: 'Báo cáo Hoạt động', href: '/reports/activity', current: location.pathname === '/reports/activity', roles: ['admin'], icon: FiActivity },
+                    { name: 'Báo cáo Tuân thủ', href: '/reports/compliance', current: location.pathname === '/reports/compliance', roles: ['admin', 'manager'], icon: FiShield },
+                    { name: 'Thống kê Sử dụng', href: '/reports/usage', current: location.pathname === '/reports/usage', roles: ['admin', 'manager'], icon: FiTrendingUp }
                 ]
             });
         }
@@ -164,11 +130,10 @@ function Sidebar({ isOpen, onClose }) {
 
     const navigationItems = getNavigationItems();
 
-    // Reusable Nav Item Renderer
+    // Reusable Nav Item Renderer (from old version, adapted for new logic)
     const renderNavItem = (item) => {
         const Icon = item.icon;
         const hasChildren = item.children && item.children.length > 0;
-        // A parent item is "current" if its path is the start of the current location's path
         const isParentCurrent = hasChildren && location.pathname.startsWith(item.href);
 
         return (
@@ -192,7 +157,6 @@ function Sidebar({ isOpen, onClose }) {
                     <span className="flex-1">{item.name}</span>
                 </Link>
 
-                {/* Render children if the parent is active */}
                 {hasChildren && isParentCurrent && (
                     <div className="mt-1 ml-7 pl-2 border-l border-gray-600 space-y-1">
                         {item.children
@@ -208,7 +172,7 @@ function Sidebar({ isOpen, onClose }) {
                                         }`}
                                         onClick={onClose}
                                     >
-                                        {ChildIcon && <ChildIcon className="mr-2 h-4 w-4 text-red-400" />}
+                                        {ChildIcon && <ChildIcon className={`mr-2 h-4 w-4 ${child.badge ? 'text-red-400' : ''}`} />}
                                         <span className="flex-1">{child.name}</span>
                                         {child.badge && (
                                             <span className={`ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${child.badgeColor || 'bg-red-500 text-white'}`}>
@@ -225,7 +189,7 @@ function Sidebar({ isOpen, onClose }) {
         );
     };
 
-    // --- Render Logic ---
+    // --- Render Logic (from old version) ---
     return (
         <>
             {/* Desktop sidebar */}
@@ -247,7 +211,7 @@ function Sidebar({ isOpen, onClose }) {
                             </div>
                         </div>
 
-                        {/* Enhanced User info */}
+                        {/* User info */}
                         <div className="px-4 mb-6">
                             <div className="bg-gray-700 rounded-lg p-3">
                                 <div className="flex items-center">
@@ -310,9 +274,5 @@ function Sidebar({ isOpen, onClose }) {
         </>
     );
 }
-
-// =================================================================
-// 3. Export
-// =================================================================
 
 export default Sidebar;

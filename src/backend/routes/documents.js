@@ -1,4 +1,4 @@
-// src/backend/routes/documents.js - Đã sửa lỗi dữ liệu trùng lặp và thêm phòng vệ
+// src/backend/routes/documents.js
 const express = require('express')
 const router = express.Router()
 
@@ -9,9 +9,9 @@ const { auditMiddleware, auditCRUD, setAuditDetails } = require('../middleware/a
 const serviceFactory = require('../services/serviceFactory')
 const { createError } = require('../middleware/errorHandler')
 const SearchService = require('../services/searchService')
-const Document = require('../models/Document')
 const DocumentCodeGenerator = require('../utils/documentCodeGenerator')
 const PermissionService = require('../services/permissionService')
+const favoritesService = require('../services/favoritesService')
 
 // Áp dụng audit middleware cho tất cả routes
 router.use(auditMiddleware)
@@ -591,32 +591,48 @@ router.get('/:id/download', authenticateToken, checkPermission('DOWNLOAD_DOCUMEN
 })
 
 /**
- * POST /api/documents/:id/favorite
- * Thêm tài liệu vào danh sách yêu thích.
+ * @route POST /api/documents/:id/favorite
+ * @desc Thêm tài liệu vào danh sách yêu thích
+ * @access Private
  */
-router.post('/:id/favorite', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+router.post('/:id/favorite', authenticateToken, async (req, res, next) => {
   try {
     const documentId = parseInt(req.params.id)
-    const userId = req.user.id
-    const result = await Document.addToFavorites(documentId, userId)
-    setAuditDetails(res, 'DOCUMENT_FAVORITED', 'document', documentId, { favorited: true })
-    res.status(201).json({ success: true, data: result })
+    const result = await favoritesService.addToFavorites(req.user.id, documentId)
+    res.json(result)
   } catch (error) {
     next(error)
   }
 })
 
 /**
- * DELETE /api/documents/:id/favorite
- * Xóa tài liệu khỏi danh sách yêu thích.
+ * @route DELETE /api/documents/:id/favorite
+ * @desc Xóa tài liệu khỏi danh sách yêu thích
+ * @access Private
  */
-router.delete('/:id/favorite', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
+router.delete('/:id/favorite', authenticateToken, async (req, res, next) => {
   try {
     const documentId = parseInt(req.params.id)
-    const userId = req.user.id
-    const result = await Document.removeFromFavorites(documentId, userId)
-    setAuditDetails(res, 'DOCUMENT_UNFAVORITED', 'document', documentId, { favorited: false })
-    res.status(200).json({ success: true, data: result })
+    const result = await favoritesService.removeFromFavorites(req.user.id, documentId)
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+/**
+ * @route GET /api/documents/:id/favorite
+ * @desc Kiểm tra tài liệu có trong danh sách yêu thích không
+ * @access Private
+ */
+router.get('/:id/favorite', authenticateToken, async (req, res, next) => {
+  try {
+    const documentId = parseInt(req.params.id)
+    const isFavorite = await favoritesService.isFavorite(req.user.id, documentId)
+    res.json({
+      success: true,
+      data: { is_favorite: isFavorite }
+    })
   } catch (error) {
     next(error)
   }
