@@ -1,14 +1,13 @@
 // src/backend/routes/backup.js
 const express = require('express')
 const router = express.Router()
-const path = require('path') // Although 'path' is imported, it's not explicitly used in the final restructured code. It can be removed if not needed elsewhere.
-
 const { authenticateToken } = require('../middleware/auth')
-const { checkPermission } = require('../middleware/permissionMiddleware') // Although imported, checkPermission is not explicitly used in the provided code. It can be removed if not needed.
+require('../middleware/permissionMiddleware') // Although imported, checkPermission is not explicitly used in the provided code. It can be removed if not needed.
+// Although imported, checkPermission is not explicitly used in the provided code. It can be removed if not needed.
 const { auditMiddleware, setAuditDetails } = require('../middleware/auditMiddleware')
 
 const BackupService = require('../services/backupService')
-const { logError, appLogger } = require('../utils/logger')
+const { appLogger } = require('../utils/logger')
 
 // Apply audit middleware to all routes
 router.use(auditMiddleware)

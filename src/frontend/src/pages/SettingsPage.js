@@ -1,12 +1,13 @@
 // src/frontend/src/pages/SettingsPage.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiSettings, FiUser, FiLock, FiSave, FiAlertCircle, FiDatabase } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 import { useAuth } from '../contexts/AuthContext';
-import Layout from '../components/layout/Layout';
+// ĐÃ XÓA: Dòng import Layout không cần thiết
+// import Layout from '../components/layout/Layout'; 
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import BackupManagementTab from '../components/settings/BackupManagementTab';
 
@@ -17,9 +18,7 @@ function SettingsPage() {
   const {
     isAuthenticated,
     isLoading: isLoadingAuth,
-    user: currentUser,
-    hasPermission, // Although imported, hasPermission is not explicitly used in the provided code. It can be removed if not needed.
-    refreshAuthToken // Although imported, refreshAuthToken is not explicitly used in the provided code. It can be removed if not needed.
+    user: currentUser
   } = useAuth();
   const queryClient = useQueryClient();
 
@@ -45,14 +44,10 @@ function SettingsPage() {
   });
   const [errors, setErrors] = useState({});
 
-  // Check if user is admin for backup management
   const isAdmin = currentUser?.role === 'admin';
 
-  // --- Data Fetching ---
-
-  // Data fetching for user profile
+  // --- Data Fetching (Không thay đổi) ---
   const {
-    data: profileResponse,
     isLoading: isLoadingProfile,
     error: profileError
   } = useQuery(
@@ -79,10 +74,8 @@ function SettingsPage() {
     }
   );
 
-  // Data fetching for system settings (only for admin)
   const canManageSystem = !!isAuthenticated && !!currentUser && isAdmin;
   const {
-    data: systemSettingsResponse,
     isLoading: isLoadingSystemSettings,
     error: systemSettingsError
   } = useQuery(
@@ -110,8 +103,7 @@ function SettingsPage() {
     }
   );
 
-  // --- Mutations ---
-
+  // --- Mutations (Không thay đổi) ---
   const updateProfileMutation = useMutation(
     (newProfileData) => authService.updateProfile(newProfileData),
     {
@@ -171,82 +163,26 @@ function SettingsPage() {
     }
   );
 
-  // --- Conditional Renders / Redirects ---
 
-  // Early returns after all hooks are called
   if (isLoadingAuth) {
+    // ĐÃ XÓA: Bỏ thẻ <Layout> bao bọc bên ngoài
     return (
-      <Layout>
         <div className="flex justify-center items-center h-64">
           <LoadingSpinner />
         </div>
-      </Layout>
     );
   }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+  
+  // --- Event Handlers (Không thay đổi) ---
+  const handleProfileSubmit = (e) => { e.preventDefault(); const newErrors = {}; if (!profileData.name.trim()) { newErrors.name = 'Họ tên không được để trống'; } if (!profileData.email.trim()) { newErrors.email = 'Email không được để trống'; } else if (!/\S+@\S+\.\S+/.test(profileData.email)) { newErrors.email = 'Email không hợp lệ'; } if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; } updateProfileMutation.mutate(profileData); };
+  const handlePasswordSubmit = (e) => { e.preventDefault(); const newErrors = {}; if (!passwordData.currentPassword) { newErrors.currentPassword = 'Mật khẩu hiện tại không được để trống'; } if (!passwordData.newPassword) { newErrors.newPassword = 'Mật khẩu mới không được để trống'; } else if (passwordData.newPassword.length < 6) { newErrors.newPassword = 'Mật khẩu mới phải có ít nhất 6 ký tự'; } if (passwordData.newPassword !== passwordData.confirmPassword) { newErrors.confirmPassword = 'Xác nhận mật khẩu không khớp'; } if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; } changePasswordMutation.mutate({ currentPassword: passwordData.currentPassword, newPassword: passwordData.newPassword }); };
+  const handleSystemSettingsSubmit = (e) => { e.preventDefault(); updateSystemSettingsMutation.mutate(systemSettings); };
 
-  // --- Event Handlers ---
 
-  // Handle form submissions
-  const handleProfileSubmit = (e) => {
-    e.preventDefault();
-    const newErrors = {};
-
-    if (!profileData.name.trim()) {
-      newErrors.name = 'Họ tên không được để trống';
-    }
-    if (!profileData.email.trim()) {
-      newErrors.email = 'Email không được để trống';
-    } else if (!/\S+@\S+\.\S+/.test(profileData.email)) {
-      newErrors.email = 'Email không hợp lệ';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    updateProfileMutation.mutate(profileData);
-  };
-
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    const newErrors = {};
-
-    if (!passwordData.currentPassword) {
-      newErrors.currentPassword = 'Mật khẩu hiện tại không được để trống';
-    }
-    if (!passwordData.newPassword) {
-      newErrors.newPassword = 'Mật khẩu mới không được để trống';
-    } else if (passwordData.newPassword.length < 6) {
-      newErrors.newPassword = 'Mật khẩu mới phải có ít nhất 6 ký tự';
-    }
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      newErrors.confirmPassword = 'Xác nhận mật khẩu không khớp';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    changePasswordMutation.mutate({
-      currentPassword: passwordData.currentPassword,
-      newPassword: passwordData.newPassword
-    });
-  };
-
-  const handleSystemSettingsSubmit = (e) => {
-    e.preventDefault();
-    updateSystemSettingsMutation.mutate(systemSettings);
-  };
-
-  // --- Component Structure / UI Rendering ---
-
-  // Tab configuration
   const tabs = [
     { id: 'profile', name: 'Thông tin cá nhân', icon: FiUser },
     { id: 'password', name: 'Đổi mật khẩu', icon: FiLock },
@@ -256,8 +192,8 @@ function SettingsPage() {
     ] : [])
   ];
 
+  // ĐÃ XÓA: Bỏ thẻ <Layout> bao bọc bên ngoài
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="border-b border-gray-200">
@@ -309,7 +245,7 @@ function SettingsPage() {
             </div>
           </div>
 
-          {/* Tab Content */}
+          {/* Tab Content - KHÔI PHỤC ĐẦY ĐỦ NỘI DUNG */}
           <div className="mt-6">
             {/* Profile Tab */}
             {activeTab === 'profile' && (
@@ -381,8 +317,8 @@ function SettingsPage() {
                             type="text"
                             id="department"
                             value={profileData.department}
-                            onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 sm:text-sm"
                           />
                         </div>
                         <div>
@@ -628,7 +564,6 @@ function SettingsPage() {
           </div>
         </div>
       </div>
-    </Layout>
   );
 }
 

@@ -1,5 +1,5 @@
 // src/frontend/src/components/settings/BackupManagementTab.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import {
@@ -45,6 +45,7 @@ function BackupManagementTab() {
   const {
     data: backupsResponse,
     isLoading: isLoadingBackups,
+    isFetching, // Thêm isFetching để biết khi nào đang có yêu cầu chạy ngầm
     error: backupsError,
     refetch: refetchBackups
   } = useQuery(
@@ -54,7 +55,8 @@ function BackupManagementTab() {
       return response.data;
     },
     {
-      refetchInterval: 30000, // Refresh every 30 seconds
+      // ĐÃ XÓA: refetchInterval: 30000,
+      refetchOnWindowFocus: true, // Chỉ refetch khi người dùng focus lại vào tab
       onError: (error) => {
         toast.error(error.response?.data?.message || 'Không thể tải danh sách backup');
       }
@@ -321,10 +323,10 @@ function BackupManagementTab() {
         <div className="flex space-x-3">
           <button
             onClick={() => refetchBackups()}
-            disabled={isLoadingBackups}
+            disabled={isFetching}
             className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            <FiRefreshCw className={`w-4 h-4 mr-2 ${isLoadingBackups ? 'animate-spin' : ''}`} />
+            <FiRefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
             Làm mới
           </button>
 
@@ -366,7 +368,7 @@ function BackupManagementTab() {
       )}
 
       {/* Loading State */}
-      {isLoadingBackups && (
+      {isLoadingBackups && !backupsResponse && (
         <div className="flex justify-center py-8">
           <LoadingSpinner />
         </div>

@@ -9,7 +9,6 @@ const path = require('path')
 const { errorHandler } = require('./middleware/errorHandler')
 const { requestLogger } = require('./middleware/requestLogger')
 const { requestId } = require('./middleware/requestId')
-const config = require('./config') // Although imported, 'config' is not explicitly used in the provided code. It can be removed if not needed.
 
 // Import routes
 const authRoutes = require('./routes/auth')
