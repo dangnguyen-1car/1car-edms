@@ -26,7 +26,8 @@ const ArchivePage = React.lazy(() => import('./pages/ArchivePage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 const PendingApprovalPage = React.lazy(() => import('./pages/PendingApprovalPage'));
-const ReportsPage = React.lazy(() => import('./pages/ReportsPage'));
+const FavoritesPage = React.lazy(() => import('./pages/FavoritesPage'));
+const RecentDocumentsPage = React.lazy(() => import('./pages/RecentDocumentsPage'));
 const ActivityPage = React.lazy(() => import('./pages/ActivityPage'));
 const ComplianceReportsPage = React.lazy(() => import('./pages/ComplianceReportsPage'));
 const UsageStatisticsPage = React.lazy(() => import('./pages/UsageStatisticsPage'));
@@ -78,12 +79,36 @@ function App() {
                     <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
                     <Route path="/documents/pending-approval" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
                     <Route path="/upload" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'user']}><UploadPage /></ProtectedRoute>} />
-                    <Route path="reports" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><ReportsPage /></ProtectedRoute>}>
-                        <Route index element={<Navigate to="activity" replace />} />
-                        <Route path="activity" element={<ActivityPage />} />
-                        <Route path="compliance" element={<ComplianceReportsPage />} />
-                        <Route path="usage" element={<UsageStatisticsPage />} />
-                    </Route>
+                    <Route path="/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+                    <Route path="/recent" element={<ProtectedRoute><RecentDocumentsPage /></ProtectedRoute>} />
+                    <Route 
+                        path="/reports" 
+                        element={<Navigate to="/reports/activity" replace />} 
+                    />
+                    <Route
+                        path="/reports/activity"
+                        element={
+                            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                                <ActivityPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/reports/compliance"
+                        element={
+                            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                                <ComplianceReportsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/reports/usage"
+                        element={
+                            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                                <UsageStatisticsPage />
+                            </ProtectedRoute>
+                        }
+                    />                    
                     <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UsersPage /></ProtectedRoute>} />
                     <Route path="/archive" element={<ProtectedRoute allowedRoles={['admin']}><ArchivePage /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><SettingsPage /></ProtectedRoute>} />

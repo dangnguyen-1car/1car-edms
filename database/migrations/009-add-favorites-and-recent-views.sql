@@ -1,14 +1,13 @@
-//database/migrations/009-add-favorites-and-recent-views.sql
-
--- Bảng lưu trữ tài liệu yêu thích của người dùng
+-- database/migrations/009-add-favorites-and-recent-views.sql
+-- Bảng lưu trữ tài liệu yêu thích của người dùng (ĐÃ SỬA LỖI)
 CREATE TABLE user_document_favorites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     document_id INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (document_id) REFERENCES document(id) ON DELETE CASCADE,
-    UNIQUE(user_id, document_id) -- Đảm bảo một tài liệu chỉ được yêu thích một lần bởi một người dùng
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE, -- SỬA LỖI TẠI ĐÂY
+    UNIQUE(user_id, document_id)
 );
 
 -- Bảng lưu trữ lịch sử xem tài liệu gần đây
