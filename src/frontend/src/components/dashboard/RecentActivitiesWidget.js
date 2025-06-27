@@ -1,8 +1,9 @@
 // src/frontend/src/components/dashboard/RecentActivitiesWidget.js
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { FiActivity, FiUser, FiFileText, FiClock, FiExternalLink } from 'react-icons/fi';
+import { FiActivity, FiUser, FiFileText, FiClock, FiExternalLink, FiRefreshCw } from 'react-icons/fi';
 import { dashboardService } from '../../services/dashboardService';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -10,21 +11,17 @@ import LoadingSpinner from '../common/LoadingSpinner';
 function RecentActivitiesWidget({ className = '' }) {
     const { user } = useAuth();
     
-    const { data: activities, isLoading, error } = useQuery(
-        // Key bao gồm cả department để React Query cache đúng cho Manager
-        ['recentActivities', user?.role, user?.department],
-        () => {
-            // Xác định parameters dựa trên vai trò
+    // --- BẮT ĐẦU GIẢI PHÁP TRIỆT ĐỂ ---
+    const { data: activities, isLoading, error, refetch, isFetching } = useQuery({
+        queryKey: ['recentActivitiesForDashboard', user?.id], 
+        queryFn: () => {
             let params = { limit: 10 };
             
             if (user?.role === 'manager') {
-                // Manager xem hoạt động của phòng ban
                 params.department = user.department;
             } else if (user?.role === 'user') {
-                // User chỉ xem hoạt động của mình
                 params.userId = user.id;
             }
-            // Admin không cần truyền gì thêm, sẽ lấy toàn bộ
             
             return dashboardService.getRecentActivities(
                 params.limit, 
@@ -32,12 +29,21 @@ function RecentActivitiesWidget({ className = '' }) {
                 params.department
             );
         },
-        {
-            refetchInterval: 2 * 60 * 1000, // Refetch every 2 minutes
-            staleTime: 1 * 60 * 1000, // Consider data stale after 1 minute
-            enabled: !!user, // Only run query when user is available
-        }
-    );
+        // ** GIẢI PHÁP "PHÁ VỠ" CACHE **
+        // 1. staleTime = 0: Coi dữ liệu là "cũ" ngay sau khi được lấy về.
+        // Điều này buộc React Query phải gọi lại API mỗi khi component được render
+        // hoặc khi focus lại vào cửa sổ.
+        staleTime: 0,
+        
+        // 2. cacheTime = 0: Hủy dữ liệu khỏi cache ngay khi không còn component nào sử dụng nó.
+        // Điều này ngăn việc dữ liệu cũ được phục vụ lại từ bộ nhớ.
+        cacheTime: 0,
+        
+        // 3. Vẫn giữ các cấu hình này để có trải nghiệm tốt.
+        refetchOnWindowFocus: true,
+        enabled: !!user,
+    });
+    // --- KẾT THÚC GIẢI PHÁP TRIỆT ĐỂ ---
 
     const getActivityIcon = (action) => {
         switch (action) {
@@ -106,17 +112,37 @@ function RecentActivitiesWidget({ className = '' }) {
     };
 
     const formatTimeAgo = (timestamp) => {
-        const now = new Date();
+        // --- BẮT ĐẦU SỬA ĐỔI ---
         const activityTime = new Date(timestamp);
-        const diffMs = now - activityTime;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
+        // Kiểm tra xem timestamp có hợp lệ không
+        if (isNaN(activityTime.getTime())) {
+            return 'Thời gian không xác định';
+        }
+        
+        // Lấy thời gian hiện tại theo giờ UTC
+        const now = new Date();
+        
+        // Tính toán chênh lệch thời gian bằng mili-giây
+        const diffMs = now.getTime() - activityTime.getTime();
+        
+        // Chuyển đổi sang giây, phút, giờ, ngày
+        const diffSeconds = Math.round(diffMs / 1000);
+        const diffMins = Math.round(diffSeconds / 60);
+        const diffHours = Math.round(diffMins / 60);
+        const diffDays = Math.round(diffHours / 24);
 
-        if (diffMins < 1) return 'Vừa xong';
+        if (diffSeconds < 60) return 'Vừa xong';
         if (diffMins < 60) return `${diffMins} phút trước`;
         if (diffHours < 24) return `${diffHours} giờ trước`;
-        return `${diffDays} ngày trước`;
+        if (diffDays < 30) return `${diffDays} ngày trước`;
+
+        // Nếu hơn 30 ngày, hiển thị ngày cụ thể
+        return new Intl.DateTimeFormat('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        }).format(activityTime);
+        // --- KẾT THÚC SỬA ĐỔI ---
     };
 
     const getActivityLink = (activity) => {
@@ -126,6 +152,19 @@ function RecentActivitiesWidget({ className = '' }) {
         return null;
     };
 
+    const getWidgetTitle = () => {
+        switch (user?.role) {
+            case 'admin':
+                return 'Hoạt động Hệ thống';
+            case 'manager':
+                return `Hoạt động ${user.department}`;
+            case 'user':
+                return 'Hoạt động của tôi';
+            default:
+                return 'Hoạt động Gần đây';
+        }
+    };
+    
     if (isLoading) {
         return (
             <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
@@ -147,33 +186,31 @@ function RecentActivitiesWidget({ className = '' }) {
         );
     }
 
-    const getWidgetTitle = () => {
-        switch (user?.role) {
-            case 'admin':
-                return 'Hoạt động Hệ thống';
-            case 'manager':
-                return `Hoạt động ${user.department}`;
-            case 'user':
-                return 'Hoạt động của tôi';
-            default:
-                return 'Hoạt động Gần đây';
-        }
-    };
-
     return (
         <div className={`bg-white rounded-lg shadow ${className}`}>
             <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">{getWidgetTitle()}</h3>
-                    {user?.role === 'admin' && (
-                        <Link 
-                            to="/activity" 
-                            className="text-blue-600 hover:text-blue-700 flex items-center text-sm"
+                    
+                    <div className="flex items-center space-x-4">
+                        <button 
+                            onClick={() => refetch()} 
+                            disabled={isFetching}
+                            className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                            title="Làm mới"
                         >
-                            Xem tất cả
-                            <FiExternalLink className="ml-1 h-3 w-3" />
-                        </Link>
-                    )}
+                            <FiRefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                        </button>
+                        {user?.role === 'admin' && (
+                            <Link 
+                                to="/reports/activity" 
+                                className="text-blue-600 hover:text-blue-700 flex items-center text-sm"
+                            >
+                                Xem tất cả
+                                <FiExternalLink className="ml-1 h-3 w-3" />
+                            </Link>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-3">

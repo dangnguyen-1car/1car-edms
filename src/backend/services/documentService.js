@@ -102,13 +102,6 @@ class DocumentService {
      * *** ĐÃ TÁI CẤU TRÚC HOÀN TOÀN ĐỂ ĐẢM BẢO CHÍNH XÁC ***
      */
   async getPendingApprovalStats (user) {
-    // ===== Vùng log chẩn đoán đã có =====
-    console.log('---------------------------------------------------------')
-    console.log('>>> [CHẨN ĐOÁN] BẮT ĐẦU CHẠY getPendingApprovalStats')
-    console.log('>>> [CHẨN ĐOÁN] Thời gian chạy:', new Date().toISOString())
-    console.log('>>> [CHẨN ĐOÁN] Thông tin User:', JSON.stringify(user, null, 2))
-
-    // ===== BẮT ĐẦU VÙNG CODE MỚI ĐỂ THAY THẾ =====
     try {
       let totalPendingQuery = "SELECT COUNT(*) as count FROM documents WHERE status = 'review'"
       const reviewCountQuery = "SELECT COUNT(*) as count FROM documents WHERE status = 'review' AND reviewer_id = ?"
@@ -131,11 +124,6 @@ class DocumentService {
         dbManager.get(approvalCountQuery, [user.id])
       ])
 
-      // ===== LOG KẾT QUẢ TRUY VẤN DATABASE =====
-      console.log('>>> [CHẨN ĐOÁN] Kết quả DB (totalResult):', JSON.stringify(totalResult))
-      console.log('>>> [CHẨN ĐOÁN] Kết quả DB (reviewResult):', JSON.stringify(reviewResult))
-      console.log('>>> [CHẨN ĐOÁN] Kết quả DB (approvalResult):', JSON.stringify(approvalResult))
-
       const responseData = {
         success: true,
         data: {
@@ -145,14 +133,8 @@ class DocumentService {
         }
       }
 
-      console.log('>>> [CHẨN ĐOÁN] Dữ liệu chuẩn bị gửi đi:', JSON.stringify(responseData, null, 2))
-      console.log('---------------------------------------------------------')
-
       return responseData
     } catch (error) {
-      // Log lỗi chi tiết nếu có
-      console.error('>>> [CHẨN ĐOÁN] LỖI TRONG HÀM getPendingApprovalStats:', error)
-      console.log('---------------------------------------------------------')
       // Ném lỗi để middleware có thể xử lý
       throw createError('Không thể lấy thống kê tài liệu chờ phê duyệt', 500, 'FETCH_STATS_FAILED')
     }

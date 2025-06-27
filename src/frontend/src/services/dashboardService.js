@@ -198,8 +198,7 @@ class DashboardService {
         todayActivity: todayActivityCount,
       };
 
-    } catch (error) {
-      console.error("Failed to fetch quick stats for dashboard:", error);
+    } catch (error) {      
       return {
         myDocuments: 0,
         pendingApprovals: 0,
