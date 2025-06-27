@@ -1,11 +1,11 @@
-// src/backend/services/documentService.js - CẬP NHẬT PHẦN getDocument
-// Các module require ở cấp cao nhất - chỉ những module an toàn, không gây phụ thuộc vòng
+// src/backend/services/documentService.js - PHIÊN BẢN SỬA LỖI CUỐI CÙNG
 const { createError } = require('../middleware/errorHandler')
 const { dbManager } = require('../config/database')
-const fs = require('fs-extra') // SỬA LỖI: Thêm thư viện xử lý file
-const path = require('path') // SỬA LỖI: Thêm thư viện xử lý đường dẫn
+const fs = require('fs-extra')
+const path = require('path')
 const recentDocumentsService = require('./recentDocumentsService')
 const favoritesService = require('./favoritesService')
+const AuditService = require('./auditService')
 const PROJECT_ROOT = path.join(__dirname, '..')
 
 class DocumentService {
@@ -99,39 +99,64 @@ class DocumentService {
 
   /**
      * Lấy thống kê tài liệu chờ phê duyệt cho Dashboard Widget
+     * *** ĐÃ TÁI CẤU TRÚC HOÀN TOÀN ĐỂ ĐẢM BẢO CHÍNH XÁC ***
      */
   async getPendingApprovalStats (user) {
+    // ===== Vùng log chẩn đoán đã có =====
+    console.log('---------------------------------------------------------')
+    console.log('>>> [CHẨN ĐOÁN] BẮT ĐẦU CHẠY getPendingApprovalStats')
+    console.log('>>> [CHẨN ĐOÁN] Thời gian chạy:', new Date().toISOString())
+    console.log('>>> [CHẨN ĐOÁN] Thông tin User:', JSON.stringify(user, null, 2))
+
+    // ===== BẮT ĐẦU VÙNG CODE MỚI ĐỂ THAY THẾ =====
     try {
-      let whereClause = "WHERE d.status = 'review'"
+      let totalPendingQuery = "SELECT COUNT(*) as count FROM documents WHERE status = 'review'"
+      const reviewCountQuery = "SELECT COUNT(*) as count FROM documents WHERE status = 'review' AND reviewer_id = ?"
+      const approvalCountQuery = "SELECT COUNT(*) as count FROM documents WHERE status = 'review' AND approver_id = ?"
+
       const params = []
 
       if (user.role !== 'admin') {
-        whereClause += ' AND (d.reviewer_id = ? OR d.approver_id = ?)'
+        totalPendingQuery += ' AND (reviewer_id = ? OR approver_id = ?)'
         params.push(user.id, user.id)
       }
 
-      const statsQuery = `
-                SELECT COUNT(*) as total_pending,
-                       COUNT(CASE WHEN d.reviewer_id = ? THEN 1 END) as pending_review,
-                       COUNT(CASE WHEN d.approver_id = ? THEN 1 END) as pending_approval,
-                       COUNT(CASE WHEN d.priority = 'urgent' THEN 1 END) as urgent_count,
-                       COUNT(CASE WHEN d.priority = 'high' THEN 1 END) as high_priority_count,
-                       AVG(JULIANDAY('now') - JULIANDAY(d.updated_at)) as avg_days_pending,
-                       COUNT(CASE WHEN d.updated_at > datetime('now', '-7 days') THEN 1 END) as recent_submissions
-                FROM documents d
-                ${whereClause}
-            `
-      const statsParams = [user.id, user.id, ...params]
-      const stats = await dbManager.get(statsQuery, statsParams)
+      const [
+        totalResult,
+        reviewResult,
+        approvalResult
+      ] = await Promise.all([
+        dbManager.get(totalPendingQuery, params),
+        dbManager.get(reviewCountQuery, [user.id]),
+        dbManager.get(approvalCountQuery, [user.id])
+      ])
 
-      return {
+      // ===== LOG KẾT QUẢ TRUY VẤN DATABASE =====
+      console.log('>>> [CHẨN ĐOÁN] Kết quả DB (totalResult):', JSON.stringify(totalResult))
+      console.log('>>> [CHẨN ĐOÁN] Kết quả DB (reviewResult):', JSON.stringify(reviewResult))
+      console.log('>>> [CHẨN ĐOÁN] Kết quả DB (approvalResult):', JSON.stringify(approvalResult))
+
+      const responseData = {
         success: true,
-        data: stats
+        data: {
+          total_pending: totalResult.count || 0,
+          pending_review: reviewResult.count || 0,
+          pending_approval: approvalResult.count || 0
+        }
       }
+
+      console.log('>>> [CHẨN ĐOÁN] Dữ liệu chuẩn bị gửi đi:', JSON.stringify(responseData, null, 2))
+      console.log('---------------------------------------------------------')
+
+      return responseData
     } catch (error) {
-      console.error('Error in getPendingApprovalStats:', error)
+      // Log lỗi chi tiết nếu có
+      console.error('>>> [CHẨN ĐOÁN] LỖI TRONG HÀM getPendingApprovalStats:', error)
+      console.log('---------------------------------------------------------')
+      // Ném lỗi để middleware có thể xử lý
       throw createError('Không thể lấy thống kê tài liệu chờ phê duyệt', 500, 'FETCH_STATS_FAILED')
     }
+    // ===== KẾT THÚC VÙNG CODE MỚI ĐỂ THAY THẾ =====
   }
 
   // ===============================================================
@@ -142,7 +167,6 @@ class DocumentService {
      * Xử lý workflow action (approve, reject, request_changes)
      */
   async processWorkflowAction (documentId, action, comment, user) {
-    const AuditService = require('./auditService')
     try {
       const validActions = ['approve', 'reject', 'request_changes']
       if (!validActions.includes(action)) {
@@ -153,8 +177,8 @@ class DocumentService {
         throw createError('Không tìm thấy tài liệu', 404, 'DOCUMENT_NOT_FOUND')
       }
       const canPerformAction = user.role === 'admin' ||
-                document.reviewer_id === user.id ||
-                document.approver_id === user.id
+                                document.reviewer_id === user.id ||
+                                document.approver_id === user.id
       if (!canPerformAction) {
         throw createError('Bạn không có quyền thực hiện hành động này', 403, 'INSUFFICIENT_PERMISSION')
       }
@@ -198,8 +222,6 @@ class DocumentService {
      * Lấy chi tiết tài liệu - CẬP NHẬT để ghi lại lượt xem
      */
   async getDocument (id, user, context = {}) {
-    const AuditService = require('./auditService')
-
     try {
       const document = await dbManager.get(`
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
@@ -256,7 +278,6 @@ class DocumentService {
      * Lấy nội dung file để download
      */
   async downloadDocument (id, user, context = {}) {
-    const AuditService = require('./auditService')
     try {
       const documentResult = await this.getDocument(id, user, context)
       const document = documentResult.data
@@ -314,8 +335,8 @@ class DocumentService {
   async deleteDocument (id, user) { /* Implementation giữ nguyên */ }
 
   /**
-   * Lấy lịch sử phiên bản của tài liệu.
-   */
+     * Lấy lịch sử phiên bản của tài liệu.
+     */
   async getVersionHistory (id, user) {
     try {
       const document = await dbManager.get('SELECT id, author_id, reviewer_id, approver_id, department, status, security_level FROM documents WHERE id = ?', [id])
@@ -345,10 +366,9 @@ class DocumentService {
   }
 
   /**
-   * Tạo một phiên bản mới cho tài liệu.
-   */
+     * Tạo một phiên bản mới cho tài liệu.
+     */
   async createDocumentVersion (id, versionData, user) {
-    const AuditService = require('./auditService')
     try {
       const { file_path, file_name, file_size, mime_type, version_number, changes_summary } = versionData
 
@@ -366,9 +386,9 @@ class DocumentService {
 
       try {
         const result = await dbManager.run(
-          `INSERT INTO document_versions (document_id, version_number, file_path, file_name, file_size, mime_type, changes_summary, created_by)
+                    `INSERT INTO document_versions (document_id, version_number, file_path, file_name, file_size, mime_type, changes_summary, created_by)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [id, version_number, file_path, file_name, file_size, mime_type, changes_summary, user.id]
+                    [id, version_number, file_path, file_name, file_size, mime_type, changes_summary, user.id]
         )
 
         await dbManager.run(
@@ -405,8 +425,8 @@ class DocumentService {
   }
 
   /**
-   * Lấy lịch sử workflow của tài liệu.
-   */
+     * Lấy lịch sử workflow của tài liệu.
+     */
   async getWorkflowHistory (id, user) {
     try {
       const document = await dbManager.get('SELECT id, author_id, reviewer_id, approver_id, department, status, security_level FROM documents WHERE id = ?', [id])
@@ -441,7 +461,63 @@ class DocumentService {
     }
   }
 
-  async getDocumentStatistics (user, filters) { /* Implementation giữ nguyên */ }
+  /**
+   * Lấy thống kê tài liệu.
+   * *** PHIÊN BẢN SỬA LỖI HOÀN CHỈNH ***
+   */
+  async getDocumentStatistics (user, filters = {}) {
+    try {
+      const { department, authorId, dateFrom, dateTo } = filters
+      let whereClause = 'WHERE 1=1'
+      const params = []
+
+      // Logic phân quyền: Nếu không phải admin, chỉ thống kê trong phòng ban của họ
+      // trừ khi có một bộ lọc phòng ban khác được áp dụng (cho phép manager xem phòng ban khác nếu có quyền)
+      if (user.role !== 'admin' && !department) {
+        whereClause += ' AND department = ?'
+        params.push(user.department)
+      }
+
+      if (department) {
+        whereClause += ' AND department = ?'
+        params.push(department)
+      }
+
+      if (authorId) {
+        whereClause += ' AND author_id = ?'
+        params.push(authorId)
+      }
+      if (dateFrom) {
+        whereClause += ' AND created_at >= ?'
+        params.push(dateFrom)
+      }
+      if (dateTo) {
+        whereClause += ' AND created_at <= ?'
+        params.push(dateTo)
+      }
+
+      // Câu lệnh SQL đúng để thống kê theo từng trạng thái
+      const statsQuery = `
+        SELECT
+          COUNT(*) as total_documents,
+          COUNT(CASE WHEN status = 'published' THEN 1 END) as published_count,
+          COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
+          COUNT(CASE WHEN status = 'review' THEN 1 END) as review_count,
+          COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_count,
+          COUNT(CASE WHEN created_at >= date('now', '-30 days') THEN 1 END) as recent_count
+        FROM documents
+        ${whereClause}
+      `
+
+      const stats = await dbManager.get(statsQuery, params)
+
+      return { success: true, data: stats }
+    } catch (error) {
+      console.error('Error in getDocumentStatistics:', error)
+      throw createError('Không thể lấy thống kê tài liệu', 500, 'FETCH_DOCS_STATS_FAILED')
+    }
+  }
+
   async getDocumentsDueForReview (user, daysBefore) { /* Implementation giữ nguyên */ }
   async updateDocumentStatus (id, newStatus, comment, user) { /* Implementation giữ nguyên */ }
 }

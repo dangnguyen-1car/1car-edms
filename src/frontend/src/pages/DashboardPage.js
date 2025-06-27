@@ -1,7 +1,9 @@
 // src/frontend/src/pages/DashboardPage.js
 import React, { useState, useMemo } from 'react';
 import { Navigate, Link } from 'react-router-dom';
+// Sửa import: Thêm documentService
 import { useQuery } from '@tanstack/react-query';
+import { documentService } from '../services/documentService';
 import { FiPlus, FiSearch, FiUserCheck, FiClock, FiZap, FiStar } from 'react-icons/fi';
 // Context & Service Imports
 import { useAuth } from '../contexts/AuthContext';
@@ -65,6 +67,18 @@ function DashboardPage() {
         enabled: !!user,
     });
 
+    // GỌI API LẤY STATS CHO CẢ 2 WIDGET
+    const { data: pendingStatsData, isLoading: pendingStatsLoading } = useQuery({
+        queryKey: ['pendingApprovalStats'],
+        queryFn: () => documentService.getPendingApprovalStats(),
+        enabled: !!user,
+        staleTime: 60 * 1000,
+    });
+
+    // Trích xuất giá trị đúng
+    const totalPendingCount = pendingStatsData?.data?.total_pending || 0;
+
+
     const getRoleDisplayName = (role) => {
         const roleNames = {
             'admin': 'Quản trị viên',
@@ -125,11 +139,12 @@ function DashboardPage() {
                         linkHref="/documents?author=me"
                         linkText="Xem tất cả"
                     />
+                    {/* SỬA LỖI TRONG QUICK STATS */}
                     <QuickStatCard
                         icon={FiClock}
                         title="Chờ phê duyệt"
-                        value={quickStats?.pendingApprovals || 0}
-                        isLoading={statsLoading}
+                        value={totalPendingCount} 
+                        isLoading={pendingStatsLoading}
                         linkHref="/documents/pending-approval"
                         linkText="Xem chi tiết"
                     />
@@ -164,6 +179,7 @@ function DashboardPage() {
                     {/* Pending Approvals Widget */}
                     {canViewPendingApprovals && (
                         <div className="xl:col-span-1">
+                            {/* Component PendingApprovalsWidget sẽ tự động dùng cache từ useQuery ở trên */}
                             <PendingApprovalsWidget />
                         </div>
                     )}

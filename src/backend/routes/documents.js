@@ -1,4 +1,4 @@
-// src/backend/routes/documents.js
+// src/backend/routes/documents.js - PHIÊN BẢN SỬA LỖI CUỐI CÙNG
 const express = require('express')
 const router = express.Router()
 
@@ -6,7 +6,7 @@ const router = express.Router()
 const { authenticateToken } = require('../middleware/auth')
 const { checkPermission } = require('../middleware/permissionMiddleware')
 const { auditMiddleware, auditCRUD, setAuditDetails } = require('../middleware/auditMiddleware')
-const serviceFactory = require('../services/serviceFactory')
+const serviceFactory = require('../services/serviceFactory') // <-- SỬA LỖI: Chỉ dùng factory
 const { createError } = require('../middleware/errorHandler')
 const SearchService = require('../services/searchService')
 const DocumentCodeGenerator = require('../utils/documentCodeGenerator')
@@ -15,6 +15,9 @@ const favoritesService = require('../services/favoritesService')
 
 // Áp dụng audit middleware cho tất cả routes
 router.use(auditMiddleware)
+
+// KHỞI TẠO INSTANCE CỦA SERVICE ĐỂ DÙNG CHUNG (COMMENT OUT HOẶC XÓA DÒNG NÀY VÀ CÁC DÒNG TƯƠNG TỰ)
+// const documentService = new DocumentService()
 
 // =================================================================
 // CÁC ROUTE LẤY DANH SÁCH VÀ TẠO MỚI
@@ -41,7 +44,7 @@ router.get('/', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'),
  */
 router.post('/', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document'), auditCRUD.create('document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const result = await documentService.createDocument(req.body, req.user)
     res.status(201).json(result)
   } catch (error) {
@@ -59,8 +62,8 @@ router.post('/', authenticateToken, checkPermission('CREATE_DOCUMENT', 'document
  */
 router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
   try {
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const { page = 1, limit = 20, department, author, priority, sortBy = 'updated_at', sortOrder = 'desc' } = req.query
-    const documentService = serviceFactory.getDocumentService()
     const filters = {
       page: parseInt(page),
       limit: parseInt(limit),
@@ -92,11 +95,14 @@ router.get('/pending-approval', authenticateToken, checkPermission('VIEW_DOCUMEN
 /**
  * GET /api/documents/pending-approval/stats
  * Lấy thống kê tài liệu chờ phê duyệt cho Dashboard Widget.
+ * *** ĐÃ SỬA LẠI CÁCH GỌI SERVICE ***
  */
 router.get('/pending-approval/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
   try {
+    // SỬA LỖI: Luôn gọi service qua factory
     const documentService = serviceFactory.getDocumentService()
     const result = await documentService.getPendingApprovalStats(req.user)
+
     if (result && result.data) {
       setAuditDetails(res, 'VIEW_WORKFLOW_STATS', 'document', null, {
         totalPending: result.data.total_pending || 0,
@@ -116,13 +122,24 @@ router.get('/pending-approval/stats', authenticateToken, checkPermission('VIEW_D
 /**
  * GET /api/documents/stats
  * Lấy thống kê tài liệu.
+ * *** ĐÃ SỬA LỖI ĐỂ XỬ LÝ author=me ***
+ * *** ĐÃ SỬA LẠI CÁCH GỌI SERVICE ***
  */
 router.get('/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
   try {
-    const { department, dateFrom, dateTo } = req.query
+    const { department, dateFrom, dateTo, author } = req.query
+    // SỬA LỖI: Luôn gọi service qua factory
     const documentService = serviceFactory.getDocumentService()
-    const result = await documentService.getDocumentStatistics(req.user, { department, dateFrom, dateTo })
-    setAuditDetails(res, 'DOCUMENT_STATISTICS_VIEWED', 'document', null, { filtersApplied: { department, dateFrom, dateTo } })
+
+    const filters = { department, dateFrom, dateTo }
+
+    if (author === 'me' && req.user && req.user.id) {
+      filters.authorId = req.user.id
+    }
+
+    const result = await documentService.getDocumentStatistics(req.user, filters)
+
+    setAuditDetails(res, 'DOCUMENT_STATISTICS_VIEWED', 'document', null, { filtersApplied: filters })
     res.json({ ...result, timestamp: new Date().toISOString(), requestId: req.requestId })
   } catch (error) {
     next(error)
@@ -135,8 +152,8 @@ router.get('/stats', authenticateToken, checkPermission('VIEW_DOCUMENT', 'docume
  */
 router.get('/due-for-review', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), async (req, res, next) => {
   try {
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const { daysBefore = 30 } = req.query
-    const documentService = serviceFactory.getDocumentService()
     const result = await documentService.getDocumentsDueForReview(req.user, parseInt(daysBefore))
     if (result) {
       setAuditDetails(res, 'DOCUMENTS_DUE_REVIEW_VIEWED', 'document', null, { daysBefore: parseInt(daysBefore), count: result.count })
@@ -427,7 +444,7 @@ router.delete('/:id/permissions/:permissionId',
  */
 router.get('/:id', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document'), auditCRUD.read('document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const context = { ip: req.ip, userAgent: req.get('user-agent'), sessionId: req.sessionID }
     const result = await documentService.getDocument(parseInt(req.params.id), req.user, context)
     res.json(result)
@@ -442,7 +459,7 @@ router.get('/:id', authenticateToken, checkPermission('VIEW_DOCUMENT', 'document
  */
 router.put('/:id', authenticateToken, checkPermission('EDIT_DOCUMENT', 'document'), auditCRUD.update('document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const result = await documentService.updateDocument(parseInt(req.params.id), req.body, req.user)
     res.json(result)
   } catch (error) {
@@ -456,7 +473,7 @@ router.put('/:id', authenticateToken, checkPermission('EDIT_DOCUMENT', 'document
  */
 router.delete('/:id', authenticateToken, checkPermission('DELETE_DOCUMENT', 'document'), auditCRUD.delete('document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const result = await documentService.deleteDocument(parseInt(req.params.id), req.user)
     res.json(result)
   } catch (error) {
@@ -470,12 +487,12 @@ router.delete('/:id', authenticateToken, checkPermission('DELETE_DOCUMENT', 'doc
  */
 router.post('/:id/workflow', authenticateToken, checkPermission('APPROVE_DOCUMENT', 'document'), async (req, res, next) => {
   try {
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const documentId = parseInt(req.params.id)
     const { action, comment } = req.body
     if (!['approve', 'reject', 'request_changes'].includes(action)) {
       throw createError('Hành động không hợp lệ', 400, 'INVALID_ACTION')
     }
-    const documentService = serviceFactory.getDocumentService()
     const result = await documentService.processWorkflowAction(documentId, action, comment, req.user)
     if (result) {
       setAuditDetails(res, 'WORKFLOW_TRANSITION', 'document', documentId, {
@@ -503,7 +520,7 @@ router.post('/:id/workflow', authenticateToken, checkPermission('APPROVE_DOCUMEN
  */
 router.put('/:id/status', authenticateToken, checkPermission('APPROVE_DOCUMENT', 'document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const { newStatus, comment } = req.body
     const result = await documentService.updateDocumentStatus(parseInt(req.params.id), newStatus, comment, req.user)
     setAuditDetails(res, 'DOCUMENT_STATUS_CHANGED', 'document', parseInt(req.params.id), { newStatus, comment })
@@ -519,7 +536,7 @@ router.put('/:id/status', authenticateToken, checkPermission('APPROVE_DOCUMENT',
  */
 router.get('/:id/versions', authenticateToken, checkPermission('VIEW_VERSION_HISTORY', 'document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const result = await documentService.getVersionHistory(parseInt(req.params.id), req.user)
     // Thêm kiểm tra
     if (result && result.data) {
@@ -537,7 +554,7 @@ router.get('/:id/versions', authenticateToken, checkPermission('VIEW_VERSION_HIS
  */
 router.post('/:id/versions', authenticateToken, checkPermission('CREATE_VERSION', 'document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const result = await documentService.createDocumentVersion(parseInt(req.params.id), req.body, req.user)
     if (result && result.data) {
       setAuditDetails(res, 'VERSION_CREATED', 'document', parseInt(req.params.id), { newVersionNumber: result.data.version_number })
@@ -554,7 +571,7 @@ router.post('/:id/versions', authenticateToken, checkPermission('CREATE_VERSION'
  */
 router.get('/:id/workflow', authenticateToken, checkPermission('VIEW_WORKFLOW_HISTORY', 'document'), async (req, res, next) => {
   try {
-    const documentService = serviceFactory.getDocumentService()
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const result = await documentService.getWorkflowHistory(parseInt(req.params.id), req.user)
     // Thêm kiểm tra
     if (result && result.data) {
@@ -572,8 +589,8 @@ router.get('/:id/workflow', authenticateToken, checkPermission('VIEW_WORKFLOW_HI
  */
 router.get('/:id/download', authenticateToken, checkPermission('DOWNLOAD_DOCUMENT', 'document'), async (req, res, next) => {
   try {
+    const documentService = serviceFactory.getDocumentService() // Luôn dùng factory
     const documentId = parseInt(req.params.id)
-    const documentService = serviceFactory.getDocumentService()
     const context = { ip: req.ip, userAgent: req.get('user-agent'), sessionId: req.sessionID }
     const result = await documentService.downloadDocument(documentId, req.user, context)
     if (result) {

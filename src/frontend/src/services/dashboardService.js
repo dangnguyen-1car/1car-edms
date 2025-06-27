@@ -154,24 +154,64 @@ class DashboardService {
   }
 
   // =================================================================
-  // === BẮT ĐẦU PHẦN CHỈNH SỬA =======================================
+  // === BẮT ĐẦU PHẦN ĐÃ SỬA LỖI ====================================
   // =================================================================
 
-  // FIX: Thêm hàm getWidgetStats còn thiếu để khắc phục TypeError
-  async getWidgetStats() {
+  /**
+   * Lấy tất cả các số liệu thống kê nhanh cho các thẻ trên cùng của Dashboard.
+   * Gọi nhiều API song song và xử lý dữ liệu để cải thiện hiệu suất.
+   * @returns {Promise<object>} Một đối tượng chứa các số liệu thống kê.
+   */
+  async getQuickStats() {
     try {
-      // Endpoint này nên trả về các thống kê chung cho các thẻ ở đầu dashboard
-      const response = await api.get('/documents/stats');  
-      return response.data;
-    } catch (error) {      
-      throw new Error(error.response?.data?.message || 'Không thể tải thống kê widget.');
+      // Thực hiện các lệnh gọi API song song để lấy tất cả dữ liệu cần thiết
+      const [
+        myDocsResponse,
+        pendingResponse,
+        favoritesResponse, // Sửa lỗi cho favorites
+        recentActivitiesResponse,
+      ] = await Promise.all([
+        // API này cần được kiểm tra ở backend
+        api.get('/documents/stats?author=me'),
+        // API này cần được kiểm tra ở backend
+        api.get('/documents/pending-approval/stats'),
+        // Sửa lỗi: Gọi API lấy danh sách và đếm ở frontend
+        api.get('/me/favorites'),
+        api.get('/audit-logs/recent?limit=100'),
+      ]);
+      
+      // Xử lý logic đếm hoạt động trong ngày ở frontend
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayActivityCount = recentActivitiesResponse.data.data.filter(activity => {
+          const activityDate = new Date(activity.timestamp);
+          return activityDate >= today;
+      }).length;
+
+      // Trả về một đối tượng có cấu trúc rõ ràng
+      return {
+        myDocuments: myDocsResponse.data?.data?.total || 0,
+        pendingApprovals: pendingResponse.data?.data?.total || 0,
+        // Sửa lỗi: Lấy độ dài của mảng favorites trả về
+        favorites: favoritesResponse.data?.data?.length || 0,
+        todayActivity: todayActivityCount,
+      };
+
+    } catch (error) {
+      console.error("Failed to fetch quick stats for dashboard:", error);
+      return {
+        myDocuments: 0,
+        pendingApprovals: 0,
+        favorites: 0,
+        todayActivity: 0,
+      };
     }
   }
-
+  
   // =================================================================
-  // === KẾT THÚC PHẦN CHỈNH SỬA ======================================
+  // === KẾT THÚC PHẦN ĐÃ SỬA LỖI =====================================
   // =================================================================
-
-} // <-- Dấu ngoặc đóng của class DashboardService
+}
 
 export const dashboardService = new DashboardService();

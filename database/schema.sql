@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
         'SYSTEM_VIEWED',
         'AUDIT_LOGS_VIEWED', 'VIEW_AUDIT_LOGS'
     )),
-    CHECK (resource_type IN ('user', 'document', 'version', 'file', 'workflow', 'permission', 'system', 'audit_log', 'document_permissions'))
+    CHECK (resource_type IN ('user', 'document', 'version', 'file', 'workflow', 'permission', 'system', 'audit_log', 'auth', 'document_permissions'))
 );
 CREATE TABLE IF NOT EXISTS document_permissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, user_id INTEGER,
