@@ -31,9 +31,9 @@ class PermissionService {
         'VIEW_DOCUMENT', 'CREATE_DOCUMENT', 'EDIT_DOCUMENT',
         'CREATE_VERSION', 'VIEW_VERSION_HISTORY', 'SUBMIT_FOR_REVIEW',
         'VIEW_USERS', 'EDIT_USER_PROFILE', 'UPLOAD_FILES',
-        'DOWNLOAD_DOCUMENT' // Thêm quyền download cho user
+        'DOWNLOAD_DOCUMENT'
       ],
-      guest: ['VIEW_DOCUMENT', 'DOWNLOAD_DOCUMENT'] // Khách cũng có thể xem và download
+      guest: ['VIEW_DOCUMENT', 'DOWNLOAD_DOCUMENT']
     }
   }
 
@@ -137,7 +137,7 @@ class PermissionService {
       const existingPermission = await dbManager.get(`
         SELECT id FROM document_permissions
         WHERE document_id = ? AND permission_type = ? AND is_active = 1
-        AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+        AND (expires_at IS NULL OR expires_at > datetime('now', 'localtime'))
         AND ${targetType === 'user' ? 'user_id = ? AND department IS NULL' : 'department = ? AND user_id IS NULL'}
       `, targetType === 'user' ? [documentId, permissionType, targetId] : [documentId, permissionType, targetId])
 
@@ -151,7 +151,7 @@ class PermissionService {
         INSERT INTO document_permissions (
           document_id, ${targetType === 'user' ? 'user_id' : 'department'},
           permission_type, granted_by, granted_at, is_active
-        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+        ) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), 1)
       `, [documentId, targetId, permissionType, grantedByUserId])
 
       // Log audit
@@ -228,7 +228,7 @@ class PermissionService {
       // Revoke permission (soft delete)
       const result = await dbManager.run(`
         UPDATE document_permissions
-        SET is_active = 0, revoked_by = ?, revoked_at = CURRENT_TIMESTAMP
+        SET is_active = 0, revoked_by = ?, revoked_at = datetime('now', 'localtime')
         WHERE id = ? AND document_id = ? AND is_active = 1
       `, [revokedByUserId, permissionId, documentId])
 
@@ -317,7 +317,7 @@ class PermissionService {
         LEFT JOIN users u ON dp.user_id = u.id
         LEFT JOIN users gb ON dp.granted_by = gb.id
         WHERE dp.document_id = ? AND dp.is_active = 1
-        AND (dp.expires_at IS NULL OR dp.expires_at > CURRENT_TIMESTAMP)
+        AND (dp.expires_at IS NULL OR dp.expires_at > datetime('now', 'localtime'))
         ORDER BY dp.granted_at DESC
       `, [documentId])
 
@@ -624,7 +624,7 @@ class PermissionService {
       const permissions = await dbManager.all(`
         SELECT permission_type FROM document_permissions
         WHERE document_id = ? AND is_active = 1
-          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+          AND (expires_at IS NULL OR expires_at > datetime('now', 'localtime'))
           AND ((user_id = ? AND department IS NULL) OR (user_id IS NULL AND department = ?))
       `, [documentId, user.id, user.department]) // Check for user-specific AND department-specific explicit grants
 

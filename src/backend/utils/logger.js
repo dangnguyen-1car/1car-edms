@@ -199,9 +199,9 @@ async function createAuditLog (auditData) {
     // Insert audit log directly to database
     const result = await dbManager.run(`
             INSERT INTO audit_logs (
-                user_id, action, resource_type, resource_id, 
+                user_id, action, resource_type, resource_id,
                 details, ip_address, user_agent, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
         `, [
       user_id,
       normalizedAction,

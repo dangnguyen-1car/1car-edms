@@ -4,14 +4,14 @@ PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
-    version TEXT PRIMARY KEY, description TEXT, executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    version TEXT PRIMARY KEY, description TEXT, executed_at DATETIME DEFAULT (datetime('now', 'localtime'))
 );
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
     name TEXT NOT NULL, department TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
     position TEXT, phone TEXT, is_active INTEGER DEFAULT 1, last_login DATETIME,
     password_changed_at DATETIME, failed_login_attempts INTEGER DEFAULT 0, locked_until DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_by INTEGER,
+    created_at DATETIME DEFAULT (datetime('now', 'localtime')), updated_at DATETIME DEFAULT (datetime('now', 'localtime')), created_by INTEGER,
     FOREIGN KEY (created_by) REFERENCES users(id), CHECK (role IN ('admin', 'user')),
     CHECK (department IN (
         'Ban Giám đốc', 'Phòng Phát triển Nhượng quyền', 'Phòng Đào tạo Tiêu chuẩn',
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS documents (
     file_name TEXT, file_size INTEGER, mime_type TEXT, scope_of_application TEXT, recipients TEXT,
     review_cycle INTEGER DEFAULT 365, retention_period INTEGER DEFAULT 2555, next_review_date DATE,
     disposal_date DATE, change_reason TEXT, change_summary TEXT, keywords TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'localtime')), updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
     published_at DATETIME, archived_at DATETIME,
     FOREIGN KEY (author_id) REFERENCES users(id), FOREIGN KEY (reviewer_id) REFERENCES users(id),
     FOREIGN KEY (approver_id) REFERENCES users(id),
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS document_versions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, version TEXT NOT NULL,
     file_path TEXT, file_name TEXT, file_size INTEGER, change_reason TEXT, change_summary TEXT,
     change_type TEXT, status TEXT DEFAULT 'current', created_by INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id),
     CHECK (change_type IN ('major', 'minor', 'patch')),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS document_versions (
 CREATE TABLE IF NOT EXISTS workflow_transitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, from_status TEXT,
     to_status TEXT NOT NULL, comment TEXT, decision TEXT, transitioned_by INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
+    created_at DATETIME DEFAULT (datetime('now', 'localtime')), ip_address TEXT, user_agent TEXT,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (transitioned_by) REFERENCES users(id),
     CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS workflow_transitions (
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
     resource_type TEXT NOT NULL, resource_id INTEGER, details TEXT, ip_address TEXT,
-    user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id),
     CHECK (action IN (
         'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
         'SYSTEM_SHUTDOWN', 'SYSTEM_SETTINGS_UPDATED', 'ENDPOINT_NOT_FOUND', 'ERROR_OCCURRED',
         'DOCUMENT_STATISTICS_VIEWED', 'DOCUMENTS_DUE_REVIEW_VIEWED', 'SEARCH_FILTERS_VIEWED',
         'LOCKED_USERS_VIEWED', 'SYSTEM_STATS_VIEWED', 'DEPARTMENT_STATS_VIEWED', 'USER_STATS_VIEWED',
-        'SYSTEM_DATA_VIEWED', 
+        'SYSTEM_DATA_VIEWED',
         'SYSTEM_VIEWED',
         'AUDIT_LOGS_VIEWED', 'VIEW_AUDIT_LOGS'
     )),
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE TABLE IF NOT EXISTS document_permissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, user_id INTEGER,
     department TEXT, permission_type TEXT NOT NULL, granted_by INTEGER NOT NULL,
-    granted_at DATETIME DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME, is_active INTEGER DEFAULT 1,
+    granted_at DATETIME DEFAULT (datetime('now', 'localtime')), expires_at DATETIME, is_active INTEGER DEFAULT 1,
     revoked_by INTEGER, revoked_at DATETIME,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id), FOREIGN KEY (granted_by) REFERENCES users(id),
@@ -101,14 +101,14 @@ CREATE TABLE IF NOT EXISTS file_uploads (
     id INTEGER PRIMARY KEY AUTOINCREMENT, original_name TEXT NOT NULL, file_name TEXT NOT NULL,
     file_path TEXT NOT NULL, file_size INTEGER NOT NULL, mime_type TEXT NOT NULL, checksum TEXT,
     uploaded_by INTEGER NOT NULL, document_id INTEGER, version_id INTEGER,
-    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    uploaded_at DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (uploaded_by) REFERENCES users(id), FOREIGN KEY (document_id) REFERENCES documents(id),
     FOREIGN KEY (version_id) REFERENCES document_versions(id)
 );
 CREATE TABLE IF NOT EXISTS document_relationships (
     id INTEGER PRIMARY KEY AUTOINCREMENT, parent_document_id INTEGER NOT NULL,
     child_document_id INTEGER NOT NULL, relationship_type TEXT NOT NULL, created_by INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (child_document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id),

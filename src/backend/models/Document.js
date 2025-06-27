@@ -234,7 +234,7 @@ class Document {
                     recipients, review_cycle, retention_period, next_review_date,
                     disposal_date, change_reason, change_summary, keywords,
                     status, version, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '01.00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '01.00', datetime('now', 'localtime'), datetime('now', 'localtime'))
             `, [
         document_code, title, description, type, department,
         priority, security_level, author_id, scope_of_application,
@@ -247,7 +247,7 @@ class Document {
                 INSERT INTO document_versions (
                     document_id, version, change_reason, change_summary, 
                     change_type, created_by, created_at
-                ) VALUES (?, '01.00', ?, ?, 'major', ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, '01.00', ?, ?, 'major', ?, datetime('now', 'localtime'))
             `, [
         result.lastID,
         change_reason || 'Initial version',
@@ -376,7 +376,7 @@ class Document {
       }
 
       // Always update the updated_at timestamp
-      updateFields.push('updated_at = CURRENT_TIMESTAMP')
+      updateFields.push('updated_at = datetime(\'now\', \'localtime\')') // Changed
       updateValues.push(id)
 
       const sql = `UPDATE documents SET ${updateFields.join(', ')} WHERE id = ?`
@@ -449,7 +449,7 @@ class Document {
                         file_path = NULL,
                         file_name = NULL,
                         file_size = NULL,
-                        updated_at = CURRENT_TIMESTAMP
+                        updated_at = datetime('now', 'localtime') -- Changed
                     WHERE id = ?
                 `, [newVersion, changeReason, changeSummary, this.id])
 
@@ -495,7 +495,7 @@ class Document {
       }
 
       // Build update fields for status and timestamps
-      const updateFields = ['status = ?', 'updated_at = CURRENT_TIMESTAMP']
+      const updateFields = ['status = ?', 'updated_at = datetime(\'now\', \'localtime\')'] // Changed
       const updateValues = [newStatus]
 
       // Handle relevant date updates

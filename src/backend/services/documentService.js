@@ -54,7 +54,7 @@ class DocumentService {
       const query = `
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name,
-                       JULIANDAY('now') - JULIANDAY(d.updated_at) as days_pending,
+                       JULIANDAY('now', 'localtime') - JULIANDAY(d.updated_at) as days_pending,
                        (CASE
                           WHEN ? = 'admin' THEN 'approver'
                           WHEN d.reviewer_id = ? THEN 'reviewer'
@@ -178,7 +178,7 @@ class DocumentService {
 
       await dbManager.run('BEGIN TRANSACTION')
       try {
-        await dbManager.run('UPDATE documents SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newStatus, documentId])
+        await dbManager.run('UPDATE documents SET status = ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?', [newStatus, documentId])
         await dbManager.run('INSERT INTO workflow_transitions (document_id, from_status, to_status, comment, decision, transitioned_by) VALUES (?, ?, ?, ?, ?, ?)', [documentId, previousStatus, newStatus, comment, decision, user.id])
         await dbManager.run('COMMIT')
         await AuditService.log({
@@ -374,7 +374,7 @@ class DocumentService {
         )
 
         await dbManager.run(
-          'UPDATE documents SET file_path = ?, file_name = ?, file_size = ?, mime_type = ?, version_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          'UPDATE documents SET file_path = ?, file_name = ?, file_size = ?, mime_type = ?, version_number = ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?',
           [file_path, file_name, file_size, mime_type, version_number, id]
         )
 
@@ -486,7 +486,7 @@ class DocumentService {
           COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
           COUNT(CASE WHEN status = 'review' THEN 1 END) as review_count,
           COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_count,
-          COUNT(CASE WHEN created_at >= date('now', '-30 days') THEN 1 END) as recent_count
+          COUNT(CASE WHEN created_at >= datetime('now', '-30 days', 'localtime') THEN 1 END) as recent_count
         FROM documents
         ${whereClause}
       `

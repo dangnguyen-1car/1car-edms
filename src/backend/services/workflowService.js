@@ -25,7 +25,7 @@ class WorkflowService {
    * Valid workflow decisions
    */
   static get WORKFLOW_DECISIONS () {
-    return ['approved', 'rejected', 'returned'] //
+    return ['approved', 'rejected', 'returned']
   }
 
   /**
@@ -175,21 +175,21 @@ class WorkflowService {
 
       await dbManager.run('BEGIN TRANSACTION')
       try {
-        const updateFields = ['status = ?', 'updated_at = CURRENT_TIMESTAMP']
+        const updateFields = ['status = ?', 'updated_at = datetime(\'now\', \'localtime\')']
         const updateParams = [newStatus]
 
         if (newStatus === 'published') {
-          updateFields.push('published_at = CURRENT_TIMESTAMP')
+          updateFields.push('published_at = datetime(\'now\', \'localtime\')')
           // Gán approver_id nếu chưa có hoặc nếu người thực hiện là người có quyền approve
           if (!document.approver_id || user.id === document.approver_id || user.role === 'admin') {
             updateFields.push('approver_id = ?')
             updateParams.push(userId)
           }
         } else if (newStatus === 'archived') {
-          updateFields.push('archived_at = CURRENT_TIMESTAMP')
+          updateFields.push('archived_at = datetime(\'now\', \'localtime\')')
         } else if (newStatus === 'disposed') {
           // Schema documents không có cột disposed_at, nếu cần thì phải thêm
-          // updateFields.push('disposed_at = CURRENT_TIMESTAMP');
+          // updateFields.push('disposed_at = datetime(\'now\', \'localtime\')');
         }
         // Nếu trả về draft từ review, có thể xóa reviewer_id, approver_id
         if (currentStatus === 'review' && newStatus === 'draft') {
@@ -203,7 +203,7 @@ class WorkflowService {
           `INSERT INTO workflow_transitions (
             document_id, from_status, to_status, comment, decision,
             transitioned_by, transitioned_at, ip_address, user_agent, session_id
-          ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?, ?, ?)`,
           [documentId, currentStatus, newStatus, comment, decision, userId, ipAddress, userAgent, sessionId]
         )
 
@@ -429,7 +429,7 @@ class WorkflowService {
       const bottlenecks = await dbManager.all(
         `SELECT d.status,
          COUNT(*) as pending_count,
-         AVG(julianday('now') - julianday(d.updated_at)) as avg_pending_days
+         AVG(julianday(datetime('now', 'localtime')) - julianday(d.updated_at)) as avg_pending_days
          FROM documents d
          ${whereClause}
          AND d.status IN ('draft', 'review')
@@ -459,7 +459,7 @@ class WorkflowService {
    * Check if user can transition document to target state
    * @private
    */
-  static async canUserTransitionTo (document, user, targetState) { //
+  static async canUserTransitionTo (document, user, targetState) {
     const currentStatus = document.status
     const possibleTransitions = this.STATE_TRANSITIONS[currentStatus] || []
 
@@ -519,7 +519,7 @@ class WorkflowService {
    * Get transition action label for UI
    * @private
    */
-  static getTransitionActionLabel (fromStatus, toStatus) { //
+  static getTransitionActionLabel (fromStatus, toStatus) {
     const actionMap = {
       'draft->review': 'Gửi Xem Xét',
       'review->published': 'Phê Duyệt & Phát Hành',
@@ -538,7 +538,7 @@ class WorkflowService {
    * Check if comment is required for transition
    * @private
    */
-  static isCommentRequiredForTransition (fromStatus, toStatus) { //
+  static isCommentRequiredForTransition (fromStatus, toStatus) {
     const requireCommentTransitions = [
       'review->draft', // Trả lại cần lý do
       'review->published', // Phê duyệt có thể kèm ghi chú
@@ -573,7 +573,7 @@ class WorkflowService {
    * @param {Object} [context={}] - Request context
    * @private
    */
-  static async handlePostTransitionActions (document, fromStatus, toStatus, userId, comment, context = {}) { //
+  static async handlePostTransitionActions (document, fromStatus, toStatus, userId, comment, context = {}) {
     try {
       appLogger.info(`Handling post-transition for doc ${document.id}: ${fromStatus} -> ${toStatus}`, { userId })
 
@@ -611,7 +611,7 @@ class WorkflowService {
    * @param {number} userId
    * @param {Object} [context={}] - Request context
    */
-  static async getPendingApprovals (userId, context = {}) { //
+  static async getPendingApprovals (userId, context = {}) {
     const { ipAddress = null, userAgent = null, sessionId = null } = context
     try {
       const user = await dbManager.get('SELECT id, name, role, department FROM users WHERE id = ? AND is_active = 1', [userId])
@@ -658,7 +658,7 @@ class WorkflowService {
    * @param {number} userId
    * @param {Object} [context={}] - Request context
    */
-  static async getWorkflowDashboard (userId, context = {}) { //
+  static async getWorkflowDashboard (userId, context = {}) {
     const { ipAddress = null, userAgent = null, sessionId = null } = context
     try {
       const user = await dbManager.get('SELECT id, name, role, department FROM users WHERE id = ? AND is_active = 1', [userId])

@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'user',
   is_active INTEGER DEFAULT 1,
   last_login DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+  updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
   created_by INTEGER,
   FOREIGN KEY (created_by) REFERENCES users(id)
   -- CHECK constraints cho role và department sẽ được định nghĩa trong schema.sql hoàn chỉnh

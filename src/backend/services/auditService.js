@@ -64,7 +64,7 @@ class AuditService {
         `INSERT INTO audit_logs (
           user_id, action, resource_type, resource_id,
           details, ip_address, user_agent, session_id, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
         [
           userId, action, resourceType, resourceId,
           detailsJson, ipAddress, userAgent, sessionId
@@ -157,7 +157,7 @@ class AuditService {
       const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''
 
       const query = `
-        SELECT 
+        SELECT
           al.id,
           al.action,
           al.resource_type,

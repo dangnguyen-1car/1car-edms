@@ -4,7 +4,7 @@ CREATE TABLE user_document_favorites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     document_id INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE, -- SỬA LỖI TẠI ĐÂY
     UNIQUE(user_id, document_id)
@@ -15,7 +15,7 @@ CREATE TABLE user_recent_views (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     document_id INTEGER NOT NULL,
-    viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    viewed_at DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 );

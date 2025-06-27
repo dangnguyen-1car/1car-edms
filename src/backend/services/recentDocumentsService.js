@@ -12,7 +12,7 @@ class RecentDocumentsService {
       setImmediate(async () => {
         try {
           await dbManager.run(
-            'INSERT INTO user_recent_views (user_id, document_id, viewed_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+            'INSERT INTO user_recent_views (user_id, document_id, viewed_at) VALUES (?, ?, datetime(\'now\', \'localtime\'))',
             [userId, documentId]
           )
           // Giữ chỉ 50 bản ghi gần nhất cho mỗi user để tránh database phình to
@@ -96,8 +96,8 @@ class RecentDocumentsService {
       const stats = await dbManager.get(`
                 SELECT
                     COUNT(DISTINCT rv.document_id) as total_viewed,
-                    COUNT(CASE WHEN rv.viewed_at > datetime('now', '-1 day') THEN 1 END) as viewed_today,
-                    COUNT(CASE WHEN rv.viewed_at > datetime('now', '-7 days') THEN 1 END) as viewed_this_week,
+                    COUNT(CASE WHEN rv.viewed_at > datetime('now', '-1 day', 'localtime') THEN 1 END) as viewed_today,
+                    COUNT(CASE WHEN rv.viewed_at > datetime('now', '-7 days', 'localtime') THEN 1 END) as viewed_this_week,
                     MAX(rv.viewed_at) as last_activity
                 FROM user_recent_views rv
                 WHERE rv.user_id = ?

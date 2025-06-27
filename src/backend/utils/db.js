@@ -130,7 +130,7 @@ class DatabaseUtils {
       // Full-text search if term provided
       if (searchTerm && searchTerm.trim()) {
         whereConditions.push(`d.id IN (
-                    SELECT rowid FROM documents_fts 
+                    SELECT rowid FROM documents_fts
                     WHERE documents_fts MATCH ?
                 )`)
         params.push(searchTerm.trim())
@@ -169,7 +169,7 @@ class DatabaseUtils {
 
       // Build base query
       const baseQuery = `
-                SELECT 
+                SELECT
                     d.*,
                     u.name as author_name,
                     u.department as author_department,
@@ -200,8 +200,8 @@ class DatabaseUtils {
 
       // Documents by status
       const statusStats = await this.dbManager.all(`
-                SELECT status, COUNT(*) as count 
-                FROM documents 
+                SELECT status, COUNT(*) as count
+                FROM documents
                 GROUP BY status
             `)
       stats.byStatus = statusStats.reduce((acc, row) => {
@@ -211,8 +211,8 @@ class DatabaseUtils {
 
       // Documents by type
       const typeStats = await this.dbManager.all(`
-                SELECT type, COUNT(*) as count 
-                FROM documents 
+                SELECT type, COUNT(*) as count
+                FROM documents
                 GROUP BY type
             `)
       stats.byType = typeStats.reduce((acc, row) => {
@@ -222,8 +222,8 @@ class DatabaseUtils {
 
       // Documents by department
       const deptStats = await this.dbManager.all(`
-                SELECT department, COUNT(*) as count 
-                FROM documents 
+                SELECT department, COUNT(*) as count
+                FROM documents
                 GROUP BY department
                 ORDER BY count DESC
             `)
@@ -231,11 +231,11 @@ class DatabaseUtils {
 
       // Recent activity (last 30 days)
       const recentActivity = await this.dbManager.all(`
-                SELECT 
+                SELECT
                     DATE(created_at) as date,
                     COUNT(*) as count
-                FROM documents 
-                WHERE created_at >= date('now', '-30 days')
+                FROM documents
+                WHERE created_at >= date('now', '-30 days', 'localtime')
                 GROUP BY DATE(created_at)
                 ORDER BY date DESC
             `)
@@ -243,7 +243,7 @@ class DatabaseUtils {
 
       // Total counts
       const totalStats = await this.dbManager.get(`
-                SELECT 
+                SELECT
                     COUNT(*) as total_documents,
                     COUNT(CASE WHEN status = 'published' THEN 1 END) as published_documents,
                     COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_documents,
@@ -270,8 +270,8 @@ class DatabaseUtils {
 
       // Users by department
       const deptStats = await this.dbManager.all(`
-                SELECT department, COUNT(*) as count 
-                FROM users 
+                SELECT department, COUNT(*) as count
+                FROM users
                 WHERE is_active = 1
                 GROUP BY department
                 ORDER BY count DESC
@@ -280,8 +280,8 @@ class DatabaseUtils {
 
       // Users by role
       const roleStats = await this.dbManager.all(`
-                SELECT role, COUNT(*) as count 
-                FROM users 
+                SELECT role, COUNT(*) as count
+                FROM users
                 WHERE is_active = 1
                 GROUP BY role
             `)
@@ -292,11 +292,11 @@ class DatabaseUtils {
 
       // Recent logins (last 30 days)
       const recentLogins = await this.dbManager.all(`
-                SELECT 
+                SELECT
                     DATE(last_login) as date,
                     COUNT(DISTINCT id) as unique_users
-                FROM users 
-                WHERE last_login >= date('now', '-30 days')
+                FROM users
+                WHERE last_login >= date('now', '-30 days', 'localtime')
                 GROUP BY DATE(last_login)
                 ORDER BY date DESC
             `)
@@ -305,8 +305,8 @@ class DatabaseUtils {
       // Active users (logged in last 7 days)
       const activeUsers = await this.dbManager.get(`
                 SELECT COUNT(*) as count
-                FROM users 
-                WHERE last_login >= date('now', '-7 days')
+                FROM users
+                WHERE last_login >= date('now', '-7 days', 'localtime')
                 AND is_active = 1
             `)
       stats.activeUsers = activeUsers.count
@@ -344,9 +344,9 @@ class DatabaseUtils {
 
       const result = await this.dbManager.run(`
                 INSERT INTO audit_logs (
-                    user_id, action, resource_type, resource_id, 
+                    user_id, action, resource_type, resource_id,
                     details, ip_address, user_agent, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
             `, [
         auditData.user_id,
         auditData.action,
@@ -375,8 +375,8 @@ class DatabaseUtils {
   async cleanupAuditLogs (retentionDays = 90) {
     try {
       const result = await this.dbManager.run(`
-                DELETE FROM audit_logs 
-                WHERE timestamp < date('now', '-${retentionDays} days')
+                DELETE FROM audit_logs
+                WHERE timestamp < date('now', '-${retentionDays} days', 'localtime')
             `)
 
       logger.info(`Cleaned up ${result.changes} old audit log entries`)
@@ -400,10 +400,10 @@ class DatabaseUtils {
 
       // Get next sequence number for this type/year combination
       const lastDoc = await this.dbManager.get(`
-                SELECT document_code 
-                FROM documents 
-                WHERE document_code LIKE ? 
-                ORDER BY document_code DESC 
+                SELECT document_code
+                FROM documents
+                WHERE document_code LIKE ?
+                ORDER BY document_code DESC
                 LIMIT 1
             `, [`${type}-%${year}%`])
 
@@ -431,7 +431,7 @@ class DatabaseUtils {
   async getDocumentsDueForReview (daysBefore = 30) {
     try {
       const documents = await this.dbManager.all(`
-                SELECT 
+                SELECT
                     d.*,
                     u.name as author_name,
                     u.email as author_email
@@ -439,7 +439,7 @@ class DatabaseUtils {
                 LEFT JOIN users u ON d.author_id = u.id
                 WHERE d.status = 'published'
                 AND d.next_review_date IS NOT NULL
-                AND d.next_review_date <= date('now', '+${daysBefore} days')
+                AND d.next_review_date <= date('now', '+${daysBefore} days', 'localtime')
                 ORDER BY d.next_review_date ASC
             `)
 
@@ -487,14 +487,14 @@ class DatabaseUtils {
 
         // Update document with new version
         await db.run(`
-                    UPDATE documents 
-                    SET version = ?, 
-                        change_reason = ?, 
+                    UPDATE documents
+                    SET version = ?,
+                        change_reason = ?,
                         change_summary = ?,
                         status_before = ?,
                         status_after = 'draft',
                         status = 'draft',
-                        updated_at = CURRENT_TIMESTAMP
+                        updated_at = datetime('now', 'localtime')
                     WHERE id = ?
                 `, [newVersion, changeReason, changeSummary, currentDoc.status, documentId])
 
@@ -525,11 +525,11 @@ class DatabaseUtils {
 
       // Query performance stats
       const queryStats = await this.dbManager.all(`
-                SELECT 
+                SELECT
                     name,
                     sql,
                     tbl_name
-                FROM sqlite_master 
+                FROM sqlite_master
                 WHERE type = 'index'
             `)
       metrics.indexes = queryStats.length

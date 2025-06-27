@@ -320,7 +320,7 @@ class User {
       }
 
       // Add updated_at
-      updateFields.push('updated_at = CURRENT_TIMESTAMP')
+      updateFields.push('updated_at = datetime(\'now\', \'localtime\')')
       params.push(this.id)
 
       await dbManager.run(
@@ -361,7 +361,7 @@ class User {
       const password_hash = await bcrypt.hash(newPassword, security.bcrypt.rounds)
 
       await dbManager.run(
-        'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE users SET password_hash = ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?',
         [password_hash, this.id]
       )
 
@@ -385,7 +385,7 @@ class User {
   async updateLastLogin () {
     try {
       await dbManager.run(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE users SET last_login = datetime(\'now\', \'localtime\') WHERE id = ?',
         [this.id]
       )
 
@@ -405,7 +405,7 @@ class User {
   async deactivate (deactivatedBy = null) {
     try {
       await dbManager.run(
-        'UPDATE users SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE users SET is_active = 0, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?',
         [this.id]
       )
 
@@ -431,7 +431,7 @@ class User {
   async activate (activatedBy = null) {
     try {
       await dbManager.run(
-        'UPDATE users SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE users SET is_active = 1, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?',
         [this.id]
       )
 
@@ -503,12 +503,12 @@ class User {
   async getDocumentStats () {
     try {
       const stats = await dbManager.get(`
-                SELECT 
+                SELECT
                     COUNT(*) as total_documents,
                     COUNT(CASE WHEN status = 'published' THEN 1 END) as published_documents,
                     COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_documents,
                     COUNT(CASE WHEN status = 'review' THEN 1 END) as review_documents
-                FROM documents 
+                FROM documents
                 WHERE author_id = ?
             `, [this.id])
 
@@ -527,13 +527,13 @@ class User {
   async getRecentActivity (limit = 10) {
     try {
       const activities = await dbManager.all(`
-                SELECT 
+                SELECT
                     action,
                     resource_type,
                     resource_id,
                     details,
                     timestamp
-                FROM audit_logs 
+                FROM audit_logs
                 WHERE user_id = ?
                 ORDER BY timestamp DESC
                 LIMIT ?
@@ -575,12 +575,12 @@ class User {
   static async getDepartmentStats () {
     try {
       const stats = await dbManager.all(`
-                SELECT 
+                SELECT
                     department,
                     COUNT(*) as total_users,
                     COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_users,
                     COUNT(CASE WHEN role = 'admin' THEN 1 END) as admin_users
-                FROM users 
+                FROM users
                 GROUP BY department
                 ORDER BY total_users DESC
             `)
@@ -599,11 +599,11 @@ class User {
   static async getSystemStats () {
     try {
       const stats = await dbManager.get(`
-                SELECT 
+                SELECT
                     COUNT(*) as total_users,
                     COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_users,
                     COUNT(CASE WHEN role = 'admin' THEN 1 END) as admin_users,
-                    COUNT(CASE WHEN last_login >= date('now', '-7 days') THEN 1 END) as recent_logins
+                    COUNT(CASE WHEN last_login >= datetime('now', '-7 days') THEN 1 END) as recent_logins
                 FROM users
             `)
 

@@ -5,7 +5,7 @@ BEGIN TRANSACTION;
 CREATE TABLE IF NOT EXISTS audit_logs_temp_migration_003 (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
     resource_type TEXT NOT NULL, resource_id INTEGER, details TEXT, ip_address TEXT,
-    user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id),
     CHECK (action IN (
         'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS audit_logs_temp_migration_003 (
         'SYSTEM_SHUTDOWN', 'SYSTEM_SETTINGS_UPDATED', 'ENDPOINT_NOT_FOUND', 'ERROR_OCCURRED',
         'DOCUMENT_STATISTICS_VIEWED', 'DOCUMENTS_DUE_REVIEW_VIEWED', 'SEARCH_FILTERS_VIEWED',
         'LOCKED_USERS_VIEWED', 'SYSTEM_STATS_VIEWED', 'DEPARTMENT_STATS_VIEWED', 'USER_STATS_VIEWED',
-        'SYSTEM_DATA_VIEWED', 
+        'SYSTEM_DATA_VIEWED',
         'SYSTEM_VIEWED',
         'AUDIT_LOGS_VIEWED', 'VIEW_AUDIT_LOGS'
     )),
@@ -35,12 +35,12 @@ CREATE TABLE IF NOT EXISTS audit_logs_temp_migration_003 (
 INSERT INTO audit_logs_temp_migration_003 (
     id, user_id, action, resource_type, resource_id, details, ip_address, user_agent, session_id, timestamp
 )
-SELECT 
+SELECT
     id, user_id, action, COALESCE(resource_type, entity_type, 'system'),
     COALESCE(resource_id, entity_id), details, ip_address, user_agent, session_id,
-    COALESCE(timestamp, created_at, CURRENT_TIMESTAMP)
+    COALESCE(timestamp, created_at, (datetime('now', 'localtime')))
 FROM audit_logs WHERE EXISTS (SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs')
-AND action IN ( 
+AND action IN (
         'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
         'ACCOUNT_LOCKED', 'ACCOUNT_UNLOCKED', 'TOKEN_REFRESHED',
         'USER_CREATED', 'USER_UPDATED', 'USER_PROFILE_UPDATED', 'USER_ACTIVATED', 'USER_DEACTIVATED',
@@ -66,20 +66,20 @@ ALTER TABLE audit_logs_temp_migration_003 RENAME TO audit_logs;
 CREATE TABLE IF NOT EXISTS workflow_transitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, from_status TEXT,
     to_status TEXT NOT NULL, comment TEXT, decision TEXT, transitioned_by INTEGER NOT NULL,
-    transitioned_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
+    transitioned_at DATETIME DEFAULT (datetime('now', 'localtime')), ip_address TEXT, user_agent TEXT,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (transitioned_by) REFERENCES users(id),
     CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
 );
 INSERT OR IGNORE INTO workflow_transitions (id, document_id, from_status, to_status, comment, transitioned_by, transitioned_at, ip_address, user_agent)
 SELECT id, document_id, from_status, to_status, COALESCE(comment, comments, ''), COALESCE(transitioned_by, user_id),
-       COALESCE(transitioned_at, created_at, CURRENT_TIMESTAMP), ip_address, user_agent
+       COALESCE(transitioned_at, created_at, (datetime('now', 'localtime'))), ip_address, user_agent
 FROM workflow_history WHERE EXISTS (SELECT name FROM sqlite_master WHERE type='table' AND name='workflow_history');
 DROP TABLE IF EXISTS workflow_history;
 
 CREATE TABLE IF NOT EXISTS document_relationships (
     id INTEGER PRIMARY KEY AUTOINCREMENT, parent_document_id INTEGER NOT NULL, child_document_id INTEGER NOT NULL,
-    relationship_type TEXT NOT NULL, created_by INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    relationship_type TEXT NOT NULL, created_by INTEGER NOT NULL, created_at DATETIME DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (child_document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id),
@@ -191,8 +191,8 @@ LEFT JOIN document_versions dv ON u.id = dv.created_by
 LEFT JOIN workflow_transitions wt ON u.id = wt.transitioned_by
 LEFT JOIN audit_logs al ON u.id = al.user_id
 GROUP BY u.id, u.name, u.department, u.role;
-INSERT OR IGNORE INTO schema_migrations (version, description) 
-VALUES ('003', 'Final schema alignment with complete AuditLog.js compatibility and enhanced column mapping');
+INSERT OR IGNORE INTO schema_migrations (version, description)
+VALUES ('003', 'Final schema alignment with complete AuditLog.js compatibility and enhanced column mapping', datetime('now', 'localtime'));
 
 COMMIT;
 PRAGMA foreign_keys = ON;

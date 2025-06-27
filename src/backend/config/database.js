@@ -54,14 +54,15 @@ class DatabaseManager {
 
   async createTables () {
     try {
-      await this.run('CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, description TEXT, executed_at DATETIME DEFAULT CURRENT_TIMESTAMP)')
+      // Thay đổi `DEFAULT CURRENT_TIMESTAMP` thành `DEFAULT (datetime('now', 'localtime'))`
+      await this.run('CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, description TEXT, executed_at DATETIME DEFAULT (datetime(\'now\', \'localtime\')))')
       await this.run(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
             name TEXT NOT NULL, department TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
             position TEXT, phone TEXT, is_active INTEGER DEFAULT 1, last_login DATETIME,
             password_changed_at DATETIME, failed_login_attempts INTEGER DEFAULT 0, locked_until DATETIME,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_by INTEGER,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')), updated_at DATETIME DEFAULT (datetime('now', 'localtime')), created_by INTEGER,
             FOREIGN KEY (created_by) REFERENCES users(id), CHECK (role IN ('admin', 'user')),
             CHECK (department IN (
                 'Ban Giám đốc', 'Phòng Phát triển Nhượng quyền', 'Phòng Đào tạo Tiêu chuẩn',
@@ -80,7 +81,7 @@ class DatabaseManager {
             file_name TEXT, file_size INTEGER, mime_type TEXT, scope_of_application TEXT, recipients TEXT,
             review_cycle INTEGER DEFAULT 365, retention_period INTEGER DEFAULT 2555, next_review_date DATE,
             disposal_date DATE, change_reason TEXT, change_summary TEXT, keywords TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')), updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
             published_at DATETIME, archived_at DATETIME,
             FOREIGN KEY (author_id) REFERENCES users(id), FOREIGN KEY (reviewer_id) REFERENCES users(id),
             FOREIGN KEY (approver_id) REFERENCES users(id),
@@ -94,7 +95,7 @@ class DatabaseManager {
             id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, version TEXT NOT NULL,
             file_path TEXT, file_name TEXT, file_size INTEGER, change_reason TEXT, change_summary TEXT,
             change_type TEXT, status TEXT DEFAULT 'current', created_by INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
             FOREIGN KEY (created_by) REFERENCES users(id),
             CHECK (change_type IN ('major', 'minor', 'patch')),
@@ -105,7 +106,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS workflow_transitions (
             id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, from_status TEXT,
             to_status TEXT NOT NULL, comment TEXT, decision TEXT, transitioned_by INTEGER NOT NULL,
-            transitioned_at DATETIME DEFAULT CURRENT_TIMESTAMP, ip_address TEXT, user_agent TEXT,
+            transitioned_at DATETIME DEFAULT (datetime('now', 'localtime')), ip_address TEXT, user_agent TEXT,
             FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
             FOREIGN KEY (transitioned_by) REFERENCES users(id),
             CHECK (decision IN ('approved', 'rejected', 'returned', NULL))
@@ -114,7 +115,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
             resource_type TEXT NOT NULL, resource_id INTEGER, details TEXT, ip_address TEXT,
-            user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            user_agent TEXT, session_id TEXT, timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (user_id) REFERENCES users(id),
             CHECK (action IN (
                 'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_CHANGED', 'PASSWORD_RESET',
@@ -142,7 +143,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS document_permissions (
             id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, user_id INTEGER,
             department TEXT, permission_type TEXT NOT NULL, granted_by INTEGER NOT NULL,
-            granted_at DATETIME DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME, is_active INTEGER DEFAULT 1,
+            granted_at DATETIME DEFAULT (datetime('now', 'localtime')), expires_at DATETIME, is_active INTEGER DEFAULT 1,
             revoked_by INTEGER, revoked_at DATETIME,
             FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id), FOREIGN KEY (granted_by) REFERENCES users(id),
@@ -155,7 +156,7 @@ class DatabaseManager {
             id INTEGER PRIMARY KEY AUTOINCREMENT, original_name TEXT NOT NULL, file_name TEXT NOT NULL,
             file_path TEXT NOT NULL, file_size INTEGER NOT NULL, mime_type TEXT NOT NULL, checksum TEXT,
             uploaded_by INTEGER NOT NULL, document_id INTEGER, version_id INTEGER,
-            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            uploaded_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (uploaded_by) REFERENCES users(id), FOREIGN KEY (document_id) REFERENCES documents(id),
             FOREIGN KEY (version_id) REFERENCES document_versions(id)
         )`)
@@ -163,7 +164,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS document_relationships (
             id INTEGER PRIMARY KEY AUTOINCREMENT, parent_document_id INTEGER NOT NULL,
             child_document_id INTEGER NOT NULL, relationship_type TEXT NOT NULL, created_by INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE CASCADE,
             FOREIGN KEY (child_document_id) REFERENCES documents(id) ON DELETE CASCADE,
             FOREIGN KEY (created_by) REFERENCES users(id),
@@ -282,7 +283,7 @@ class DatabaseManager {
       let adminId = adminUser ? adminUser.id : null
       if (!adminUser) {
         const hashedPassword = await bcrypt.hash('admin123', security.bcrypt.rounds)
-        const result = await this.run('INSERT INTO users (email, password_hash, name, department, role, position, is_active, password_changed_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)',
+        const result = await this.run('INSERT INTO users (email, password_hash, name, department, role, position, is_active, password_changed_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(\'now\', \'localtime\'), NULL)',
           ['admin@1car.vn', hashedPassword, 'System Administrator', 'Ban Giám đốc', 'admin', 'System Administrator', 1])
         adminId = result.lastID
         if (adminId) {
@@ -299,7 +300,7 @@ class DatabaseManager {
       if (adminId) {
         const startupLogExists = await this.get('SELECT id FROM audit_logs WHERE action = \'SYSTEM_STARTUP\' ORDER BY timestamp DESC LIMIT 1')
         if (!startupLogExists) {
-          await this.run('INSERT INTO audit_logs (user_id, action, resource_type, details, timestamp) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+          await this.run('INSERT INTO audit_logs (user_id, action, resource_type, details, timestamp) VALUES (?, ?, ?, ?, datetime(\'now\', \'localtime\'))',
             [adminId, 'SYSTEM_STARTUP', 'system', JSON.stringify({ message: 'EDMS 1CAR system initialized/started', version: '1.0.0', schema_aligned_to_migration: '003' })])
           console.log('SYSTEM_STARTUP audit log created.')
         }
