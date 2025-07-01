@@ -159,8 +159,7 @@ class DashboardService {
 
   /**
    * Lấy tất cả các số liệu thống kê nhanh cho các thẻ trên cùng của Dashboard.
-   * Gọi nhiều API song song và xử lý dữ liệu để cải thiện hiệu suất.
-   * @returns {Promise<object>} Một đối tượng chứa các số liệu thống kê.
+   * >>> ĐÃ SỬA LỖI LOGIC ĐỌC DỮ LIỆU CHO "TÀI LIỆU CỦA TÔI" <<<
    */
   async getQuickStats() {
     try {
@@ -168,14 +167,11 @@ class DashboardService {
       const [
         myDocsResponse,
         pendingResponse,
-        favoritesResponse, // Sửa lỗi cho favorites
+        favoritesResponse, 
         recentActivitiesResponse,
       ] = await Promise.all([
-        // API này cần được kiểm tra ở backend
         api.get('/documents/stats?author=me'),
-        // API này cần được kiểm tra ở backend
         api.get('/documents/pending-approval/stats'),
-        // Sửa lỗi: Gọi API lấy danh sách và đếm ở frontend
         api.get('/me/favorites'),
         api.get('/audit-logs/recent?limit=100'),
       ]);
@@ -191,9 +187,11 @@ class DashboardService {
 
       // Trả về một đối tượng có cấu trúc rõ ràng
       return {
-        myDocuments: myDocsResponse.data?.data?.total || 0,
-        pendingApprovals: pendingResponse.data?.data?.total || 0,
-        // Sửa lỗi: Lấy độ dài của mảng favorites trả về
+        // SỬA LỖI: Đọc đúng thuộc tính `total_documents` thay vì `total`
+        myDocuments: myDocsResponse.data?.data?.total_documents || 0,
+        
+        // Các phần này đã đúng
+        pendingApprovals: pendingResponse.data?.data?.total_pending || 0,
         favorites: favoritesResponse.data?.data?.length || 0,
         todayActivity: todayActivityCount,
       };

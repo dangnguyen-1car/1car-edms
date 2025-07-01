@@ -23,17 +23,14 @@ export function useDocumentForm(
     };
 
     if (isEditMode && initialData) {
-        // *** LỖI ĐÃ SỬA: Xử lý `recipients` để đảm bảo nó luôn là một mảng. ***
         let recipientsArray = [];
-        // Kiểm tra xem recipients có phải là một chuỗi JSON hay không và phân tích nó.
         if (typeof initialData.recipients === 'string' && initialData.recipients.trim().startsWith('[')) {
             try {
                 recipientsArray = JSON.parse(initialData.recipients);
             } catch (e) {                
-                recipientsArray = []; // Mặc định thành mảng rỗng nếu phân tích lỗi
+                recipientsArray = [];
             }
         } else if (Array.isArray(initialData.recipients)) {
-            // Nếu nó đã là một mảng, sử dụng trực tiếp.
             recipientsArray = initialData.recipients;
         }
 
@@ -44,7 +41,6 @@ export function useDocumentForm(
             department: getDepartmentValue(initialData.department) || '', 
             description: initialData.description || '',
             scope_of_application: initialData.scope_of_application || '',
-            // Sử dụng mảng đã được xử lý
             recipients: recipientsArray,
             priority: initialData.priority || 'normal',
             security_level: initialData.security_level || 'internal',
@@ -251,7 +247,25 @@ export function useDocumentForm(
         setErrors(result.errors || {});
       }
     } catch (err) {
-      toast.error(err.message || 'Lỗi không xác định.');
+      // eslint-disable-next-line no-console
+      console.error("CHI TIẾT LỖI KHI SUBMIT FORM:", err);
+
+      if (err.response) {
+        // eslint-disable-next-line no-console
+        console.error("Dữ liệu lỗi từ Server:", err.response.data);
+        // eslint-disable-next-line no-console
+        console.error("Status Code:", err.response.status);
+        const serverMessage = err.response.data.message || 'Lỗi từ server, vui lòng kiểm tra log backend.';
+        toast.error(serverMessage);
+      } else if (err.request) {
+        // eslint-disable-next-line no-console
+        console.error("Không nhận được phản hồi:", err.request);
+        toast.error('Không thể kết nối đến server. Vui lòng kiểm tra lại đường truyền mạng.');
+      } else {
+        // eslint-disable-next-line no-console
+        console.error('Lỗi thiết lập request:', err.message);
+        toast.error('Có lỗi xảy ra khi gửi yêu cầu.');
+      }
     } finally {
       setLoading(false);
     }

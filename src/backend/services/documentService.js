@@ -1,4 +1,4 @@
-// src/backend/services/documentService.js - PHIÊN BẢN SỬA LỖI CUỐI CÙNG
+// src/backend/services/documentService.js - PHIÊN BẢN SỬA LỖI ĐƯỜNG DẪN
 const { createError } = require('../middleware/errorHandler')
 const { dbManager } = require('../config/database')
 const fs = require('fs-extra')
@@ -6,13 +6,11 @@ const path = require('path')
 const recentDocumentsService = require('./recentDocumentsService')
 const favoritesService = require('./favoritesService')
 const AuditService = require('./auditService')
-const PROJECT_ROOT = path.join(__dirname, '..')
+const DocumentCodeGenerator = require('../utils/documentCodeGenerator')
+// SỬA LỖI: Định nghĩa lại PROJECT_ROOT để trỏ ra thư mục gốc của dự án
+const PROJECT_ROOT = path.join(__dirname, '..', '..') // Trỏ ra 2 cấp: từ 'services' -> 'backend' -> thư mục gốc
 
 class DocumentService {
-  // ===============================================================
-  // CÁC HÀM XỬ LÝ LẤY DANH SÁCH (ĐÃ SỬA LỖI LOGIC)
-  // ===============================================================
-
   /**
      * Lấy danh sách tài liệu chờ phê duyệt cho người dùng hiện tại
      * @param {Object} user - Thông tin người dùng hiện tại
@@ -50,7 +48,6 @@ class DocumentService {
       const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'updated_at'
       const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
 
-      // *** SỬA LỖI TẠI ĐÂY: Cập nhật câu lệnh SQL để gán vai trò chính xác cho admin ***
       const query = `
                 SELECT d.*, u_author.name as author_name, u_author.department as author_department,
                        u_reviewer.name as reviewer_name, u_approver.name as approver_name,
@@ -69,13 +66,10 @@ class DocumentService {
                 ORDER BY d.${sortColumn} ${sortDirection}
                 LIMIT ? OFFSET ?
             `
-      // Cập nhật tham số cho câu lệnh query
       const queryParams = [user.role, user.id, user.id, ...params, limit, (page - 1) * limit]
-      // *** KẾT THÚC PHẦN SỬA LỖI ***
 
       const documents = await dbManager.all(query, queryParams)
       const countQuery = `SELECT COUNT(*) as count FROM documents d ${whereClause}`
-      // Tham số cho countQuery không cần user.role và user.id lặp lại
       const countParams = [...params]
 
       const totalResult = await dbManager.get(countQuery, countParams)
@@ -135,15 +129,126 @@ class DocumentService {
 
       return responseData
     } catch (error) {
-      // Ném lỗi để middleware có thể xử lý
       throw createError('Không thể lấy thống kê tài liệu chờ phê duyệt', 500, 'FETCH_STATS_FAILED')
     }
-    // ===== KẾT THÚC VÙNG CODE MỚI ĐỂ THAY THẾ =====
   }
 
-  // ===============================================================
-  // CÁC HÀM XỬ LÝ WORKFLOW VÀ THAO TÁC CRUD
-  // ===============================================================
+  /**
+     * TẠO TÀI LIỆU MỚI - ĐÂY LÀ HÀM CẦN SỬA
+     * Sửa đổi để xử lý file_id và đảm bảo tính toàn vẹn dữ liệu
+     */
+  async createDocument (documentData, user) {
+    // Bọc toàn bộ logic trong một giao dịch (transaction) của database
+    return dbManager.transaction(async (db) => {
+      try {
+        const {
+          title,
+          type,
+          department,
+          file_id, // Nhận file_id từ frontend
+          author_id,
+          description,
+          priority = 'normal',
+          security_level = 'internal',
+          scope_of_application,
+          recipients,
+          review_cycle,
+          retention_period,
+          change_reason,
+          change_summary,
+          keywords,
+          status // Nhận trạng thái từ frontend ('draft' hoặc 'review')
+        } = documentData
+
+        // 1. **VALIDATE DỮ LIỆU ĐẦU VÀO**
+        if (!title || !type || !department || !author_id) {
+          throw createError('Thiếu các trường bắt buộc: title, type, department, author_id.', 400)
+        }
+
+        // -> Quan trọng: Kiểm tra file_id. Nếu tạo tài liệu mới thì phải có file.
+        if (!file_id) {
+          throw createError('Không có file nào được đính kèm. Vui lòng tải file lên trước.', 400)
+        }
+
+        // 2. **LẤY THÔNG TIN FILE TỪ BẢNG file_uploads**
+        // (Giả sử file_id đã được tạo ở một bước upload riêng biệt và lưu trong bảng file_uploads)
+        const fileInfo = await db.get('SELECT * FROM file_uploads WHERE id = ?', [file_id])
+        if (!fileInfo) {
+          throw createError(`File với ID ${file_id} không tồn tại trong hệ thống.`, 404)
+        }
+
+        // 3. **TẠO MÃ TÀI LIỆU**
+        const document_code = await DocumentCodeGenerator.generateCode(type, department)
+        const codeExists = await db.get('SELECT id FROM documents WHERE document_code = ?', [document_code])
+        if (codeExists) {
+          throw createError(`Mã tài liệu được tạo ra (${document_code}) đã tồn tại. Vui lòng thử lại.`, 500)
+        }
+
+        // ... (logic tính toán next_review_date, disposal_date, recipientsJson giữ nguyên)
+        let next_review_date = null
+        if (review_cycle) {
+          const reviewDate = new Date()
+          reviewDate.setDate(reviewDate.getDate() + parseInt(review_cycle))
+          next_review_date = reviewDate.toISOString().split('T')[0]
+        }
+
+        let disposal_date = null
+        if (retention_period) {
+          const disposalDate = new Date()
+          disposalDate.setDate(disposalDate.getDate() + parseInt(retention_period))
+          disposal_date = disposalDate.toISOString().split('T')[0]
+        }
+
+        const recipientsJson = Array.isArray(recipients) ? JSON.stringify(recipients) : null
+
+        // 4. **INSERT DỮ LIỆU VÀO BẢNG documents**
+        const result = await db.run(`
+                    INSERT INTO documents (
+                        document_code, title, description, type, department, 
+                        status, author_id, file_path, file_name, file_size, mime_type,
+                        priority, security_level, scope_of_application,
+                        recipients, review_cycle, retention_period, next_review_date,
+                        disposal_date, change_reason, change_summary, keywords,
+                        version, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '01.00', datetime('now', 'localtime'), datetime('now', 'localtime'))
+                `, [
+          document_code, title, description, type, department,
+          status || 'draft', // Dùng trạng thái gửi từ frontend
+          author_id,
+          fileInfo.file_path, // Lấy thông tin từ bảng file_uploads
+          fileInfo.original_name,
+          fileInfo.file_size,
+          fileInfo.mime_type,
+          priority, security_level, scope_of_application,
+          recipientsJson, review_cycle, retention_period, next_review_date,
+          disposal_date, change_reason, change_summary, keywords
+        ])
+
+        const newDocumentId = result.lastID
+
+        // 5. **CẬP NHẬT LẠI BẢNG file_uploads**
+        // Liên kết ngược lại file upload với document vừa được tạo
+        await db.run('UPDATE file_uploads SET document_id = ? WHERE id = ?', [newDocumentId, file_id])
+
+        // 6. **GHI LOG AUDIT**
+        await AuditService.log({
+          action: 'DOCUMENT_CREATED',
+          userId: user.id,
+          resourceType: 'document',
+          resourceId: newDocumentId,
+          details: { document_code, title, type, department, status: status || 'draft' }
+        })
+
+        // Trả về tài liệu vừa tạo
+        const newDocument = await db.get('SELECT * FROM documents WHERE id = ?', [newDocumentId])
+        return { success: true, data: newDocument }
+      } catch (error) {
+        console.error('Error in DocumentService.createDocument:', error)
+        // Vì đang ở trong transaction, lỗi sẽ tự động được rollback
+        throw error // Ném lỗi ra để transaction xử lý
+      }
+    })
+  }
 
   /**
      * Xử lý workflow action (approve, reject, request_changes)
@@ -159,8 +264,8 @@ class DocumentService {
         throw createError('Không tìm thấy tài liệu', 404, 'DOCUMENT_NOT_FOUND')
       }
       const canPerformAction = user.role === 'admin' ||
-                                document.reviewer_id === user.id ||
-                                document.approver_id === user.id
+                                    document.reviewer_id === user.id ||
+                                    document.approver_id === user.id
       if (!canPerformAction) {
         throw createError('Bạn không có quyền thực hiện hành động này', 403, 'INSUFFICIENT_PERMISSION')
       }
@@ -268,8 +373,10 @@ class DocumentService {
         throw createError('Tài liệu này không có file đính kèm.', 404, 'FILE_NOT_FOUND')
       }
 
-      const relativePath = document.file_path.startsWith('/') ? document.file_path.substring(1) : document.file_path
-      const absolutePath = path.join(PROJECT_ROOT, relativePath)
+      // SỬA LỖI: Xây dựng đường dẫn tuyệt đối chính xác
+      // Đường dẫn trong DB đã là đường dẫn tương đối từ gốc dự án (ví dụ: 'uploads/documents/file.pdf')
+      // Chỉ cần nối nó với PROJECT_ROOT là đủ.
+      const absolutePath = path.join(PROJECT_ROOT, document.file_path)
 
       if (!await fs.pathExists(absolutePath)) {
         console.error(`File not found on disk at path: ${absolutePath}`)
@@ -312,7 +419,6 @@ class DocumentService {
     return false
   }
 
-  async createDocument (documentData, user) { /* Implementation giữ nguyên */ }
   async updateDocument (id, documentData, user) { /* Implementation giữ nguyên */ }
   async deleteDocument (id, user) { /* Implementation giữ nguyên */ }
 
@@ -374,7 +480,7 @@ class DocumentService {
         )
 
         await dbManager.run(
-          'UPDATE documents SET file_path = ?, file_name = ?, file_size = ?, mime_type = ?, version_number = ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?',
+          'UPDATE documents SET file_path = ?, file_name = ?, file_size = ?, mime_type = ?, version = ?, updated_at = datetime(\'now\', \'localtime\') WHERE id = ?',
           [file_path, file_name, file_size, mime_type, version_number, id]
         )
 
@@ -444,9 +550,9 @@ class DocumentService {
   }
 
   /**
-   * Lấy thống kê tài liệu.
-   * *** PHIÊN BẢN SỬA LỖI HOÀN CHỈNH ***
-   */
+     * Lấy thống kê tài liệu.
+     * *** PHIÊN BẢN SỬA LỖI HOÀN CHỈNH ***
+     */
   async getDocumentStatistics (user, filters = {}) {
     try {
       const { department, authorId, dateFrom, dateTo } = filters
@@ -480,16 +586,16 @@ class DocumentService {
 
       // Câu lệnh SQL đúng để thống kê theo từng trạng thái
       const statsQuery = `
-        SELECT
-          COUNT(*) as total_documents,
-          COUNT(CASE WHEN status = 'published' THEN 1 END) as published_count,
-          COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
-          COUNT(CASE WHEN status = 'review' THEN 1 END) as review_count,
-          COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_count,
-          COUNT(CASE WHEN created_at >= datetime('now', '-30 days', 'localtime') THEN 1 END) as recent_count
-        FROM documents
-        ${whereClause}
-      `
+                SELECT
+                    COUNT(*) as total_documents,
+                    COUNT(CASE WHEN status = 'published' THEN 1 END) as published_count,
+                    COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
+                    COUNT(CASE WHEN status = 'review' THEN 1 END) as review_count,
+                    COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_count,
+                    COUNT(CASE WHEN created_at >= datetime('now', '-30 days', 'localtime') THEN 1 END) as recent_count
+                FROM documents
+                ${whereClause}
+            `
 
       const stats = await dbManager.get(statsQuery, params)
 

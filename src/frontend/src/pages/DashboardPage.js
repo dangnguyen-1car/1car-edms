@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { dashboardService } from '../services/dashboardService';
 // Component Imports
 import SkeletonLoader from '../components/common/SkeletonLoader';
-import CreateDocumentModal from '../components/documents/CreateDocumentModal';
+import DocumentFormWrapper from '../components/documents/DocumentFormWrapper';
 import DocumentStatsWidget from '../components/dashboard/DocumentStatsWidget';
 import RecentActivitiesWidget from '../components/dashboard/RecentActivitiesWidget';
 import PendingApprovalsWidget from '../components/dashboard/PendingApprovalsWidget';
@@ -197,14 +197,16 @@ function DashboardPage() {
 
                 {/* Create Document Modal */}
                 {showCreateModal && (
-                    <CreateDocumentModal
+                    <DocumentFormWrapper
                         isOpen={showCreateModal}
                         onClose={() => setShowCreateModal(false)}
                         onSuccess={() => {
                             setShowCreateModal(false);
-                            // Refresh dashboard data
+                            // Cân nhắc dùng queryClient.invalidateQueries thay vì reload trang
                             window.location.reload();
                         }}
+                        isEditMode={false} // Luôn là chế độ tạo mới từ Dashboard
+                        documentId={null}
                     />
                 )}
             </div>
